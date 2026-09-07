@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- AD-1: Application depends on Domain only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\DriveTrack.Domain\DriveTrack.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

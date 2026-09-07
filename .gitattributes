@@ -1,0 +1,3 @@
+# Normalise line endings in the repository so a Windows clone cannot introduce CRLF into
+# files that are executed as-is, such as the inline /bin/sh script in DriveTrack/compose.yaml.
+* text=auto eol=lf

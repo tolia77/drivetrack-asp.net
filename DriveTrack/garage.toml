@@ -1,0 +1,28 @@
+# Garage node configuration (AD-19).
+#
+# The three settings the S3 client must match are fixed here so no later story has to guess
+# them: the S3 API is bound explicitly, and the region is the literal string `garage`.
+# Path-style addressing is a client-side setting and is mandatory against this node.
+#
+# Secrets are NOT in this file. `rpc_secret`, `admin_token` and `metrics_token` are supplied
+# as the GARAGE_RPC_SECRET, GARAGE_ADMIN_TOKEN and GARAGE_METRICS_TOKEN environment
+# variables (see .env.example).
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+# Single instance is an accepted constraint (PRD section 10), so one copy of each object.
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+# Enabled so the one-shot layout initialisation has something to talk to.
+api_bind_addr = "[::]:3903"

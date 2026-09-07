@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    AD-1: Domain is the root of the dependency graph.
+    It has no ProjectReference and no PackageReference, and must acquire neither.
+  -->
+
+</Project>

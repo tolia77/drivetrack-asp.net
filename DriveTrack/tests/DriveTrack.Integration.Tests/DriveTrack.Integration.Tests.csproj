@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" Version="4.0.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.14.0" />
+  </ItemGroup>
+
+  <!--
+    References all four source projects so AD-1's layering can be asserted from
+    compiled assembly metadata rather than from strings.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DriveTrack.Domain\DriveTrack.Domain.csproj" />
+    <ProjectReference Include="..\..\src\DriveTrack.Application\DriveTrack.Application.csproj" />
+    <ProjectReference Include="..\..\src\DriveTrack.Infrastructure\DriveTrack.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\DriveTrack.Web\DriveTrack.Web.csproj" />
+  </ItemGroup>
+
+</Project>

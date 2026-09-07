@@ -1,0 +1,16 @@
+# Keeps the build context small and secrets out of image layers.
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+**/TestResults/
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+tests/
+README.md
+compose.yaml
+Dockerfile
+.dockerignore

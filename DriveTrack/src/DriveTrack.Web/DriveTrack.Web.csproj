@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <UserSecretsId>drivetrack-web</UserSecretsId>
+  </PropertyGroup>
+
+  <!--
+    AD-1: Web depends on Application. The Infrastructure reference exists only so the
+    composition root (Program.cs) can call AddInfrastructure; no other file under this
+    project may name a DriveTrack.Infrastructure type. LayeringTests asserts that.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\DriveTrack.Application\DriveTrack.Application.csproj" />
+    <ProjectReference Include="..\DriveTrack.Infrastructure\DriveTrack.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

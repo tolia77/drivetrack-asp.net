@@ -1,0 +1,152 @@
+name: drivetrack
+
+# One `docker compose up` brings up the whole system on a machine that has Docker and
+# nothing else. Every setting arrives as an environment variable (AD-19); copy .env.example
+# to .env before the first run.
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is not set. Copy .env.example to .env before running docker compose.}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set. Copy .env.example to .env before running docker compose.}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set. Copy .env.example to .env before running docker compose.}
+    volumes:
+      # PostgreSQL 18's image expects a single mount at /var/lib/postgresql and places the
+      # cluster in a major-version subdirectory below it; mounting /var/lib/postgresql/data
+      # instead makes the image refuse to start.
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      # The app waits on this condition; it is the only thing standing between a cold start
+      # and a migration run against a database that is not accepting connections yet.
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  objects:
+    image: dxflrs/garage:v2.4.0
+    command: ["/garage", "server"]
+    environment:
+      # Garage reads its secrets from the environment; garage.toml holds none.
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
+      GARAGE_METRICS_TOKEN: ${GARAGE_METRICS_TOKEN}
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - objects-data:/var/lib/garage
+    healthcheck:
+      # `garage health` exits non-zero until the cluster layout is live, so this reports
+      # unhealthy until objects-init has done its work.
+      test: ["CMD", "/garage", "-c", "/etc/garage.toml", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  objects-init:
+    # A fresh Garage node has no cluster layout and refuses S3 traffic until it gets one.
+    # This applies it exactly once: a second run sees a layout version above zero and exits.
+    image: alpine:3.22
+    depends_on:
+      objects:
+        condition: service_started
+    environment:
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
+      GARAGE_ZONE: ${GARAGE_ZONE:?GARAGE_ZONE is not set. Copy .env.example to .env before running docker compose.}
+      GARAGE_CAPACITY_BYTES: ${GARAGE_CAPACITY_BYTES:?GARAGE_CAPACITY_BYTES is not set. Copy .env.example to .env before running docker compose.}
+    entrypoint: ["/bin/sh", "-eu", "-c"]
+    command:
+      - |
+        ADMIN="http://objects:3903"
+        AUTH="Authorization: Bearer $${GARAGE_ADMIN_TOKEN}"
+        JSON="Content-Type: application/json"
+
+        attempt=0
+        until wget -q -O /tmp/layout.json --header="$$AUTH" "$$ADMIN/v2/GetClusterLayout"; do
+          attempt=$$((attempt + 1))
+          if [ "$$attempt" -ge 60 ]; then
+            echo "garage admin API never became reachable" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+
+        # grep -o emits one match per line in document order, so head -n 1 really is the
+        # first match. A `sed 's/.*"version".../'` would let the greedy .* skip to the last
+        # match on a single-line JSON response and read the wrong number.
+        # `|| true` matters under `sh -eu`: without it an empty match aborts the script
+        # right here and the :-0 fallback below could never run.
+        version=$$(grep -o -E '"version"[[:space:]]*:[[:space:]]*[0-9]+' /tmp/layout.json \
+          | head -n 1 | grep -o -E '[0-9]+' || true)
+        version=$${version:-0}
+
+        if [ "$$version" -gt 0 ]; then
+          echo "Garage layout already at version $$version; nothing to do."
+          exit 0
+        fi
+
+        wget -q -O /tmp/status.json --header="$$AUTH" "$$ADMIN/v2/GetClusterStatus"
+        # `|| true` for the same reason: an empty match must reach the check below,
+        # which says what went wrong, instead of killing the script silently.
+        node=$$(grep -o -E '"id"[[:space:]]*:[[:space:]]*"[0-9a-f]{64}"' /tmp/status.json \
+          | head -n 1 | grep -o -E '[0-9a-f]{64}' || true)
+
+        if [ -z "$$node" ]; then
+          echo "could not read the garage node id" >&2
+          exit 1
+        fi
+
+        echo "Assigning zone $$GARAGE_ZONE to garage node $$node."
+        wget -q -O /dev/null --header="$$AUTH" --header="$$JSON" \
+          --post-data="{\"roles\":[{\"id\":\"$$node\",\"zone\":\"$$GARAGE_ZONE\",\"capacity\":$$GARAGE_CAPACITY_BYTES,\"tags\":[]}]}" \
+          "$$ADMIN/v2/UpdateClusterLayout"
+
+        echo "Applying cluster layout version 1."
+        wget -q -O /dev/null --header="$$AUTH" --header="$$JSON" \
+          --post-data='{"version":1}' \
+          "$$ADMIN/v2/ApplyClusterLayout"
+
+        echo "Garage layout applied."
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      objects:
+        condition: service_healthy
+      objects-init:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__Default: ${ConnectionStrings__Default:?ConnectionStrings__Default is not set. Copy .env.example to .env before running docker compose.}
+      Cors__AllowedOrigins__0: ${Cors__AllowedOrigins__0}
+      Jwt__SigningKey: ${Jwt__SigningKey}
+      Smtp__Host: ${Smtp__Host}
+      Smtp__Port: ${Smtp__Port}
+      Smtp__UseStartTls: ${Smtp__UseStartTls}
+      Smtp__User: ${Smtp__User}
+      Smtp__Password: ${Smtp__Password}
+      Smtp__FromAddress: ${Smtp__FromAddress}
+      Smtp__FromName: ${Smtp__FromName}
+      Geocoder__Endpoint: ${Geocoder__Endpoint}
+      ObjectStore__ServiceUrl: ${ObjectStore__ServiceUrl}
+      ObjectStore__Region: ${ObjectStore__Region}
+      ObjectStore__AccessKey: ${ObjectStore__AccessKey}
+      ObjectStore__SecretKey: ${ObjectStore__SecretKey}
+      ObjectStore__Bucket: ${ObjectStore__Bucket}
+    ports:
+      - "${APP_PORT:?APP_PORT is not set. Copy .env.example to .env before running docker compose.}:8080"
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  objects-data:

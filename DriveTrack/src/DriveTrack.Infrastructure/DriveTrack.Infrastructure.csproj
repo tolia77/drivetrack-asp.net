@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- AD-1: Infrastructure depends on Application and Domain. Never on Web. -->
+  <ItemGroup>
+    <ProjectReference Include="..\DriveTrack.Application\DriveTrack.Application.csproj" />
+    <ProjectReference Include="..\DriveTrack.Domain\DriveTrack.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.4" />
+  </ItemGroup>
+
+</Project>
