@@ -1,9 +1,12 @@
 @page "/not-found"
 @layout MainLayout
+@using DriveTrack.Web.Resources
 @using Microsoft.AspNetCore.Components.Endpoints
+@using Microsoft.Extensions.Localization
 @* Rendered statically: with prerendering off (AD-14) an interactive not-found page is
    an empty shell until a circuit connects. *@
 @attribute [ExcludeFromInteractiveRouting]
+@inject IStringLocalizer<UiText> Localizer
 
-<h3>Not Found</h3>
-<p>Sorry, the content you are looking for does not exist.</p>
+<h3>@Localizer["NotFoundTitle"]</h3>
+<p>@Localizer["NotFoundMessage"]</p>

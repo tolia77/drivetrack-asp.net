@@ -22,6 +22,15 @@ RUN dotnet publish src/DriveTrack.Web/DriveTrack.Web.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 WORKDIR /app
 
+# NFR-14 and NFR-15: the Alpine runtime image ships no ICU data and therefore defaults to
+# globalization-invariant mode, where "uk-UA" is not a culture at all - the host fails to start
+# on UseRequestLocalization. icu-libs alone is not enough: it pulls only icu-data-en, which makes
+# uk-UA *resolve* while still formatting 07.09.2026 as 9/7/2026 and 1 234,5 as 1,234.5 - a silent
+# NFR-15 breach in the one environment the requirement is promised in. icu-data-full carries the
+# Ukrainian CLDR data. LocalizationTests pins this line, because no assertion running on a
+# developer machine can observe its absence.
+RUN apk add --no-cache icu-libs icu-data-full
+
 # Non-root by construction. The image ships no writable application state; PostgreSQL and
 # Garage own everything durable.
 RUN addgroup -S drivetrack && adduser -S -G drivetrack drivetrack
@@ -31,7 +40,8 @@ COPY --from=build --chown=drivetrack:drivetrack /app/publish ./
 USER drivetrack
 
 ENV ASPNETCORE_HTTP_PORTS=8080 \
-    DOTNET_EnableDiagnostics=0
+    DOTNET_EnableDiagnostics=0 \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
 EXPOSE 8080
 

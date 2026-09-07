@@ -1,5 +1,6 @@
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Infrastructure.Persistence.Repositories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace DriveTrack.Infrastructure.Persistence;
@@ -71,8 +72,28 @@ public sealed class UnitOfWork : IUnitOfWork
                 + "scope and one commit; create a new scope for the next operation.");
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
-        await _transaction.CommitAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            await _transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+        {
+            // AD-8: the single production commit path is the single translation point. A unique or
+            // check violation leaves here as a typed failure carrying a contract code; anything
+            // else is returned unchanged and surfaces as the 500 envelope. The original is kept as
+            // the InnerException either way, so the log still has the SQL detail the wire never sees.
+            var translated = PostgresConstraintTranslator.Translate(exception);
+
+            if (ReferenceEquals(translated, exception))
+            {
+                // Not a constraint the contract models. Rethrow in place so the original stack
+                // trace survives; "throw translated" would overwrite it with this line.
+                throw;
+            }
+
+            throw translated;
+        }
 
         _committed = true;
     }

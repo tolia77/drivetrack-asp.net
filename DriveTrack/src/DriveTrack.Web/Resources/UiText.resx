@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    NFR-14: the Blazor shell's chrome, in Ukrainian. Every entry here is reached from a .razor file
+    through IStringLocalizer<UiText>; no literal sentence is left in a component.
+  -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="HomeStatus" xml:space="preserve">
+    <value>Скелет застосунку працює, а схема бази даних оновлена до останньої міграції.</value>
+  </data>
+  <data name="NotFoundTitle" xml:space="preserve">
+    <value>Сторінку не знайдено</value>
+  </data>
+  <data name="NotFoundMessage" xml:space="preserve">
+    <value>На жаль, запитаного вмісту не існує.</value>
+  </data>
+  <data name="ErrorPageTitle" xml:space="preserve">
+    <value>Помилка</value>
+  </data>
+  <data name="ErrorHeading" xml:space="preserve">
+    <value>Помилка.</value>
+  </data>
+  <data name="ErrorMessage" xml:space="preserve">
+    <value>Під час обробки вашого запиту сталася помилка.</value>
+  </data>
+  <data name="ErrorRequestId" xml:space="preserve">
+    <value>Ідентифікатор запиту:</value>
+  </data>
+  <data name="NavigationMenu" xml:space="preserve">
+    <value>Меню навігації</value>
+  </data>
+  <data name="NavHome" xml:space="preserve">
+    <value>Головна</value>
+  </data>
+  <data name="CircuitError" xml:space="preserve">
+    <value>Сталася необроблена помилка.</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>Перезавантажити</value>
+  </data>
+  <data name="ReconnectRejoining" xml:space="preserve">
+    <value>Повторне під’єднання до сервера…</value>
+  </data>
+  <data name="ReconnectRetryPrefix" xml:space="preserve">
+    <value>Не вдалося під’єднатися… наступна спроба через</value>
+  </data>
+  <!-- Abbreviated because the countdown produces 1, 2-4 and 5+, which take three different
+       Ukrainian plural forms; an abbreviation is correct for all of them. -->
+  <data name="ReconnectRetrySuffix" xml:space="preserve">
+    <value>с.</value>
+  </data>
+  <data name="ReconnectFailed" xml:space="preserve">
+    <value>Не вдалося під’єднатися знову.</value>
+  </data>
+  <data name="ReconnectRetryHint" xml:space="preserve">
+    <value>Спробуйте ще раз або перезавантажте сторінку.</value>
+  </data>
+  <data name="Retry" xml:space="preserve">
+    <value>Повторити</value>
+  </data>
+  <data name="SessionPaused" xml:space="preserve">
+    <value>Сеанс призупинено сервером.</value>
+  </data>
+  <data name="ResumeFailed" xml:space="preserve">
+    <value>Не вдалося відновити сеанс.</value>
+  </data>
+  <data name="Resume" xml:space="preserve">
+    <value>Відновити</value>
+  </data>
+</root>

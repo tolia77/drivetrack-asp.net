@@ -5,4 +5,16 @@
     <ProjectReference Include="..\DriveTrack.Domain\DriveTrack.Domain.csproj" />
   </ItemGroup>
 
+  <!--
+    AD-9: FluentValidation 12.1.1, invoked manually. The deprecated auto-validation
+    ASP.NET package is deliberately absent - validation is called by an application
+    service through ValidateAndThrowAsync, never by an adapter pipeline.
+    The DependencyInjectionExtensions package brings AddValidatorsFromAssembly and, with
+    it, Microsoft.Extensions.DependencyInjection.Abstractions for AddApplication.
+  -->
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+  </ItemGroup>
+
 </Project>

@@ -3,6 +3,12 @@
   <PropertyGroup>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>drivetrack-web</UserSecretsId>
+    <!--
+      NFR-14: the neutral resources in this assembly *are* Ukrainian. Saying so stops the runtime
+      probing for a uk satellite assembly that will never exist, and makes uk-UA resolve straight
+      to the .resx files under Resources/.
+    -->
+    <NeutralResourcesLanguage>uk</NeutralResourcesLanguage>
   </PropertyGroup>
 
   <!--
@@ -13,6 +19,15 @@
   <ItemGroup>
     <ProjectReference Include="..\DriveTrack.Application\DriveTrack.Application.csproj" />
     <ProjectReference Include="..\DriveTrack.Infrastructure\DriveTrack.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!--
+    The wire contract is asserted over HTTP by the integration suite, and the adapter that
+    implements it is internal on purpose: nothing outside this assembly composes an envelope.
+    The test project is the one exception.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="DriveTrack.Integration.Tests" />
   </ItemGroup>
 
 </Project>

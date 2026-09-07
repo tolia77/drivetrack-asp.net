@@ -1,4 +1,8 @@
-﻿<script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
+@using DriveTrack.Web.Resources
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<UiText> Localizer
+
+<script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
 
 <dialog id="components-reconnect-modal" data-nosnippet>
     <div class="components-reconnect-container">
@@ -7,25 +11,25 @@
             <div></div>
         </div>
         <p class="components-reconnect-first-attempt-visible">
-            Rejoining the server...
+            @Localizer["ReconnectRejoining"]
         </p>
         <p class="components-reconnect-repeated-attempt-visible">
-            Rejoin failed... trying again in <span id="components-seconds-to-next-attempt"></span> seconds.
+            @Localizer["ReconnectRetryPrefix"] <span id="components-seconds-to-next-attempt"></span> @Localizer["ReconnectRetrySuffix"]
         </p>
         <p class="components-reconnect-failed-visible">
-            Failed to rejoin.<br />Please retry or reload the page.
+            @Localizer["ReconnectFailed"]<br />@Localizer["ReconnectRetryHint"]
         </p>
         <button id="components-reconnect-button" class="components-reconnect-failed-visible">
-            Retry
+            @Localizer["Retry"]
         </button>
         <p class="components-pause-visible">
-            The session has been paused by the server.
+            @Localizer["SessionPaused"]
         </p>
         <p class="components-resume-failed-visible">
-            Failed to resume the session.<br />Please retry or reload the page.
+            @Localizer["ResumeFailed"]<br />@Localizer["ReconnectRetryHint"]
         </p>
         <button id="components-resume-button" class="components-pause-visible components-resume-failed-visible">
-            Resume
+            @Localizer["Resume"]
         </button>
     </div>
 </dialog>

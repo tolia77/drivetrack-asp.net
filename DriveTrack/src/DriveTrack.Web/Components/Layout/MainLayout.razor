@@ -1,4 +1,7 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@using DriveTrack.Web.Resources
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<UiText> Localizer
 
 <div class="page">
     <div class="sidebar">
@@ -15,7 +18,7 @@
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
+    @Localizer["CircuitError"]
+    <a href="." class="reload">@Localizer["Reload"]</a>
     <span class="dismiss">🗙</span>
 </div>

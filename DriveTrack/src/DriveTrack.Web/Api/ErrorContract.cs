@@ -1,0 +1,61 @@
+using DriveTrack.Application.Common;
+using Microsoft.AspNetCore.Http;
+
+namespace DriveTrack.Web.Api;
+
+/// <summary>
+/// The one status table (AD-7). NFR-2 - equivalent failures return the same status code everywhere -
+/// is only true if there is exactly one place that decides, so every writer in this folder asks
+/// here and nothing maps a status inline.
+/// </summary>
+internal static class ErrorContract
+{
+    /// <summary>
+    /// The HTTP status for a contract code.
+    /// <para>
+    /// The throwing default arm makes this switch exhaustive to the compiler, so CS8509 can never
+    /// fire here: the gate on a member added without a status is
+    /// <c>ErrorContractTests.Every_error_code_has_a_status</c>, which calls this for every declared
+    /// member. Throwing rather than returning 500 is what makes that gate possible - a plausible
+    /// fallback would pass the test and answer the wrong status in production.
+    /// </para>
+    /// </summary>
+    public static int StatusFor(ErrorCode code) => code switch
+    {
+        ErrorCode.COMMON_UNEXPECTED_ERROR => StatusCodes.Status500InternalServerError,
+        ErrorCode.COMMON_NOT_FOUND => StatusCodes.Status404NotFound,
+        ErrorCode.COMMON_VALIDATION_FAILED => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.COMMON_CONFLICT => StatusCodes.Status409Conflict,
+        ErrorCode.AUTH_UNAUTHENTICATED => StatusCodes.Status401Unauthorized,
+        ErrorCode.AUTH_FORBIDDEN => StatusCodes.Status403Forbidden,
+
+        // AD-8 splits the two constraint kinds where AD-7 folds them together, and AD-8 is the more
+        // specific rule: a unique violation is a genuine conflict with another row, a check
+        // violation is a value the caller should not have sent. That split is what keeps NFR-2
+        // honest - a rating of 6 is 422 whether the validator or the database catches it.
+        ErrorCode.PERSISTENCE_UNIQUE_VIOLATION => StatusCodes.Status409Conflict,
+        ErrorCode.PERSISTENCE_CHECK_VIOLATION => StatusCodes.Status422UnprocessableEntity,
+
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(code),
+            code,
+            "No status is mapped for this error code. AD-7's status map is total: add an arm here "
+                + "and a resource key in ErrorMessages.resx when minting a code."),
+    };
+
+    /// <summary>
+    /// The contract code for a status the framework produced on its own - a router 404, an
+    /// authorization 403, a status set by an action with no value. Everything unrecognised is
+    /// <c>COMMON_UNEXPECTED_ERROR</c>, because an unmodelled failure is a defect, not a client error.
+    /// </summary>
+    public static ErrorCode DefaultCodeFor(int statusCode) => statusCode switch
+    {
+        StatusCodes.Status401Unauthorized => ErrorCode.AUTH_UNAUTHENTICATED,
+        StatusCodes.Status403Forbidden => ErrorCode.AUTH_FORBIDDEN,
+        StatusCodes.Status404NotFound => ErrorCode.COMMON_NOT_FOUND,
+        StatusCodes.Status409Conflict => ErrorCode.COMMON_CONFLICT,
+        StatusCodes.Status400BadRequest => ErrorCode.COMMON_VALIDATION_FAILED,
+        StatusCodes.Status422UnprocessableEntity => ErrorCode.COMMON_VALIDATION_FAILED,
+        _ => ErrorCode.COMMON_UNEXPECTED_ERROR,
+    };
+}
