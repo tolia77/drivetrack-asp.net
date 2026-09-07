@@ -1,0 +1,75 @@
+# =====================================================================
+# This repo tracks the DriveTrack ASP.NET project only.
+# Tooling, planning artifacts and the legacy implementations stay local.
+# =====================================================================
+
+# --- Agent tooling and planning artifacts (local only) ---
+.claude/
+.bmad-loop/
+_bmad/
+_bmad-output/
+docs/
+
+# --- Legacy implementations: independent git repos, not part of this one ---
+# Already version-controlled and pushed to their own GitHub remotes
+# (tolia77/driverhub-backend, tolia77/driverhub-frontend). Kept here as
+# read-only reference for the rewrite.
+/driverhub_backend/
+/driverhub_frontend/
+
+# --- Secrets: never commit, anywhere in the tree ---
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+secrets.json
+appsettings.Development.json
+appsettings.*.Local.json
+
+# --- .NET build output ---
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+artifacts/
+project.lock.json
+project.fragment.lock.json
+*.user
+*.suo
+*.userprefs
+*.cache
+*.dll
+*.pdb
+
+# --- .NET tooling ---
+.vs/
+.vscode/
+TestResults/
+[Cc]overage*/
+BenchmarkDotNet.Artifacts/
+msbuild.log
+msbuild.err
+msbuild.wrn
+
+# --- Node (if any front-end assets are built here) ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# --- Logs ---
+*.log
+[Ll]ogs/
+
+# --- Editors ---
+.idea/
+*.swp
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
