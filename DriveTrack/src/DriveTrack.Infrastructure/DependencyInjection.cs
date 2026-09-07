@@ -1,7 +1,9 @@
+using DriveTrack.Application.Abstractions;
 using DriveTrack.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace DriveTrack.Infrastructure;
@@ -19,8 +21,8 @@ public static class DependencyInjection
     public const string ConnectionStringKey = "ConnectionStrings:Default";
 
     /// <summary>
-    /// Registers the pooled <see cref="AppDbContext"/> factory and the
-    /// <see cref="DatabaseMigrator"/>.
+    /// Registers the pooled <see cref="AppDbContext"/> factory, the per-operation persistence
+    /// scope (AD-5), the clock (AD-13) and the <see cref="DatabaseMigrator"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException">
     /// The connection string is absent or blank. Failing here aborts startup before the host
@@ -55,7 +57,23 @@ public static class DependencyInjection
             options.EnableDetailedErrors(isDevelopment);
         });
 
+        // AddPooledDbContextFactory also registers the context itself, scoped, as a
+        // convenience. AD-5 forbids exactly that registration: on a Blazor Server circuit a
+        // scoped context lives for hours, accumulates tracked entities, serves stale reads and
+        // throws on concurrent renders. Removing the descriptor turns "do not inject a context"
+        // from a rule everyone has to remember into one the container cannot satisfy.
+        services.RemoveAll<AppDbContext>();
+
         services.AddSingleton<DatabaseMigrator>();
+
+        // AD-5: the only way to reach a context is to open a scope.
+        services.AddSingleton<IUnitOfWorkFactory, UnitOfWorkFactory>();
+
+        // AD-13: time is injected so a time-dependent rule can be tested. DateTime.UtcNow and
+        // database default timestamps appear nowhere. TryAdd, not Add: a caller that has
+        // already registered a fake clock keeps it, where an unconditional Add would win by
+        // being last and quietly hand every test the real one back.
+        services.TryAddSingleton(TimeProvider.System);
 
         return services;
     }
