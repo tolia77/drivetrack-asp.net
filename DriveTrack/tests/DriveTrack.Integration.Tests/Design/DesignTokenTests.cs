@@ -58,7 +58,15 @@ public class DesignTokenTests
         "outline",
         "fill",
         "stroke",
+        "text-decoration",
         "text-decoration-color",
+        "text-emphasis-color",
+        "outline-color",
+        "column-rule-color",
+        "scrollbar-color",
+        "filter",
+        "backdrop-filter",
+        "mask-image",
         "accent-color",
         "caret-color",
         "font-family",
@@ -83,6 +91,39 @@ public class DesignTokenTests
     /// </summary>
     private static readonly HashSet<string> AllowedKeywords =
         new(StringComparer.Ordinal) { "currentColor", "currentcolor" };
+
+    /// <summary>
+    /// The generic font families. A stack may name these and nothing else: every real family
+    /// is a palette-tier decision that belongs in <c>_tokens.scss</c>. Without this the
+    /// lowercase half of a stack - <c>arial, helvetica</c> - satisfied the keyword rule and
+    /// only a capitalised <c>Arial</c> was ever caught.
+    /// </summary>
+    private static readonly HashSet<string> GenericFontFamilies = new(StringComparer.Ordinal)
+    {
+        "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui",
+        "ui-serif", "ui-sans-serif", "ui-monospace", "ui-rounded", "math", "emoji", "fangsong",
+    };
+
+    /// <summary>
+    /// A vendor prefix. <c>-webkit-text-fill-color</c> is <c>text-fill-color</c> wearing a hat,
+    /// and a rule that could be sidestepped by adding one would not be a rule.
+    /// </summary>
+    private static readonly Regex VendorPrefix = new(
+        @"^-(?:webkit|moz|ms|o)-",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// A proportion or an angle: <c>50%</c>, <c>100%</c>, <c>180deg</c>. Neither names a
+    /// palette value - one is relative geometry and the other a direction - so both are out of
+    /// scope in the same way <c>width</c> and <c>z-index</c> are. This is what lets a fully
+    /// tokenized <c>linear-gradient(180deg, var(--a), var(--b))</c> through, and it is why the
+    /// matrix lists <c>border-radius: 50%</c> as a non-offender. Absolute lengths stay caught.
+    /// </summary>
+    private static readonly Regex Proportion = new(
+        @"^-?\d+(?:\.\d+)?(?:%|deg|grad|rad|turn)$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
 
     /// <summary>
     /// The CSS named colours. <c>transparent</c> and <c>currentColor</c> are absent on purpose:
@@ -121,7 +162,7 @@ public class DesignTokenTests
     /// braces of its own block sit between it and any terminator, so it can never complete.
     /// </summary>
     private static readonly Regex DeclarationPattern = new(
-        @"(?<name>[-$A-Za-z][-$A-Za-z0-9]*)\s*:\s*(?<value>[^;{}]*)[;}]",
+        @"(?<name>[-$A-Za-z][-$A-Za-z0-9]*)\s*:\s*(?<value>(?:[^;{}]|#\{[^}]*\})*)[;}]",
         RegexOptions.Compiled | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
@@ -140,10 +181,15 @@ public class DesignTokenTests
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
-    /// <summary>A whole-line <c>//</c> comment. Prose about a rule is not a breach of it.</summary>
+    /// <summary>
+    /// A <c>//</c> comment, whole-line or trailing. Prose about a rule is not a breach of it,
+    /// and the old whole-line-only anchor meant a trailing <c>// color: #fff</c> was scanned as
+    /// though it were code. Safe to run unanchored because <see cref="Preprocess"/> removes
+    /// <c>url()</c> first, so the <c>//</c> in a <c>http://</c> inside a data URI is long gone.
+    /// </summary>
     private static readonly Regex LineComment = new(
-        @"^[ \t]*//.*$",
-        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.CultureInvariant,
+        @"//[^\r\n]*",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
     /// <summary>
@@ -151,7 +197,7 @@ public class DesignTokenTests
     /// percent-encoded colours inside one would otherwise be read as declarations.
     /// </summary>
     private static readonly Regex UrlReference = new(
-        @"url\([^()]*\)",
+        @"url\((?:[^()]|\([^()]*\))*\)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
@@ -192,6 +238,33 @@ public class DesignTokenTests
     private static readonly Regex Keyword = new(
         @"^[a-z][a-z-]*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>A paint attribute inside an inline SVG asset: <c>fill='white'</c>.</summary>
+    private static readonly Regex SvgPaintAttribute = new(
+        @"\b(?:fill|stroke|stop-color|flood-color|lighting-color)\s*=\s*['""](?<value>[^'""]*)['""]",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// The <c>url()</c> assets allowed to carry a literal colour, identified by a fragment
+    /// unique to each. There is exactly one, and
+    /// <c>Only_the_recorded_url_asset_carries_a_literal_colour</c> holds it to that: the
+    /// navigation toggler, whose reasoning is written out at the rule in
+    /// <c>NavMenu.razor.css</c>. Every other icon is masked and takes its colour from a token.
+    /// <para>
+    /// An exemption list is a hole in a rule, so it is spelled as a path fragment rather than a
+    /// selector or a file: an asset that moves keeps its exemption, and an asset that changes
+    /// loses it and has to be argued for again.
+    /// </para>
+    /// </summary>
+    private static readonly string[] RecordedUrlColourExemptions =
+        ["M4 7h22M4 15h22M4 23h22"];
+
+    /// <summary>A <c>$dt-…:</c> variable declaration at the start of a line.</summary>
+    private static readonly Regex SemanticVariable = new(
+        @"^\s*\$dt-(?<name>[a-z0-9-]+)\s*:",
+        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
     /// <summary>An entry key in the <c>$dt-tokens</c> map in <c>_tokens.scss</c>.</summary>
@@ -276,23 +349,83 @@ public class DesignTokenTests
 
         foreach (var path in ScopedStylesheets().Concat(ProjectStylesheets()))
         {
-            var css = Preprocess(File.ReadAllText(path));
+            var source = File.ReadAllText(path);
 
-            foreach (Match declaration in DeclarationPattern.Matches(css))
+            // The bridge is the seam between the palette and Bootstrap, and it works entirely
+            // in Sass variable names rather than CSS property names, so nothing in it would be
+            // recognised as visual by name alone.
+            var isBridge = string.Equals(
+                Path.GetFileName(path), "_bootstrap-bridge.scss", StringComparison.Ordinal);
+
+            foreach (var offence in UrlAssetOffences(source))
             {
-                Record(offenders, path, declaration.Groups["name"].Value, declaration.Groups["value"].Value);
+                offenders.Add($"{Path.GetFileName(path)}: {offence}");
+            }
+
+            foreach (Match declaration in DeclarationPattern.Matches(Preprocess(source)))
+            {
+                Record(
+                    offenders,
+                    path,
+                    declaration.Groups["name"].Value,
+                    declaration.Groups["value"].Value,
+                    isBridge);
             }
         }
 
         foreach (var path in MarkupFiles())
         {
-            foreach (var offence in MarkupOffences(File.ReadAllText(path)))
+            var source = File.ReadAllText(path);
+
+            foreach (var offence in UrlAssetOffences(source).Concat(MarkupOffences(source)))
             {
                 offenders.Add($"{Path.GetFileName(path)}: {offence}");
             }
         }
 
         Assert.Empty(offenders);
+    }
+
+    /// <summary>
+    /// The exemption list is a hole in NFR-29, so its size is itself asserted: one entry, and
+    /// that entry has to still be reachable in the component tree. An exemption for an asset
+    /// that has since been deleted or masked would otherwise sit there indefinitely, widening
+    /// the rule for nothing.
+    /// </summary>
+    [Fact]
+    public void Only_the_recorded_url_asset_carries_a_literal_colour()
+    {
+        var exemption = Assert.Single(RecordedUrlColourExemptions);
+
+        var live = ScopedStylesheets()
+            .Concat(ProjectStylesheets())
+            .Concat(MarkupFiles())
+            .Any(path => File.ReadAllText(path).Contains(exemption, StringComparison.Ordinal));
+
+        Assert.True(
+            live,
+            $"The recorded url() colour exemption '{exemption}' matches no asset in the "
+                + "component tree. Delete it rather than leaving the rule widened.");
+    }
+
+    /// <summary>
+    /// The other direction of the map contract. <c>_tokens.scss</c> says it itself: "a semantic
+    /// token that is not in the map does not exist at runtime", which makes a semantic variable
+    /// declared and then forgotten in the map the failure worth catching - it ships as an
+    /// unstyled element with a green suite, and the dangling-token check only notices once
+    /// somebody writes a <c>var()</c> for it. The publication test walks map to CSS; this walks
+    /// declaration to map, and between them the two tiers cannot drift apart.
+    /// </summary>
+    [Fact]
+    public void Every_semantic_token_variable_is_in_the_map()
+    {
+        var published = SemanticTokenNames().ToHashSet(StringComparer.Ordinal);
+
+        var missing = SemanticTokenVariables()
+            .Where(name => !published.Contains(name))
+            .ToList();
+
+        Assert.Empty(missing);
     }
 
     [Fact]
@@ -306,9 +439,17 @@ public class DesignTokenTests
         var published = SemanticTokenNames().ToHashSet(StringComparer.Ordinal);
         var dangling = new List<string>();
 
-        foreach (var path in ScopedStylesheets().Concat(ProjectStylesheets()))
+        // Markup is scanned alongside the stylesheets: the literal scan already reaches inline
+        // `style` attributes, so a `--dt-` typo inside one was invisible to both halves of the
+        // rule - stripped as a `var()` by the literal scan, and never opened by this one.
+        //
+        // Read through Preprocess rather than raw, so a token named in prose inside a comment
+        // is not counted as a reference and reported as dangling.
+        foreach (var path in ScopedStylesheets().Concat(ProjectStylesheets()).Concat(MarkupFiles()))
         {
-            foreach (Match reference in DesignTokenReference.Matches(File.ReadAllText(path)))
+            var source = Preprocess(File.ReadAllText(path));
+
+            foreach (Match reference in DesignTokenReference.Matches(source))
             {
                 var name = reference.Groups["name"].Value;
 
@@ -359,10 +500,14 @@ public class DesignTokenTests
         string tokenValue,
         string bootstrapDefault)
     {
-        var declaration = Declaration(CompiledTheme.Value, property);
+        // The third column has to differ from the second, or the case proves nothing: a pair
+        // where the token value happens to equal Bootstrap's own default would pass whether the
+        // framework was themed or left stock. Asserted on the DATA, because the old
+        // `DoesNotContain` on the declaration could never fail once `Equal` above had pinned it
+        // - it read as a second check and was one branch of the first.
+        Assert.NotEqual(bootstrapDefault, tokenValue, StringComparer.Ordinal);
 
-        Assert.Equal(tokenValue, declaration);
-        Assert.DoesNotContain(bootstrapDefault, declaration, StringComparison.Ordinal);
+        Assert.Equal(tokenValue, Declaration(CompiledTheme.Value, property));
     }
 
     [Theory]
@@ -436,10 +581,13 @@ public class DesignTokenTests
     public void The_shell_links_one_stylesheet_bundle_and_the_scoped_bundle()
     {
         var shell = File.ReadAllText(Path.Combine(WebProject, "Components", "App.razor"));
+        // Both quote forms and either attribute order: the count is the whole point of this
+        // test, so a third stylesheet written `rel='stylesheet'` - or with `href` first - must
+        // not be the one that slips past it. Razor accepts every one of those spellings.
         var links = Regex.Matches(
             shell,
-            @"<link[^>]*rel=""stylesheet""[^>]*>",
-            RegexOptions.None,
+            @"<link\b[^>]*\brel\s*=\s*[""']?stylesheet\b[^>]*>",
+            RegexOptions.IgnoreCase,
             TimeSpan.FromSeconds(5));
 
         Assert.Equal(2, links.Count);
@@ -487,9 +635,12 @@ public class DesignTokenTests
 
         // Only the banner is read from the script: it is a minified bundle, and its first line
         // is the one part of it that is meant to be human-readable.
+        // ReadBlock, not Read: a single Read is allowed to return fewer characters than asked
+        // for, which would truncate the banner mid-version and fail BootstrapVersion on a
+        // perfectly correct tree.
         using var reader = new StreamReader(BootstrapScriptPath);
         var scriptBanner = new char[512];
-        var read = reader.Read(scriptBanner, 0, scriptBanner.Length);
+        var read = reader.ReadBlock(scriptBanner, 0, scriptBanner.Length);
 
         Assert.Equal("5.3.3", BootstrapVersion(sassBanner));
         Assert.Equal("5.3.3", BootstrapVersion(new string(scriptBanner, 0, read)));
@@ -517,11 +668,27 @@ public class DesignTokenTests
     /// Why <paramref name="value"/> is a literal, or <c>null</c> if the declaration is clean or
     /// names a property that is not visual.
     /// </summary>
-    private static string? Offence(string property, string value)
+    private static string? Offence(string property, string value, bool everyDeclarationIsVisual = false)
     {
-        var name = property.Trim().TrimStart('$');
+        var declared = property.Trim();
+        var isCustomProperty = declared.StartsWith("--", StringComparison.Ordinal);
+        var name = declared.TrimStart('$');
 
-        if (name.StartsWith("--", StringComparison.Ordinal) || !IsVisual(name))
+        // Three ways in, because the old single gate - "is this the name of a visual CSS
+        // property?" - let two whole categories past:
+        //
+        //   everyDeclarationIsVisual  the Bootstrap bridge assigns Sass VARIABLES, and
+        //                            `$card-bg`, `$primary`, `$link-color`, `$font-size-base`
+        //                            are not CSS property names. The file whose entire job is
+        //                            to be the seam between the palette and Bootstrap was
+        //                            therefore unscanned; a raw hex there reached the browser
+        //                            with a green suite.
+        //   isCustomProperty         `--mine: #f00` paired with `color: var(--mine)` laundered
+        //                            any literal past both halves of the rule: the consuming
+        //                            side strips `var()`, and the declaring side used to
+        //                            return early. `_tokens.scss` is excluded from the scan
+        //                            set outright, so the tier allowed raw values is unharmed.
+        if (!everyDeclarationIsVisual && !isCustomProperty && !IsVisual(name))
         {
             return null;
         }
@@ -538,6 +705,8 @@ public class DesignTokenTests
             return "hex colour";
         }
 
+        var isFontStack = name.EndsWith("font-family", StringComparison.Ordinal);
+
         foreach (var piece in remainder.Split(
                      [' ', '\t', '\r', '\n', ',', '/', '(', ')'],
                      StringSplitOptions.RemoveEmptyEntries))
@@ -552,6 +721,19 @@ public class DesignTokenTests
                 return "named colour";
             }
 
+            // A proportion or an angle is geometry, not palette, so it is allowed even inside a
+            // scanned property. Absolute lengths are not: a radius or a shadow figure written
+            // as `7px` is exactly what NFR-29 exists to catch.
+            if (Proportion.IsMatch(piece))
+            {
+                continue;
+            }
+
+            if (isFontStack && !GenericFontFamilies.Contains(piece))
+            {
+                return "font family";
+            }
+
             if (!Keyword.IsMatch(piece))
             {
                 return "literal value";
@@ -561,12 +743,59 @@ public class DesignTokenTests
         return null;
     }
 
-    private static bool IsVisual(string name) =>
-        VisualProperties.Contains(name, StringComparer.Ordinal)
-        || Array.Exists(
-            VisualPropertyFamilies,
-            family => string.Equals(name, family, StringComparison.Ordinal)
-                || name.StartsWith(family + "-", StringComparison.Ordinal));
+    private static bool IsVisual(string name)
+    {
+        name = VendorPrefix.Replace(name, string.Empty);
+
+        return VisualProperties.Contains(name, StringComparer.Ordinal)
+            || Array.Exists(
+                VisualPropertyFamilies,
+                family => string.Equals(name, family, StringComparison.Ordinal)
+                    || name.StartsWith(family + "-", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The <c>url()</c> assets in <paramref name="source"/> that carry a literal colour.
+    /// <para>
+    /// <see cref="Preprocess"/> strips <c>url()</c> before declarations are read, because the
+    /// semicolons and percent-encoded parentheses inside a data URI would otherwise be parsed
+    /// as declarations. That strip also carried every colour inside the asset out of the scan,
+    /// which is how an inline SVG kept <c>fill='white'</c> and a percent-encoded
+    /// <c>rgba(...)</c> stroke - the matrix's own worked example of an offender - while the
+    /// suite stayed green. So the assets are read here, from the raw source, before any of it
+    /// is stripped.
+    /// </para>
+    /// </summary>
+    private static List<string> UrlAssetOffences(string source)
+    {
+        var offences = new List<string>();
+
+        foreach (Match asset in UrlReference.Matches(source))
+        {
+            var text = Uri.UnescapeDataString(asset.Value);
+
+            if (RecordedUrlColourExemptions.Any(
+                    exempt => asset.Value.Contains(exempt, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            var reason = ColourFunction.IsMatch(text) ? "colour function"
+                : HexColour.IsMatch(text) ? "hex colour"
+                : SvgPaintAttribute.Matches(text)
+                    .Select(paint => paint.Groups["value"].Value)
+                    .FirstOrDefault(paint => NamedColours.Contains(paint)) is not null
+                    ? "named colour"
+                    : null;
+
+            if (reason is not null)
+            {
+                offences.Add($"url() asset - {reason}");
+            }
+        }
+
+        return offences;
+    }
 
     /// <summary>Removes everything that is a reference rather than a value.</summary>
     private static string StripReferences(string value)
@@ -590,12 +819,23 @@ public class DesignTokenTests
         return value;
     }
 
+    /// <summary>
+    /// Strips everything that is not a declaration. Order matters: <c>url()</c> goes before
+    /// <c>//</c> comments, so the <c>http://</c> inside a data URI cannot be read as the start
+    /// of one. The <c>url()</c> assets themselves are checked separately, by
+    /// <see cref="UrlAssetOffences"/>, which runs on the raw source before this.
+    /// </summary>
     private static string Preprocess(string source) =>
-        UrlReference.Replace(LineComment.Replace(BlockComment.Replace(source, " "), " "), " ");
+        LineComment.Replace(UrlReference.Replace(BlockComment.Replace(source, " "), " "), " ");
 
-    private static void Record(List<string> offenders, string path, string property, string value)
+    private static void Record(
+        List<string> offenders,
+        string path,
+        string property,
+        string value,
+        bool everyDeclarationIsVisual = false)
     {
-        var reason = Offence(property, value);
+        var reason = Offence(property, value, everyDeclarationIsVisual);
 
         if (reason is not null)
         {
@@ -739,6 +979,31 @@ public class DesignTokenTests
             .Where(path => !IsVendored(path))
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}wwwroot{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
 
+    /// <summary>
+    /// The semantic <c>$dt-</c> variables: everything declared after the "Semantics" divider and
+    /// before the map. Bounded that way rather than by name, because the two tiers are told
+    /// apart by which section they sit in - <c>$dt-navy-900</c> and <c>$dt-surface-nav</c> are
+    /// the same shape.
+    /// </summary>
+    private static string[] SemanticTokenVariables()
+    {
+        var tokens = File.ReadAllText(Path.Combine(StylesDirectory, "_tokens.scss"));
+        var semantics = tokens.IndexOf("// Semantics", StringComparison.Ordinal);
+        var map = tokens.IndexOf("$dt-tokens:", StringComparison.Ordinal);
+
+        Assert.True(
+            semantics >= 0,
+            "_tokens.scss no longer has a '// Semantics' divider, which is what tells the "
+                + "reference tier from the semantic one.");
+        Assert.True(map > semantics, "_tokens.scss no longer declares $dt-tokens after the semantics.");
+
+        return
+        [
+            .. SemanticVariable.Matches(tokens[semantics..map])
+                .Select(declaration => declaration.Groups["name"].Value),
+        ];
+    }
+
     /// <summary>The keys of the <c>$dt-tokens</c> map: the published semantic surface.</summary>
     private static string[] SemanticTokenNames()
     {
@@ -747,6 +1012,16 @@ public class DesignTokenTests
 
         Assert.True(map >= 0, "_tokens.scss no longer declares a $dt-tokens map.");
 
-        return [.. TokenMapEntry.Matches(tokens[map..]).Select(entry => entry.Groups["name"].Value)];
+        // Bounded at the map's own `);` rather than run to end of file: any later Sass map in
+        // this file would otherwise contribute its keys to the published token surface, and a
+        // token that does not exist would read as published.
+        var close = tokens.IndexOf(");", map, StringComparison.Ordinal);
+
+        Assert.True(close > map, "The $dt-tokens map in _tokens.scss is not closed.");
+
+        return
+        [
+            .. TokenMapEntry.Matches(tokens[map..close]).Select(entry => entry.Groups["name"].Value),
+        ];
     }
 }

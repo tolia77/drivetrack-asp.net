@@ -1,6 +1,10 @@
 # Keeps the build context small and secrets out of image layers.
 **/bin/
 **/obj/
+# Sass output. Generated into the image by the build, and gitignored on the host, so a locally
+# compiled copy riding in on its own mtime could let the incremental Sass step skip and publish
+# a stale theme. This line and the matching .gitignore entry have to agree on what is generated.
+**/wwwroot/css/
 **/.vs/
 **/.idea/
 **/TestResults/

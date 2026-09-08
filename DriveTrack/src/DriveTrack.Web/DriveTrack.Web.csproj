@@ -30,11 +30,20 @@
   <!--
     Compiles Styles/app.scss to wwwroot/css/app.css before the static web asset graph is
     resolved, so `dotnet build` alone produces the theme - no Node, no npm, no separate
-    tool restore. PrivateAssets="all" keeps it out of anything referencing this project
-    and out of the published output.
+    tool restore.
+
+    PrivateAssets="all" stops the reference flowing to anything referencing this project, and
+    keeps AspNetCore.SassCompiler.dll out of the publish output. It does NOT cover
+    sasscompiler.json: that is a Content item of ours, not an asset of the package, so it is
+    excluded from publish explicitly below. It is a build-time compiler configuration and the
+    runtime image has no use for it.
   -->
   <ItemGroup>
     <PackageReference Include="AspNetCore.SassCompiler" Version="1.103.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="sasscompiler.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
   <!--
