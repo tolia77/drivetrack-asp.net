@@ -9,6 +9,12 @@
       to the .resx files under Resources/.
     -->
     <NeutralResourcesLanguage>uk</NeutralResourcesLanguage>
+    <!--
+      AD-28: the theme is compiled from Sass at build time. The watcher is a dev-loop
+      convenience that would otherwise copy a dart-sass runtime into bin/ and publish;
+      with it off the package is build-only and the container image gains nothing.
+    -->
+    <SassCompilerEnableWatcher>false</SassCompilerEnableWatcher>
   </PropertyGroup>
 
   <!--
@@ -19,6 +25,16 @@
   <ItemGroup>
     <ProjectReference Include="..\DriveTrack.Application\DriveTrack.Application.csproj" />
     <ProjectReference Include="..\DriveTrack.Infrastructure\DriveTrack.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!--
+    Compiles Styles/app.scss to wwwroot/css/app.css before the static web asset graph is
+    resolved, so `dotnet build` alone produces the theme - no Node, no npm, no separate
+    tool restore. PrivateAssets="all" keeps it out of anything referencing this project
+    and out of the published output.
+  -->
+  <ItemGroup>
+    <PackageReference Include="AspNetCore.SassCompiler" Version="1.103.0" PrivateAssets="all" />
   </ItemGroup>
 
   <!--

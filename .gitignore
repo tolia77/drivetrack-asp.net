@@ -54,6 +54,11 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 
+# --- Generated stylesheets ---
+# AD-28: wwwroot/css/app.css is compiled from Styles/app.scss by AspNetCore.SassCompiler
+# on every `dotnet build`. The Sass sources are the source of truth; the CSS is output.
+/DriveTrack/src/DriveTrack.Web/wwwroot/css/
+
 # --- Node (if any front-end assets are built here) ---
 node_modules/
 dist/

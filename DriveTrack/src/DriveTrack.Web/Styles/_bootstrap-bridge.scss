@@ -1,0 +1,151 @@
+// =============================================================================
+// Bootstrap 5.3.3 <- design tokens.
+//
+// Bootstrap stays the substrate (AD-28) and is *themed*, not overridden: every
+// variable below is assigned before `@import "bootstrap/bootstrap"`, so the
+// `!default` in Bootstrap's own `_variables.scss` never fires and the framework
+// derives its whole cascade - `.btn`, `.card`, `.table`, `--bs-*` custom
+// properties, the utility API - from the token layer.
+//
+// That is why this file exists at all. Overriding compiled Bootstrap CSS after
+// the fact leaves two sources of truth and a specificity war; assigning the
+// variables leaves one.
+//
+// Only *semantic* tokens appear here. The bridge is a consumer of the token
+// layer exactly like a component is.
+// =============================================================================
+
+
+// -----------------------------------------------------------------------------
+// One light theme (NFR-21)
+//
+// `$enable-dark-mode: false` drops Bootstrap's `[data-bs-theme="dark"]` custom
+// property block and every component's dark colour-mode variant. There is no
+// theme switch and no `prefers-color-scheme` query in the shipped stylesheet.
+// -----------------------------------------------------------------------------
+$enable-dark-mode:            false;
+
+
+// -----------------------------------------------------------------------------
+// Theme colours
+// -----------------------------------------------------------------------------
+$primary:                     $dt-action-edit;
+$success:                     $dt-action-create;
+$danger:                      $dt-action-destructive;
+$warning:                     $dt-feedback-warning;
+// The remaining four are as load-bearing as the first four: `.btn-secondary` is the
+// natural Cancel beside the create/edit/destructive trio, and `.bg-light` / `.bg-dark`
+// are how a utility class reaches the page tint and the navigation surface. Left
+// unassigned they would ship Bootstrap's stock grey, cyan and near-black, which belong
+// to no palette in this app. Info takes the link hue: an informational control and a
+// link say the same thing.
+$secondary:                   $dt-text-muted;
+$info:                        $dt-text-link;
+$light:                       $dt-surface-page;
+$dark:                        $dt-surface-nav;
+
+
+// -----------------------------------------------------------------------------
+// Body and links
+// -----------------------------------------------------------------------------
+$body-bg:                     $dt-surface-page;
+$body-color:                  $dt-text-primary;
+$link-color:                  $dt-text-link;
+$link-hover-color:            $dt-text-link-hover;
+
+
+// -----------------------------------------------------------------------------
+// Type
+//
+// `$font-family-base` is assigned the stack directly rather than left at
+// Bootstrap's `var(--bs-font-sans-serif)` indirection, so `--bs-body-font-family`
+// carries the token value where it can be read.
+// -----------------------------------------------------------------------------
+$font-family-sans-serif:      $dt-font-family-base;
+$font-family-base:            $dt-font-family-base;
+$font-size-base:              $dt-font-size-base;
+// Bootstrap derives `.fs-*`, `.btn-lg` and `.btn-sm` from these two by multiplying the
+// base; assigning them is what keeps the framework's type on the token scale instead of
+// running a second one beside it.
+$font-size-sm:                $dt-font-size-sm;
+$font-size-lg:                $dt-font-size-lg;
+$font-weight-normal:          $dt-font-weight-regular;
+$font-weight-bold:            $dt-font-weight-bold;
+$line-height-base:            $dt-line-height-base;
+$headings-line-height:        $dt-line-height-heading;
+
+
+// -----------------------------------------------------------------------------
+// Spacing
+//
+// Bootstrap builds its whole `$spacers` map - and every `.p-*` / `.m-*` utility -
+// from this one value.
+// -----------------------------------------------------------------------------
+$spacer:                      $dt-space-4;
+
+
+// -----------------------------------------------------------------------------
+// Borders and radii
+// -----------------------------------------------------------------------------
+$border-width:                $dt-border-width;
+$border-color:                $dt-border-subtle;
+$border-color-translucent:    $dt-border-subtle;
+
+$border-radius:               $dt-radius-md;
+$border-radius-sm:            $dt-radius-sm;
+$border-radius-lg:            $dt-radius-lg;
+$border-radius-xl:            $dt-radius-lg;
+$border-radius-xxl:           $dt-radius-lg;
+
+
+// -----------------------------------------------------------------------------
+// Elevation
+// -----------------------------------------------------------------------------
+$box-shadow:                  $dt-shadow-md;
+$box-shadow-sm:               $dt-shadow-sm;
+$box-shadow-lg:               $dt-shadow-md;
+$box-shadow-inset:            inset $dt-shadow-sm;
+
+
+// -----------------------------------------------------------------------------
+// Cards
+//
+// White cards on the tinted page background are the whole visual premise of the
+// theme, so `$card-bg` must be stated: Bootstrap's default is `var(--bs-body-bg)`,
+// which would make a card invisible against the page.
+// -----------------------------------------------------------------------------
+$card-bg:                     $dt-surface-card;
+$card-cap-bg:                 $dt-surface-card;
+$card-border-color:           $dt-border-subtle;
+$card-border-width:           $dt-border-width;
+$card-border-radius:          $dt-radius-lg;
+$card-spacer-x:               $dt-space-5;
+$card-spacer-y:               $dt-space-5;
+$card-box-shadow:             $dt-shadow-sm;
+
+
+// -----------------------------------------------------------------------------
+// Every other raised surface
+//
+// Bootstrap defaults each of these to `var(--bs-body-bg)`, which is the *page*. On a
+// theme where the page is tinted and cards are white, that renders every panel in the
+// framework - modal, dropdown, popover, offcanvas, list group, accordion - flat against
+// the background it is supposed to sit above.
+// -----------------------------------------------------------------------------
+$modal-content-bg:            $dt-surface-card;
+$dropdown-bg:                 $dt-surface-card;
+$popover-bg:                  $dt-surface-card;
+$offcanvas-bg-color:          $dt-surface-card;
+$list-group-bg:               $dt-surface-card;
+$accordion-bg:                $dt-surface-card;
+
+
+// -----------------------------------------------------------------------------
+// Tables
+//
+// `$table-bg` has to be stated for the same reason: left at the page tint it would be
+// the same colour as the stripe below it, and `.table-striped` would show no stripe.
+// -----------------------------------------------------------------------------
+$table-bg:                    $dt-surface-card;
+$table-striped-bg:            $dt-surface-page;
+$table-hover-bg:              $dt-surface-muted;

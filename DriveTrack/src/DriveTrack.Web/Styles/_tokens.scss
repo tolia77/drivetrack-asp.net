@@ -1,0 +1,282 @@
+// =============================================================================
+// AD-28 / NFR-20: the single owner of every literal visual value in the app.
+//
+// This is the ONLY project file allowed to contain a raw colour, length, radius,
+// shadow or font stack. `Styles/vendor/**` is untouched third-party source and is
+// exempt; everything else - the Bootstrap bridge, the theme, every `.razor.css` -
+// must reference a token. `DesignTokenTests` enforces that.
+//
+// Two layers, and the distinction is load-bearing:
+//
+//   * PRIMITIVES (`$dt-blue-600`) name a value in the palette. Nothing outside
+//     this file may name one: a component that says "blue" cannot be restyled
+//     without editing the component.
+//   * SEMANTICS (`$dt-action-edit`) name a *role*. Components consume these, and
+//     only these, so a palette change is a one-line edit here.
+//
+// The semantic layer is also published as a map (`$dt-tokens`) so `_theme.scss`
+// can emit every entry as a `--dt-*` custom property mechanically - a semantic
+// token cannot exist at compile time and be missing at runtime.
+// =============================================================================
+
+
+// -----------------------------------------------------------------------------
+// Primitives - palette
+// -----------------------------------------------------------------------------
+
+// Neutrals: the page/card/text ramp. The page is tinted and cards are white, so
+// the ramp needs a step above the page tint as well as below it.
+$dt-neutral-0:                #ffffff;
+$dt-neutral-50:               #f4f6fa;
+$dt-neutral-200:              #e3e8ef;
+$dt-neutral-500:              #64748b;
+// One step darker than 500, and the reason is contrast rather than taste: #64748b is 4.33:1
+// on the tinted page, under the 4.5:1 AA floor. This is 5.2:1. 500 stays as it is because
+// $dt-border-strong consumes it, and a border is not held to a text ratio.
+$dt-neutral-600:              #5a6880;
+$dt-neutral-900:              #0f172a;
+
+// Navy: the navigation surface and its raised/hover/active steps. Solid colours
+// rather than white-alpha overlays, so a nav element keeps its colour wherever
+// it is placed.
+$dt-navy-950:                 #0e1726;
+$dt-navy-900:                 #152238;
+$dt-navy-800:                 #1f3455;
+$dt-navy-700:                 #2c4570;
+$dt-navy-100:                 #c9d4e5;
+
+// Accents. One hue per action so a control's colour states what it does.
+$dt-blue-600:                 #2563eb;
+$dt-blue-700:                 #1d4ed8;
+$dt-green-700:                #15803d;
+$dt-green-800:                #12652f;
+$dt-red-100:                  #fbe0e0;
+$dt-red-700:                  #b91c1c;
+$dt-red-800:                  #991b1b;
+$dt-amber-700:                #b45309;
+$dt-amber-100:                #fdf3d7;
+
+// Alpha primitives. Only overlays and shadows need transparency: an overlay sits
+// over unknown content, so it cannot be a solid colour.
+$dt-alpha-scrim:              rgba(15, 23, 42, .55);
+$dt-alpha-shadow-soft:        rgba(15, 23, 42, .08);
+$dt-alpha-shadow-strong:      rgba(15, 23, 42, .18);
+$dt-alpha-focus:              rgba(37, 99, 235, .35);
+
+
+// -----------------------------------------------------------------------------
+// Primitives - type
+// -----------------------------------------------------------------------------
+
+// System fonts only (NFR-21 note): no webfont means no network dependency for
+// type, so the interface renders identically offline and on first paint.
+$dt-font-family-system:       system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+$dt-font-size-100:            .8125rem;
+$dt-font-size-200:            .875rem;
+$dt-font-size-300:            1rem;
+$dt-font-size-400:            1.125rem;
+$dt-font-size-500:            1.5rem;
+
+$dt-font-weight-400:          400;
+$dt-font-weight-500:          500;
+$dt-font-weight-700:          700;
+
+$dt-line-height-tight:        1.25;
+$dt-line-height-normal:       1.5;
+
+
+// -----------------------------------------------------------------------------
+// Primitives - space, radius, border, shadow
+// -----------------------------------------------------------------------------
+
+// A 4px step scale. Every gap, pad and margin in the app is one of these.
+$dt-space-0:                  0;
+$dt-space-1:                  .25rem;
+$dt-space-2:                  .5rem;
+$dt-space-3:                  .75rem;
+$dt-space-4:                  1rem;
+$dt-space-5:                  1.5rem;
+$dt-space-6:                  2rem;
+$dt-space-7:                  3rem;
+
+$dt-radius-100:               .25rem;
+$dt-radius-200:               .5rem;
+$dt-radius-300:               .75rem;
+$dt-radius-full:              50%;
+
+$dt-border-width-100:         1px;
+$dt-border-width-300:         3px;
+
+$dt-shadow-100:               0 1px 2px $dt-alpha-shadow-soft;
+$dt-shadow-300:               0 8px 24px $dt-alpha-shadow-strong;
+$dt-shadow-up-100:            0 -1px 2px $dt-alpha-shadow-soft;
+// Two layers, like the scaffold's ring it replaces. A single translucent blue layer
+// composites to about 1.9:1 over the navy navigation - invisible on the one surface the
+// `.btn-link.nav-link` rule exists for. The opaque inner halo separates the ring from
+// whatever is behind it, so the outer layer is read against white either way.
+$dt-focus-ring-100:           0 0 0 .125rem $dt-neutral-0, 0 0 0 .25rem $dt-alpha-focus;
+
+
+// -----------------------------------------------------------------------------
+// Semantics - the layer components consume
+// -----------------------------------------------------------------------------
+
+// Surfaces. One light theme (NFR-21): tinted page, white cards, dark navigation.
+$dt-surface-page:             $dt-neutral-50;
+$dt-surface-card:             $dt-neutral-0;
+$dt-surface-muted:            $dt-neutral-200;
+$dt-surface-nav:              $dt-navy-900;
+$dt-surface-nav-raised:       $dt-navy-950;
+$dt-surface-nav-hover:        $dt-navy-800;
+$dt-surface-nav-active:       $dt-navy-700;
+
+// Text.
+$dt-text-primary:             $dt-neutral-900;
+$dt-text-muted:               $dt-neutral-600;
+$dt-text-on-nav:              $dt-navy-100;
+$dt-text-on-nav-strong:       $dt-neutral-0;
+$dt-text-on-accent:           $dt-neutral-0;
+$dt-text-link:                $dt-blue-600;
+$dt-text-link-hover:          $dt-blue-700;
+
+// Borders.
+$dt-border-subtle:            $dt-neutral-200;
+$dt-border-strong:            $dt-neutral-500;
+$dt-border-nav:               $dt-navy-800;
+$dt-border-width:             $dt-border-width-100;
+$dt-border-width-emphasis:    $dt-border-width-300;
+
+// Actions (AD-28): create is green, edit is blue, destructive is red. A component
+// asks for the *action*, never for the colour.
+$dt-action-create:            $dt-green-700;
+$dt-action-create-hover:      $dt-green-800;
+$dt-action-edit:              $dt-blue-600;
+$dt-action-edit-hover:        $dt-blue-700;
+$dt-action-destructive:       $dt-red-700;
+$dt-action-destructive-hover: $dt-red-800;
+
+// FR-98 ratings. Deliberately separate from the action colours even where the
+// hue coincides: a rating is a judgement, not a button, and the two are free to
+// diverge later without a find-and-replace.
+$dt-rating-favourable:        $dt-green-700;
+$dt-rating-neutral:           $dt-amber-700;
+$dt-rating-unfavourable:      $dt-red-700;
+
+// Feedback.
+$dt-feedback-success:         $dt-green-700;
+$dt-feedback-warning:         $dt-amber-700;
+$dt-feedback-warning-surface: $dt-amber-100;
+$dt-feedback-danger:          $dt-red-700;
+$dt-feedback-danger-surface:  $dt-red-100;
+
+// Overlay and focus.
+$dt-overlay-backdrop:         $dt-alpha-scrim;
+$dt-focus-ring:               $dt-focus-ring-100;
+
+// Type.
+$dt-font-family-base:         $dt-font-family-system;
+$dt-font-size-sm:             $dt-font-size-200;
+$dt-font-size-xs:             $dt-font-size-100;
+$dt-font-size-base:           $dt-font-size-300;
+$dt-font-size-lg:             $dt-font-size-400;
+$dt-font-size-xl:             $dt-font-size-500;
+$dt-font-weight-regular:      $dt-font-weight-400;
+$dt-font-weight-medium:       $dt-font-weight-500;
+$dt-font-weight-bold:         $dt-font-weight-700;
+$dt-line-height-base:         $dt-line-height-normal;
+$dt-line-height-heading:      $dt-line-height-tight;
+
+// Radius.
+$dt-radius-sm:                $dt-radius-100;
+$dt-radius-md:                $dt-radius-200;
+$dt-radius-lg:                $dt-radius-300;
+$dt-radius-circle:            $dt-radius-full;
+
+// Shadow.
+$dt-shadow-sm:                $dt-shadow-100;
+$dt-shadow-md:                $dt-shadow-300;
+$dt-shadow-up:                $dt-shadow-up-100;
+
+
+// -----------------------------------------------------------------------------
+// The published semantic surface
+//
+// `_theme.scss` walks this map to emit `--dt-*` custom properties. A semantic
+// token that is not in the map does not exist at runtime, so the map - not the
+// variable list above it - is the contract components code against.
+// -----------------------------------------------------------------------------
+
+$dt-tokens: (
+    "surface-page":             $dt-surface-page,
+    "surface-card":             $dt-surface-card,
+    "surface-muted":            $dt-surface-muted,
+    "surface-nav":              $dt-surface-nav,
+    "surface-nav-raised":       $dt-surface-nav-raised,
+    "surface-nav-hover":        $dt-surface-nav-hover,
+    "surface-nav-active":       $dt-surface-nav-active,
+
+    "text-primary":             $dt-text-primary,
+    "text-muted":               $dt-text-muted,
+    "text-on-nav":              $dt-text-on-nav,
+    "text-on-nav-strong":       $dt-text-on-nav-strong,
+    "text-on-accent":           $dt-text-on-accent,
+    "text-link":                $dt-text-link,
+    "text-link-hover":          $dt-text-link-hover,
+
+    "border-subtle":            $dt-border-subtle,
+    "border-strong":            $dt-border-strong,
+    "border-nav":               $dt-border-nav,
+    "border-width":             $dt-border-width,
+    "border-width-emphasis":    $dt-border-width-emphasis,
+
+    "action-create":            $dt-action-create,
+    "action-create-hover":      $dt-action-create-hover,
+    "action-edit":              $dt-action-edit,
+    "action-edit-hover":        $dt-action-edit-hover,
+    "action-destructive":       $dt-action-destructive,
+    "action-destructive-hover": $dt-action-destructive-hover,
+
+    "rating-favourable":        $dt-rating-favourable,
+    "rating-neutral":           $dt-rating-neutral,
+    "rating-unfavourable":      $dt-rating-unfavourable,
+
+    "feedback-success":         $dt-feedback-success,
+    "feedback-warning":         $dt-feedback-warning,
+    "feedback-warning-surface": $dt-feedback-warning-surface,
+    "feedback-danger":          $dt-feedback-danger,
+    "feedback-danger-surface":  $dt-feedback-danger-surface,
+
+    "overlay-backdrop":         $dt-overlay-backdrop,
+    "focus-ring":               $dt-focus-ring,
+
+    "font-family-base":         $dt-font-family-base,
+    "font-size-xs":             $dt-font-size-xs,
+    "font-size-sm":             $dt-font-size-sm,
+    "font-size-base":           $dt-font-size-base,
+    "font-size-lg":             $dt-font-size-lg,
+    "font-size-xl":             $dt-font-size-xl,
+    "font-weight-regular":      $dt-font-weight-regular,
+    "font-weight-medium":       $dt-font-weight-medium,
+    "font-weight-bold":         $dt-font-weight-bold,
+    "line-height-base":         $dt-line-height-base,
+    "line-height-heading":      $dt-line-height-heading,
+
+    "space-0":                  $dt-space-0,
+    "space-1":                  $dt-space-1,
+    "space-2":                  $dt-space-2,
+    "space-3":                  $dt-space-3,
+    "space-4":                  $dt-space-4,
+    "space-5":                  $dt-space-5,
+    "space-6":                  $dt-space-6,
+    "space-7":                  $dt-space-7,
+
+    "radius-sm":                $dt-radius-sm,
+    "radius-md":                $dt-radius-md,
+    "radius-lg":                $dt-radius-lg,
+    "radius-circle":            $dt-radius-circle,
+
+    "shadow-sm":                $dt-shadow-sm,
+    "shadow-md":                $dt-shadow-md,
+    "shadow-up":                $dt-shadow-up,
+);

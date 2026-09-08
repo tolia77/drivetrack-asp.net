@@ -1,0 +1,21 @@
+// =============================================================================
+// The single stylesheet bundle the app ships (compiled to wwwroot/css/app.css by
+// AspNetCore.SassCompiler during `dotnet build` - see sasscompiler.json).
+//
+// The order is the contract:
+//
+//   1. tokens  - defines the values.
+//   2. bridge  - assigns Bootstrap's Sass variables from them. Must precede the
+//                Bootstrap import: every Bootstrap variable is `!default`, so an
+//                assignment made afterwards is simply ignored.
+//   3. vendor  - Bootstrap 5.3.3, imported by load-path name rather than relative
+//                path so `--quiet-deps` recognises it as a dependency and its
+//                internal deprecation warnings stay out of the build log.
+//   4. theme   - publishes the `--dt-*` custom properties and the app-level rules
+//                that sit on top of the framework.
+// =============================================================================
+
+@import "tokens";
+@import "bootstrap-bridge";
+@import "bootstrap/bootstrap";
+@import "theme";

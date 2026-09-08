@@ -1,0 +1,139 @@
+// =============================================================================
+// The runtime face of the token layer, plus the app-level rules that used to
+// live in the scaffolded `wwwroot/app.css`.
+//
+// Two jobs, in this order:
+//
+//   1. Publish every semantic token as a `--dt-*` custom property. Component
+//      stylesheets are scoped CSS compiled separately from this file, so they
+//      cannot see Sass variables - custom properties are the only channel
+//      through which a `.razor.css` can reach the token layer.
+//   2. Restate the handful of app-wide rules the Blazor scaffold shipped as
+//      literals, now expressed in tokens.
+//
+// Anything Bootstrap already derives from the bridge - button colours, link
+// colours, card chrome, the focus ring's colour - is deliberately absent: a rule
+// here that restates a Bootstrap-derived value would be a second source of truth.
+// =============================================================================
+
+// `meta.inspect` rather than the global `inspect()`: the global built-ins are
+// deprecated, and a deprecation from a project file is a build error here.
+@use "sass:meta";
+
+
+// -----------------------------------------------------------------------------
+// Semantic tokens as custom properties
+//
+// Driven by the map rather than written out by hand, so a token added in
+// `_tokens.scss` cannot be forgotten here. `inspect()` is required: without it
+// Sass drops the quotes inside the font stack, and `"Segoe UI"` becomes an
+// invalid two-word family name.
+// -----------------------------------------------------------------------------
+:root {
+    @each $name, $value in $dt-tokens {
+        --dt-#{$name}: #{meta.inspect($value)};
+    }
+}
+
+
+// -----------------------------------------------------------------------------
+// App-level rules
+// -----------------------------------------------------------------------------
+
+// Reboot already sets the body font from `--bs-body-font-family`; stating it on
+// `html` too keeps form controls and anything outside `<body>` on the same stack.
+html {
+    font-family: var(--dt-font-family-base);
+}
+
+// The tinted page background that white cards sit on.
+body {
+    background-color: var(--dt-surface-page);
+    color: var(--dt-text-primary);
+}
+
+.content {
+    padding-top: var(--dt-space-4);
+}
+
+// A heading focused programmatically after navigation should not draw a ring.
+h1:focus {
+    outline: none;
+}
+
+
+// -----------------------------------------------------------------------------
+// Focus ring
+//
+// Bootstrap derives the ring's colour from `$primary`, but the scaffold's rule
+// covers a wider selector set than Bootstrap's own `:focus-visible` styling, and
+// dropping it would lose the ring on `.btn-link.nav-link`. The whole shadow is a
+// single token so the ring cannot drift between selectors.
+// -----------------------------------------------------------------------------
+.btn:focus,
+.btn:active:focus,
+.btn-link.nav-link:focus,
+.form-control:focus,
+.form-check-input:focus {
+    box-shadow: var(--dt-focus-ring);
+}
+
+
+// -----------------------------------------------------------------------------
+// Validation
+// -----------------------------------------------------------------------------
+.valid.modified:not([type="checkbox"]) {
+    outline: var(--dt-border-width) solid var(--dt-feedback-success);
+}
+
+.invalid {
+    outline: var(--dt-border-width) solid var(--dt-feedback-danger);
+}
+
+.validation-message {
+    color: var(--dt-feedback-danger);
+}
+
+.darker-border-checkbox.form-check-input {
+    border-color: var(--dt-border-strong);
+}
+
+
+// -----------------------------------------------------------------------------
+// Error boundary
+//
+// The scaffold rendered its own English sentence here through `content:` and
+// carried a base64 warning icon inside the `background` shorthand. Both are gone:
+// an untranslatable literal in a stylesheet is exactly the NFR-14 leak
+// `UserFacingTextTests` guards against in markup, and the icon was a literal
+// visual value with no token to own it. What is left takes the same shape as the
+// circuit-failure bar in MainLayout: a tinted surface carrying body text, with the
+// hue in the border. A saturated fill would have forced light-on-red text, and any
+// text the boundary needs comes from the component that raises it - which cannot
+// know what colour it will land on.
+// -----------------------------------------------------------------------------
+.blazor-error-boundary {
+    background-color: var(--dt-feedback-danger-surface);
+    color: var(--dt-text-primary);
+    border: var(--dt-border-width) solid var(--dt-feedback-danger);
+    padding: var(--dt-space-4) var(--dt-space-5);
+}
+
+
+// -----------------------------------------------------------------------------
+// Floating labels
+//
+// Kept from the scaffold: it swaps the placeholder's alignment so a right-to-left
+// truncation does not hide the start of the hint. `--bs-secondary-color` is a
+// Bootstrap-derived value, so it is referenced rather than restated.
+// -----------------------------------------------------------------------------
+.form-floating > .form-control-plaintext::placeholder,
+.form-floating > .form-control::placeholder {
+    color: var(--bs-secondary-color);
+    text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder,
+.form-floating > .form-control:focus::placeholder {
+    text-align: start;
+}

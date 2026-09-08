@@ -1,0 +1,7 @@
+{
+  "Source": "Styles/app.scss",
+  "Target": "wwwroot/css/app.css",
+  "GenerateScopedCss": false,
+  "IncludePaths": [ "Styles/vendor" ],
+  "Arguments": "--style=compressed --no-source-map --quiet-deps --silence-deprecation=import"
+}

@@ -2,7 +2,12 @@
 # The SDK never reaches the final image: migrations run in-process at startup (AD-20),
 # so the runtime needs no `dotnet ef` and no build tooling.
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+# The build stage is Debian, not Alpine. AD-28 compiles the theme from Sass during
+# `dotnet publish`, and the dart-sass binaries the NuGet package supplies are glibc-linked -
+# there is no linux-musl-x64 runtime in the package, so on Alpine the Sass step cannot run.
+# Only the build stage moves: the final stage below stays Alpine, and its ICU lines are
+# load-bearing (NFR-14, NFR-15).
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Restore against the project graph only, so a source-only edit reuses the restore layer.

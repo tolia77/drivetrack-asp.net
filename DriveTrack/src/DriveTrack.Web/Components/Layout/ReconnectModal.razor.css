@@ -1,3 +1,9 @@
+/*
+    Retokenized under AD-28. The visibility machinery and the animations are behaviour and
+    are untouched; only the surface, the elevation, the spacing and the button's colours
+    were literals, and each is now a token reference.
+*/
+
 .components-reconnect-first-attempt-visible,
 .components-reconnect-repeated-attempt-visible,
 .components-reconnect-failed-visible,
@@ -21,13 +27,14 @@
 
 
 #components-reconnect-modal {
-    background-color: white;
+    background-color: var(--dt-surface-card);
     width: 20rem;
-    margin: 20vh auto;
-    padding: 2rem;
+    /* The scaffold's 20vh top offset became a spacing step: one scale owns every gap. */
+    margin: var(--dt-space-7) auto;
+    padding: var(--dt-space-6);
     border: 0;
-    border-radius: 0.5rem;
-    box-shadow: 0 3px 6px 2px rgba(0, 0, 0, 0.3);
+    border-radius: var(--dt-radius-lg);
+    box-shadow: var(--dt-shadow-md);
     opacity: 0;
     transition: display 0.5s allow-discrete, overlay 0.5s allow-discrete;
     animation: components-reconnect-modal-fadeOutOpacity 0.5s both;
@@ -41,7 +48,7 @@
 }
 
 #components-reconnect-modal::backdrop {
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: var(--dt-overlay-backdrop);
     animation: components-reconnect-modal-fadeInOpacity 0.5s ease-in-out;
     opacity: 1;
 }
@@ -80,7 +87,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
+    gap: var(--dt-space-4);
 }
 
 #components-reconnect-modal p {
@@ -88,20 +95,21 @@
     text-align: center;
 }
 
+/* Retrying is a plain, non-destructive action, so it takes the edit accent. */
 #components-reconnect-modal button {
     border: 0;
-    background-color: #6b9ed2;
-    color: white;
-    padding: 4px 24px;
-    border-radius: 4px;
+    background-color: var(--dt-action-edit);
+    color: var(--dt-text-on-accent);
+    padding: var(--dt-space-1) var(--dt-space-5);
+    border-radius: var(--dt-radius-sm);
 }
 
     #components-reconnect-modal button:hover {
-        background-color: #3b6ea2;
+        background-color: var(--dt-action-edit-hover);
     }
 
     #components-reconnect-modal button:active {
-        background-color: #6b9ed2;
+        background-color: var(--dt-action-edit);
     }
 
 .components-rejoining-animation {
@@ -112,9 +120,9 @@
 
     .components-rejoining-animation div {
         position: absolute;
-        border: 3px solid #0087ff;
+        border: var(--dt-border-width-emphasis) solid var(--dt-action-edit);
         opacity: 1;
-        border-radius: 50%;
+        border-radius: var(--dt-radius-circle);
         animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
     }
 
