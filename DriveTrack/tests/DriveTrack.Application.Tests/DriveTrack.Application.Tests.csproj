@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" Version="4.0.0" />
+  </ItemGroup>
+
+  <!--
+    Application and Domain only. AD-2's coverage gate reads compiled IL from the Application
+    assembly, and the guard and the validators need nothing else - a database reference here
+    would make a suite that must run without Docker depend on it.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DriveTrack.Domain\DriveTrack.Domain.csproj" />
+    <ProjectReference Include="..\..\src\DriveTrack.Application\DriveTrack.Application.csproj" />
+  </ItemGroup>
+
+</Project>

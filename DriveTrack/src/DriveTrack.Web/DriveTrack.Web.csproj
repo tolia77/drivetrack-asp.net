@@ -18,11 +18,16 @@
   </PropertyGroup>
 
   <!--
-    AD-1: Web depends on Application. The Infrastructure reference exists only so the
-    composition root (Program.cs) can call AddInfrastructure; no other file under this
-    project may name a DriveTrack.Infrastructure type. LayeringTests asserts that.
+    AD-1: Web depends on Application, and on Domain because the caller shape it implements is
+    typed in Domain identities - ICurrentUser answers UserId, DriverId, ClientId and UserRole, and
+    the screens render the role. The direction is still inward, and the reference is declared rather
+    than taken transitively so the layering test can pin it.
+    The Infrastructure reference exists only so the composition root (Program.cs) can call
+    AddInfrastructure; no other file under this project may name a DriveTrack.Infrastructure type.
+    LayeringTests asserts that.
   -->
   <ItemGroup>
+    <ProjectReference Include="..\DriveTrack.Domain\DriveTrack.Domain.csproj" />
     <ProjectReference Include="..\DriveTrack.Application\DriveTrack.Application.csproj" />
     <ProjectReference Include="..\DriveTrack.Infrastructure\DriveTrack.Infrastructure.csproj" />
   </ItemGroup>
@@ -51,6 +56,14 @@
     implements it is internal on purpose: nothing outside this assembly composes an envelope.
     The test project is the one exception.
   -->
+  <!--
+    The bearer handler is an adapter concern: Infrastructure signs a token, and this reads one back
+    off an Authorization header. Application names neither (AD-1).
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.4" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="DriveTrack.Integration.Tests" />
   </ItemGroup>

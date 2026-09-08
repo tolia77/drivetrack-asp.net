@@ -1,11 +1,17 @@
+using DriveTrack.Application.Abstractions;
+using DriveTrack.Application.Authorization;
+using DriveTrack.Application.Users;
 using DriveTrack.Infrastructure;
+using DriveTrack.Infrastructure.Identity;
 using DriveTrack.Infrastructure.Persistence;
+using DriveTrack.Integration.Tests.Support;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace DriveTrack.Integration.Tests.Configuration;
 
@@ -30,7 +36,7 @@ public class InfrastructureRegistrationTests
         var exception = Assert.Throws<InvalidOperationException>(() =>
             services.AddInfrastructure(
                 BuildConfiguration(value),
-                new TestHostEnvironment(Environments.Production)));
+                new TestHostEnvironment { EnvironmentName = Environments.Production }));
 
         Assert.Contains("ConnectionStrings:Default", exception.Message, StringComparison.Ordinal);
         Assert.Contains("ConnectionStrings__Default", exception.Message, StringComparison.Ordinal);
@@ -72,27 +78,155 @@ public class InfrastructureRegistrationTests
         services.AddLogging();
         services.AddInfrastructure(
             BuildConfiguration(ValidConnectionString),
-            new TestHostEnvironment(environmentName));
+            new TestHostEnvironment { EnvironmentName = environmentName });
 
         var provider = services.BuildServiceProvider();
 
         return provider.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext();
     }
 
-    private static IConfiguration BuildConfiguration(string? connectionString) =>
-        new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:Default"] = connectionString,
-            })
-            .Build();
 
-    private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("too-short")]
+    public void Missing_blank_or_short_signing_key_throws_naming_the_variable(string? signingKey)
     {
-        public string EnvironmentName { get; set; } = environmentName;
-        public string ApplicationName { get; set; } = "DriveTrack.Tests";
-        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-        public IFileProvider ContentRootFileProvider { get; set; } =
-            new NullFileProvider();
+        // AD-19: a signing key with a committed fallback is a signing key everyone knows, so the
+        // absence has to abort startup rather than surface at the first sign-in.
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddInfrastructure(
+                BuildConfiguration(ValidConnectionString, signingKey),
+                new TestHostEnvironment()));
+
+        Assert.Contains("Jwt:SigningKey", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Jwt__SigningKey", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("sixty")]
+    [InlineData("0")]
+    [InlineData("-5")]
+    [InlineData("1.5")]
+    public void A_lifetime_that_is_not_a_positive_whole_number_throws_naming_the_variable(string lifetime)
+    {
+        // An .env predating this key forwards the empty string, which does not fall back to the
+        // option's default - it fails the binder with an opaque message at the first request. Caught
+        // here instead, next to the signing key, and named the way the environment spells it.
+        var services = new ServiceCollection();
+        var configuration = BuildConfiguration(ValidConnectionString);
+        configuration["Jwt:LifetimeMinutes"] = lifetime;
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddInfrastructure(configuration, new TestHostEnvironment()));
+
+        Assert.Contains("Jwt:LifetimeMinutes", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Jwt__LifetimeMinutes", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_absent_lifetime_takes_the_default_rather_than_failing()
+    {
+        // Absent is not the same as blank: the option has a default, and a deployment that never set
+        // the variable must keep working.
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Genuinely absent, not set to null: nulling a key through the indexer leaves it present
+        // with an empty value, which is the case the theory above covers.
+        var values = TestConfiguration.Defaults();
+        values["ConnectionStrings:Default"] = ValidConnectionString;
+        values.Remove(JwtOptions.LifetimeMinutesConfigurationKey);
+
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+
+        services.AddInfrastructure(configuration, new TestHostEnvironment());
+
+        var options = services.BuildServiceProvider()
+            .GetRequiredService<IOptions<JwtOptions>>()
+            .Value;
+
+        Assert.True(options.LifetimeMinutes > 0);
+    }
+
+    [Fact]
+    public void Identity_cannot_be_reached_outside_a_unit_of_work()
+    {
+        // AD-5, expressed as an absence. AddEntityFrameworkStores registers stores over a scoped
+        // AppDbContext that AddInfrastructure has already deleted, and a resolvable UserManager
+        // would be a second, non-transactional way to write a user. Removing the registrations turns
+        // "never use UserManager directly" into a rule the container cannot satisfy.
+        var provider = BuildProvider();
+
+        Assert.Null(provider.GetService<AppDbContext>());
+        Assert.Null(provider.GetService<IUserStore<ApplicationUser>>());
+        Assert.Null(provider.GetService<IRoleStore<IdentityRole<int>>>());
+        Assert.Null(provider.GetService<UserManager<ApplicationUser>>());
+        Assert.Null(provider.GetService<RoleManager<IdentityRole<int>>>());
+    }
+
+    [Fact]
+    public void Identitys_own_services_are_still_registered()
+    {
+        // The other half: removing the stores must not remove the hasher, the normalizer or the
+        // options, because the per-scope managers are built from exactly those.
+        using var scope = BuildProvider().CreateScope();
+        var services = scope.ServiceProvider;
+
+        Assert.NotNull(services.GetService<IPasswordHasher<ApplicationUser>>());
+        Assert.NotNull(services.GetService<ILookupNormalizer>());
+        Assert.NotNull(services.GetService<IdentityErrorDescriber>());
+        Assert.NotEmpty(services.GetServices<IUserValidator<ApplicationUser>>());
+        Assert.NotEmpty(services.GetServices<IPasswordValidator<ApplicationUser>>());
+    }
+
+    [Fact]
+    public void The_guard_the_account_capability_and_the_token_issuer_are_registered()
+    {
+        using var scope = BuildProvider().CreateScope();
+        var services = scope.ServiceProvider;
+
+        Assert.NotNull(services.GetService<IAccessTokenIssuer>());
+        Assert.NotNull(services.GetService<ScopedIdentityFactory>());
+        Assert.NotNull(services.GetService<IdentitySeeder>());
+
+        // The guard and the account capability are asserted as registrations rather than resolved:
+        // both need ICurrentUser, which only an adapter can supply (AD-22), so a hostless provider
+        // has nothing to give them.
+        var registrations = new ServiceCollection();
+        registrations.AddLogging();
+        registrations.AddInfrastructure(BuildConfiguration(ValidConnectionString), new TestHostEnvironment());
+
+        Assert.Contains(
+            registrations,
+            descriptor => descriptor.ServiceType == typeof(IAccessGuard)
+                && descriptor.ImplementationType == typeof(AccessGuard));
+        Assert.Contains(registrations, descriptor => descriptor.ServiceType == typeof(IUserService));
+    }
+
+    private static ServiceProvider BuildProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(BuildConfiguration(ValidConnectionString));
+        services.AddInfrastructure(BuildConfiguration(ValidConnectionString), new TestHostEnvironment());
+
+        return services.BuildServiceProvider();
+    }
+
+    private static IConfiguration BuildConfiguration(
+        string? connectionString,
+        string? signingKey = TestConfiguration.JwtSigningKey)
+    {
+        var values = TestConfiguration.Defaults();
+        values["ConnectionStrings:Default"] = connectionString;
+        values["Jwt:SigningKey"] = signingKey;
+
+        return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     }
 }

@@ -1,0 +1,51 @@
+@inject IStringLocalizer<UiText> Localizer
+@inject NavigationManager Navigation
+@implements IDisposable
+@* FR-13: the single handler for an expired session. No screen implements its own - one place
+   recognises AUTH_UNAUTHENTICATED, says so in Ukrainian and offers the way back to sign-in.
+   Which notice a failure gets is SessionExpiry.NoticeKey, so the choice can be asserted directly
+   rather than by matching this file's text. Two independent @if blocks rather than if/else: an
+   `else` at markup level reads as a rendered English word to NFR-14's source scan. *@
+
+<ErrorBoundary @ref="_boundary">
+    <ChildContent>
+        @ChildContent
+    </ChildContent>
+    <ErrorContent Context="failure">
+        @* Read once into a local: NFR-14's source scan strips a Razor expression up to its first
+           closing bracket, so a nested call inside the @if condition would leave the comparison
+           behind as a rendered English fragment. *@
+        @{
+            var notice = SessionExpiry.NoticeKey(failure);
+        }
+        @if (notice == SessionExpiry.ExpiredNoticeKey)
+        {
+            <div class="alert alert-warning" role="alert">@Localizer["SessionExpired"]</div>
+            <a class="btn btn-primary" href="/sign-in">@Localizer["SignIn"]</a>
+        }
+        @if (notice == SessionExpiry.UnexpectedNoticeKey)
+        {
+            <div class="alert alert-danger" role="alert">@Localizer["CircuitError"]</div>
+        }
+    </ErrorContent>
+</ErrorBoundary>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private ErrorBoundary? _boundary;
+
+    /// <summary>
+    /// An ErrorBoundary latches, and MainLayout holds this one for the life of the circuit - so
+    /// without recovering it, one failure would replace every later screen's content with the notice
+    /// as well. Recovering on navigation makes the notice belong to the screen that raised it.
+    /// </summary>
+    protected override void OnInitialized() => Navigation.LocationChanged += Recover;
+
+    /// <inheritdoc />
+    public void Dispose() => Navigation.LocationChanged -= Recover;
+
+    private void Recover(object? sender, LocationChangedEventArgs args) =>
+        _ = InvokeAsync(() => _boundary?.Recover());
+}

@@ -1,6 +1,4 @@
 @inherits LayoutComponentBase
-@using DriveTrack.Web.Resources
-@using Microsoft.Extensions.Localization
 @inject IStringLocalizer<UiText> Localizer
 
 <div class="page">
@@ -12,7 +10,10 @@
         <div class="top-row px-4"></div>
 
         <article class="content px-4">
-            @Body
+            @* FR-13: every screen's failures pass through the one boundary. *@
+            <SessionExpiryBoundary>
+                @Body
+            </SessionExpiryBoundary>
         </article>
     </main>
 </div>

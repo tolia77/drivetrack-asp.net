@@ -1,5 +1,3 @@
-@using DriveTrack.Web.Resources
-@using Microsoft.Extensions.Localization
 @inject IStringLocalizer<UiText> Localizer
 
 <div class="top-row ps-3 navbar navbar-dark">
@@ -17,5 +15,35 @@
                 <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> @Localizer["NavHome"]
             </NavLink>
         </div>
+
+        @* FR-12: convenience only. Hiding a link is not an authorization decision - the guard
+           inside the service is, and it runs whether or not the link was ever rendered. *@
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="profile">
+                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @Localizer["Profile"]
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <form method="post" action="/sign-out">
+                        <AntiforgeryToken />
+                        <button class="nav-link btn btn-link" type="submit">@Localizer["SignOut"]</button>
+                    </form>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="sign-in">
+                        <span class="bi bi-lock-fill-nav-menu" aria-hidden="true"></span> @Localizer["SignIn"]
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="register">
+                        <span class="bi bi-person-plus-fill-nav-menu" aria-hidden="true"></span> @Localizer["Register"]
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
     </nav>
 </div>

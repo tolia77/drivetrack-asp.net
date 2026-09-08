@@ -31,6 +31,27 @@ public enum ErrorCode
     /// <summary>Credentials were presented and do not permit the operation. 403.</summary>
     AUTH_FORBIDDEN,
 
+    /// <summary>
+    /// The email is unknown or the password is wrong. 401, and deliberately one code for both:
+    /// a distinguishable answer lets an attacker enumerate accounts (FR-4).
+    /// </summary>
+    AUTH_INVALID_CREDENTIALS,
+
+    /// <summary>Registration named an email another account already holds. 409 (FR-1).</summary>
+    AUTH_EMAIL_ALREADY_IN_USE,
+
+    /// <summary>The email is absent or not a well-formed address. 422 (FR-3).</summary>
+    AUTH_EMAIL_INVALID,
+
+    /// <summary>The phone number is not in E.164 form. 422 (FR-3).</summary>
+    AUTH_PHONE_NUMBER_INVALID,
+
+    /// <summary>The password is below the configured policy. 422 (FR-3, FR-8).</summary>
+    AUTH_PASSWORD_TOO_WEAK,
+
+    /// <summary>The confirmation does not equal the password. 422 (FR-3).</summary>
+    AUTH_PASSWORD_CONFIRMATION_MISMATCH,
+
     /// <summary>PostgreSQL SQLSTATE 23505, translated in Infrastructure. 409 (AD-8).</summary>
     PERSISTENCE_UNIQUE_VIOLATION,
 

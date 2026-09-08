@@ -1,0 +1,86 @@
+@page "/sign-in"
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Components.Endpoints
+@* A circuit has no response to write Set-Cookie to, and AD-14 turns prerendering off - so this
+   page renders statically, which is the branch App.razor already has for the error and not-found
+   pages, and HttpContext.SignInAsync is available on the form POST. *@
+@attribute [ExcludeFromInteractiveRouting]
+@attribute [AllowAnonymous]
+@inject IUserService Users
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@inject NavigationManager Navigation
+
+<PageTitle>@Localizer["SignInTitle"]</PageTitle>
+
+<h1>@Localizer["SignInTitle"]</h1>
+
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+<EditForm Model="Form!" FormName="signIn" OnValidSubmit="SubmitAsync">
+    <div class="mb-3">
+        <label class="form-label" for="sign-in-email">@Localizer["Email"]</label>
+        <InputText id="sign-in-email" class="form-control" @bind-Value="Form!.Email" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="sign-in-password">@Localizer["Password"]</label>
+        <InputText id="sign-in-password" type="password" class="form-control" @bind-Value="Form!.Password" />
+    </div>
+    <button class="btn btn-primary" type="submit">@Localizer["SignIn"]</button>
+</EditForm>
+
+<p class="mt-3">@Localizer["NoAccount"] <a href="/register">@Localizer["Register"]</a></p>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // Nullable with no initializer, because the form binder overwrites the property on a post and
+    // an initialized one can be replaced with null (BL0008).
+    [SupplyParameterFromForm]
+    private SignInInput? Form { get; set; }
+
+    // The property is named Form because the input names the browser posts back are derived from
+    // the binding expression - name="Form.Email" - while the form binder looks the model up by this
+    // property's name. Different names on the two sides bind nothing, silently.
+    protected override void OnInitialized() => Form ??= new SignInInput();
+
+    private IReadOnlyList<string> _failures = [];
+
+    private async Task SubmitAsync()
+    {
+        try
+        {
+            var session = await Users.SignInAsync(
+                new SignInCommand(Form!.Email, Form.Password),
+                HttpContext.RequestAborted);
+
+            // The cookie scheme by name: the default scheme is the path selector, which has nothing
+            // of its own to sign in with.
+            await HttpContext.SignInAsync(AuthenticationSchemes.Cookie, ClaimsFactory.Build(session));
+
+            Navigation.NavigateTo(LandingRoute.For(session.Role));
+        }
+        catch (DriveTrackException failure)
+        {
+            // InputText always renders value="@CurrentValueAsString", so leaving the password on the
+            // model would write it back into the HTML of the refusal - into the page cache, the
+            // proxy log and the browser's view source.
+            Form!.Password = null;
+
+            // The code, resolved through the same catalogue the REST envelope reads, so the same
+            // refusal reads the same way in both adapters (NFR-3).
+            _failures = FailureKeys.For(failure);
+        }
+    }
+
+    private sealed class SignInInput
+    {
+        public string? Email { get; set; }
+
+        public string? Password { get; set; }
+    }
+}

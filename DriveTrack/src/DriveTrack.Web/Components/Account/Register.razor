@@ -1,0 +1,112 @@
+@page "/register"
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Components.Endpoints
+@* Statically rendered for the same reason as SignIn: the form POST has to be able to write the
+   authentication cookie, and a circuit has no response to write it to. *@
+@attribute [ExcludeFromInteractiveRouting]
+@attribute [AllowAnonymous]
+@inject IUserService Users
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@inject NavigationManager Navigation
+
+<PageTitle>@Localizer["RegisterTitle"]</PageTitle>
+
+<h1>@Localizer["RegisterTitle"]</h1>
+
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+<EditForm Model="Form!" FormName="register" OnValidSubmit="SubmitAsync">
+    <div class="mb-3">
+        <label class="form-label" for="register-first-name">@Localizer["FirstName"]</label>
+        <InputText id="register-first-name" class="form-control" @bind-Value="Form!.FirstName" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="register-last-name">@Localizer["LastName"]</label>
+        <InputText id="register-last-name" class="form-control" @bind-Value="Form!.LastName" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="register-email">@Localizer["Email"]</label>
+        <InputText id="register-email" class="form-control" @bind-Value="Form!.Email" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="register-phone">@Localizer["PhoneNumber"]</label>
+        <InputText id="register-phone" class="form-control" @bind-Value="Form!.PhoneNumber" />
+        <div class="form-text">@Localizer["PhoneNumberHint"]</div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="register-password">@Localizer["Password"]</label>
+        <InputText id="register-password" type="password" class="form-control" @bind-Value="Form!.Password" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="register-password-confirmation">@Localizer["PasswordConfirmation"]</label>
+        <InputText id="register-password-confirmation" type="password" class="form-control"
+                   @bind-Value="Form!.PasswordConfirmation" />
+    </div>
+    <button class="btn btn-primary" type="submit">@Localizer["Register"]</button>
+</EditForm>
+
+<p class="mt-3">@Localizer["HaveAccount"] <a href="/sign-in">@Localizer["SignIn"]</a></p>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // See SignIn.razor: nullable with no initializer, because the form binder can overwrite an
+    // initialized property with null (BL0008).
+    [SupplyParameterFromForm]
+    private RegisterInput? Form { get; set; }
+
+    // The property is named Form because the input names the browser posts back are derived from
+    // the binding expression - name="Form.Email" - while the form binder looks the model up by this
+    // property's name. Different names on the two sides bind nothing, silently.
+    protected override void OnInitialized() => Form ??= new RegisterInput();
+
+    private IReadOnlyList<string> _failures = [];
+
+    private async Task SubmitAsync()
+    {
+        try
+        {
+            var session = await Users.RegisterClientAsync(
+                new RegisterClientCommand(
+                    Form!.FirstName,
+                    Form!.LastName,
+                    Form!.Email,
+                    Form!.PhoneNumber,
+                    Form!.Password,
+                    Form!.PasswordConfirmation),
+                HttpContext.RequestAborted);
+
+            await HttpContext.SignInAsync(AuthenticationSchemes.Cookie, ClaimsFactory.Build(session));
+
+            Navigation.NavigateTo(LandingRoute.For(session.Role));
+        }
+        catch (DriveTrackException failure)
+        {
+            // See SignIn.razor: a refused post must not render the submitted password back.
+            Form!.Password = null;
+            Form.PasswordConfirmation = null;
+
+            _failures = FailureKeys.For(failure);
+        }
+    }
+
+    private sealed class RegisterInput
+    {
+        public string? FirstName { get; set; }
+
+        public string? LastName { get; set; }
+
+        public string? Email { get; set; }
+
+        public string? PhoneNumber { get; set; }
+
+        public string? Password { get; set; }
+
+        public string? PasswordConfirmation { get; set; }
+    }
+}

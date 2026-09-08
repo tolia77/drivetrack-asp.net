@@ -33,7 +33,9 @@ public class LayeringTests
         [Domain] = [],
         [Application] = [Domain],
         [Infrastructure] = [Application, Domain],
-        [Web] = [Application, Infrastructure],
+        // Domain as well as Application: DriveTrack.Web implements ICurrentUser, whose members are
+        // Domain identities, and its screens render UserRole. The arrow still points inward.
+        [Web] = [Application, Domain, Infrastructure],
     };
 
     [Theory]

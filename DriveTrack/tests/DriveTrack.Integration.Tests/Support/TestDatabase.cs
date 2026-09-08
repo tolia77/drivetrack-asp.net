@@ -1,5 +1,6 @@
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Infrastructure;
+using DriveTrack.Infrastructure.Identity;
 using DriveTrack.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -50,16 +51,21 @@ internal sealed class TestDatabase : IAsyncDisposable
     /// <summary>The migrator the composition root runs at start-up (AD-20).</summary>
     public DatabaseMigrator Migrator => _services.GetRequiredService<DatabaseMigrator>();
 
+    /// <summary>The startup seeder the composition root runs after the migrator (FR-9).</summary>
+    public IdentitySeeder Seeder => _services.GetRequiredService<IdentitySeeder>();
+
     /// <summary>
     /// Creates an empty database and, unless told otherwise, migrates it to head.
     /// </summary>
     /// <param name="adminConnectionString">Connection string of the container's own database.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <param name="migrate">False leaves the database empty, so "cold start" means what it says.</param>
+    /// <param name="settings">Configuration overlaid on the defaults, for the seeder tests.</param>
     public static async Task<TestDatabase> CreateAsync(
         string adminConnectionString,
         CancellationToken cancellationToken,
-        bool migrate = true)
+        bool migrate = true,
+        IReadOnlyDictionary<string, string?>? settings = null)
     {
         var name = "drivetrack_" + Guid.NewGuid().ToString("N")[..12];
 
@@ -76,7 +82,7 @@ internal sealed class TestDatabase : IAsyncDisposable
             Database = name,
         }.ConnectionString;
 
-        var services = BuildProvider(connectionString);
+        var services = BuildProvider(connectionString, settings);
         var database = new TestDatabase(adminConnectionString, name, connectionString, services);
 
         if (migrate)
@@ -91,17 +97,28 @@ internal sealed class TestDatabase : IAsyncDisposable
     /// Builds the container's real registration path, so a test exercises
     /// <c>AddInfrastructure</c> rather than a hand-rolled context.
     /// </summary>
-    public static ServiceProvider BuildProvider(string connectionString)
+    public static ServiceProvider BuildProvider(
+        string connectionString,
+        IReadOnlyDictionary<string, string?>? settings = null)
     {
+        var values = TestConfiguration.Defaults();
+        values["ConnectionStrings:Default"] = connectionString;
+
+        foreach (var setting in settings ?? new Dictionary<string, string?>(StringComparer.Ordinal))
+        {
+            values[setting.Key] = setting.Value;
+        }
+
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:Default"] = connectionString,
-            })
+            .AddInMemoryCollection(values)
             .Build();
 
         var services = new ServiceCollection();
         services.AddLogging();
+
+        // IdentitySeeder reads Admin:* itself, and AddInfrastructure does not register the
+        // configuration it was handed - the host normally does that.
+        services.AddSingleton<IConfiguration>(configuration);
         services.AddInfrastructure(configuration, new TestHostEnvironment());
 
         return services.BuildServiceProvider();

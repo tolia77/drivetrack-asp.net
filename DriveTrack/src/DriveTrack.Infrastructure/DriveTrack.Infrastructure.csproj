@@ -12,6 +12,11 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.4" />
+    <!--
+      AD-1: Application must not name a JWT type, so the signing lives here. The bearer
+      *handler* is an adapter concern and stays in DriveTrack.Web; this is the issuing half.
+    -->
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.15.0" />
   </ItemGroup>
 
 </Project>

@@ -19,8 +19,15 @@ namespace DriveTrack.Integration.Tests.Support;
 internal sealed class ApiFactory : WebApplicationFactory<Program>
 {
     private readonly TestDatabase _database;
+    private readonly bool _useProbeAuthentication;
+    private readonly TimeProvider? _clock;
 
-    private ApiFactory(TestDatabase database) => _database = database;
+    private ApiFactory(TestDatabase database, bool useProbeAuthentication, TimeProvider? clock)
+    {
+        _database = database;
+        _useProbeAuthentication = useProbeAuthentication;
+        _clock = clock;
+    }
 
     /// <summary>
     /// The database this host runs on, so a test can seed the rows an endpoint will then violate.
@@ -32,13 +39,27 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
     /// Creates the host's database first, because <c>Program.cs</c> migrates at start-up (AD-20) and
     /// would abort against a database that does not exist.
     /// </summary>
+    /// <param name="adminConnectionString">Connection string of the container's own database.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="useProbeAuthentication">
+    /// True - the default - registers the probe scheme last, which makes it the default and is what
+    /// keeps the Epic 1 envelope tests asserting against a principal they control. The identity
+    /// suite passes false so the real cookie and JWT schemes, and the path selector between them,
+    /// are the ones under test.
+    /// </param>
+    /// <param name="clock">
+    /// A clock for the host to issue tokens against (AD-13). Null takes the real one; a back-dated
+    /// <see cref="FixedTimeProvider"/> is how token expiry is exercised without waiting for it.
+    /// </param>
     public static async Task<ApiFactory> CreateAsync(
         string adminConnectionString,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool useProbeAuthentication = true,
+        TimeProvider? clock = null)
     {
         var database = await TestDatabase.CreateAsync(adminConnectionString, cancellationToken);
 
-        return new ApiFactory(database);
+        return new ApiFactory(database, useProbeAuthentication, clock);
     }
 
     /// <inheritdoc />
@@ -50,31 +71,54 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         // appsettings.json exactly as the container does.
         builder.UseContentRoot(RepositoryLayout.ProjectDirectory("DriveTrack.Web"));
 
-        // AD-19: the connection string arrives as configuration, here as it does in compose.
+        // AD-19: the connection string, the JWT settings and the first administrator all arrive as
+        // configuration, here as they do in compose. The signing key is not optional - startup
+        // aborts without one - so every host in this suite supplies it, and the failing case is
+        // asserted deliberately in InfrastructureRegistrationTests.
         builder.UseSetting("ConnectionStrings:Default", _database.ConnectionString);
+
+        foreach (var setting in TestConfiguration.Defaults())
+        {
+            builder.UseSetting(setting.Key, setting.Value);
+        }
 
         builder.ConfigureTestServices(services =>
         {
+            if (_clock is not null)
+            {
+                // Added, not TryAdded: AddInfrastructure registers the system clock with TryAdd, so
+                // the only way to replace it from here is to register last and win the resolve.
+                services.AddSingleton(_clock);
+            }
+
             // The probe controllers live in this assembly; adding it as an application part is what
             // lets the production pipeline route to them without DriveTrack.Web shipping one.
             services.AddControllers()
                 .ConfigureApplicationPartManager(manager =>
                     manager.ApplicationParts.Add(new AssemblyPart(typeof(ProbeController).Assembly)));
 
-            // Registered last, so this scheme wins the default and [Authorize] has something to
-            // challenge with. Epic 2 replaces it with the cookie and JWT schemes, which attach the
-            // same EnvelopeAuthenticationEvents methods this handler calls.
-            services.AddAuthentication(ProbeAuthentication.SchemeName)
-                .AddScheme<AuthenticationSchemeOptions, ProbeAuthenticationHandler>(
-                    ProbeAuthentication.SchemeName,
-                    _ => { });
-
+            // The probe policy is always registered: the probe controller declares it, and an
+            // endpoint referring to a policy the container does not hold fails at request time even
+            // when no test calls it.
             services.AddAuthorizationBuilder()
                 .AddPolicy(
                     ProbeAuthentication.PolicyName,
                     policy => policy.RequireClaim(
                         ProbeAuthentication.ClaimType,
                         ProbeAuthentication.ClaimValue));
+
+            if (!_useProbeAuthentication)
+            {
+                return;
+            }
+
+            // Registered last, so this scheme wins the default and [Authorize] has something to
+            // challenge with. The production schemes are still registered underneath; this only
+            // changes which one an endpoint with no explicit scheme resolves to.
+            services.AddAuthentication(ProbeAuthentication.SchemeName)
+                .AddScheme<AuthenticationSchemeOptions, ProbeAuthenticationHandler>(
+                    ProbeAuthentication.SchemeName,
+                    _ => { });
         });
     }
 

@@ -1,4 +1,5 @@
 using DriveTrack.Application.Abstractions;
+using DriveTrack.Infrastructure.Identity;
 using DriveTrack.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -13,13 +14,18 @@ public sealed class UnitOfWork : IUnitOfWork
 {
     private readonly AppDbContext _context;
     private readonly IDbContextTransaction _transaction;
+    private readonly ScopedIdentity _identity;
     private bool _committed;
 
-    internal UnitOfWork(AppDbContext context, IDbContextTransaction transaction)
+    internal UnitOfWork(AppDbContext context, IDbContextTransaction transaction, ScopedIdentity identity)
     {
         _context = context;
         _transaction = transaction;
+        _identity = identity;
 
+        // AD-5: the Identity managers are built over this same context, so a user, its role row and
+        // its subtype row are staged against one change tracker inside one transaction.
+        Users = new EfUserAccountRepository(context, identity);
         Clients = new EfClientRepository(context);
         Drivers = new EfDriverRepository(context);
         Vehicles = new EfVehicleRepository(context);
@@ -31,6 +37,9 @@ public sealed class UnitOfWork : IUnitOfWork
         TimelineEntries = new EfTimelineEntryRepository(context);
         Messages = new EfMessageRepository(context);
     }
+
+    /// <inheritdoc />
+    public IUserAccountRepository Users { get; }
 
     /// <inheritdoc />
     public IClientRepository Clients { get; }
@@ -79,10 +88,15 @@ public sealed class UnitOfWork : IUnitOfWork
         }
         catch (DbUpdateException exception)
         {
-            // AD-8: the single production commit path is the single translation point. A unique or
-            // check violation leaves here as a typed failure carrying a contract code; anything
-            // else is returned unchanged and surfaces as the 500 envelope. The original is kept as
-            // the InnerException either way, so the log still has the SQL detail the wire never sees.
+            // AD-8: a unique or check violation leaves here as a typed failure carrying a contract
+            // code; anything else is returned unchanged and surfaces as the 500 envelope. The
+            // original is kept as the InnerException either way, so the log still has the SQL detail
+            // the wire never sees.
+            //
+            // This is the commit, and the last place a constraint can be caught, but it is not the
+            // only place: EfUserAccountRepository.FlushAsync saves inside this transaction to
+            // materialize the identity key a subtype row's foreign key needs, and calls the same
+            // translator so the two answer alike. Those two are the whole set.
             var translated = PostgresConstraintTranslator.Translate(exception);
 
             if (ReferenceEquals(translated, exception))
@@ -110,10 +124,21 @@ public sealed class UnitOfWork : IUnitOfWork
         }
         finally
         {
-            // In a finally because the context comes from a pool: a transaction disposal that
-            // throws - a dropped connection during rollback is the ordinary case - would
-            // otherwise leak one context per failure until the pool ran dry.
-            await _context.DisposeAsync();
+            try
+            {
+                // Before the context: disposing a manager disposes its store, and a store built over
+                // a context that has already gone back to the pool is a use-after-free waiting to
+                // happen. In its own try for the same reason the context disposal is in a finally -
+                // an unguarded throw here would strand the pooled context this block exists to return.
+                _identity.Dispose();
+            }
+            finally
+            {
+                // In a finally because the context comes from a pool: a transaction or manager
+                // disposal that throws - a dropped connection during rollback is the ordinary case -
+                // would otherwise leak one context per failure until the pool ran dry.
+                await _context.DisposeAsync();
+            }
         }
     }
 }
