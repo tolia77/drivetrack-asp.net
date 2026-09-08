@@ -224,9 +224,18 @@ public class PersistenceContractTests
 
     private static IConfiguration BuildConfiguration() =>
         new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:Default"] = ValidConnectionString,
-            })
+            .AddInMemoryCollection(WithConnectionString(ValidConnectionString))
             .Build();
+
+    /// <summary>
+    /// The full set AddInfrastructure needs. It aborts startup on a missing JWT signing key as well
+    /// as a missing connection string (AD-19), so a registration test has to supply both.
+    /// </summary>
+    private static Dictionary<string, string?> WithConnectionString(string connectionString)
+    {
+        var values = TestConfiguration.Defaults();
+        values["ConnectionStrings:Default"] = connectionString;
+
+        return values;
+    }
 }

@@ -1,0 +1,91 @@
+@page "/profile"
+@attribute [Authorize]
+@inject IUserService Users
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+@implements IDisposable
+
+<PageTitle>@Localizer["ProfileTitle"]</PageTitle>
+
+<h1>@Localizer["ProfileTitle"]</h1>
+
+@* Written as independent @if blocks rather than if/else chains: an `else` at markup level is a
+   rendered text node as far as the source is concerned, and NFR-14's scan reads it as an
+   untranslated word. The conditions are mutually exclusive, so the result is the same. *@
+@if (_profile is null)
+{
+    <p>@Localizer["Loading"]</p>
+}
+
+@if (_profile is not null)
+{
+    <dl class="row">
+        <dt class="col-sm-4">@Localizer["FirstName"]</dt>
+        <dd class="col-sm-8">@_profile.FirstName</dd>
+
+        <dt class="col-sm-4">@Localizer["LastName"]</dt>
+        <dd class="col-sm-8">@_profile.LastName</dd>
+
+        <dt class="col-sm-4">@Localizer["Email"]</dt>
+        <dd class="col-sm-8">@_profile.Email</dd>
+
+        <dt class="col-sm-4">@Localizer["Role"]</dt>
+        <dd class="col-sm-8">
+            @* One branch per role rather than a composed key: a key built at run time is a key no
+               test can see, and the catalogue is closed against the keys components ask for in
+               both directions. *@
+            @if (_profile.Role == UserRole.Admin)
+            {
+                <span>@Localizer["RoleAdmin"]</span>
+            }
+            @if (_profile.Role == UserRole.Dispatcher)
+            {
+                <span>@Localizer["RoleDispatcher"]</span>
+            }
+            @if (_profile.Role == UserRole.Driver)
+            {
+                <span>@Localizer["RoleDriver"]</span>
+            }
+            @if (_profile.Role == UserRole.Client)
+            {
+                <span>@Localizer["RoleClient"]</span>
+            }
+        </dd>
+
+        @if (_profile.LicenseNumber is not null)
+        {
+            <dt class="col-sm-4">@Localizer["LicenseNumber"]</dt>
+            <dd class="col-sm-8">@_profile.LicenseNumber</dd>
+        }
+    </dl>
+}
+
+@code {
+    // The screen's own lifetime. A user who navigates away mid-load leaves a query running against a
+    // pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private UserProfile? _profile;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen calls a service. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        _profile = await Users.GetProfileAsync(Caller.UserId, _cancellation.Token);
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+}

@@ -129,7 +129,19 @@ services:
       ASPNETCORE_HTTP_PORTS: "8080"
       ConnectionStrings__Default: ${ConnectionStrings__Default:?ConnectionStrings__Default is not set. Copy .env.example to .env before running docker compose.}
       Cors__AllowedOrigins__0: ${Cors__AllowedOrigins__0}
-      Jwt__SigningKey: ${Jwt__SigningKey}
+      Jwt__SigningKey: ${Jwt__SigningKey:?Jwt__SigningKey is not set. Copy .env.example to .env before running docker compose.}
+      # Defaulted, not forwarded bare: an .env predating these keys would otherwise set them to
+      # the empty string, which overrides the options defaults rather than falling back to them.
+      Jwt__Issuer: ${Jwt__Issuer:-DriveTrack}
+      Jwt__Audience: ${Jwt__Audience:-DriveTrack}
+      Jwt__LifetimeMinutes: ${Jwt__LifetimeMinutes:-60}
+      Admin__Email: ${Admin__Email}
+      Admin__Password: ${Admin__Password}
+      # Defaulted for the same reason as the JWT keys above: an .env predating these two would
+      # forward the empty string, and an empty string is a value - it overrides the seeder's
+      # fallback rather than falling back to it, and seeds an administrator with no name.
+      Admin__FirstName: ${Admin__FirstName:-Адміністратор}
+      Admin__LastName: ${Admin__LastName:-Системи}
       Smtp__Host: ${Smtp__Host}
       Smtp__Port: ${Smtp__Port}
       Smtp__UseStartTls: ${Smtp__UseStartTls}

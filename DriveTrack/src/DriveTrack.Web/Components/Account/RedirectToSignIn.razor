@@ -1,0 +1,6 @@
+@inject NavigationManager Navigation
+@* Renders nothing: AuthorizeRouteView's NotAuthorized branch exists to send the caller somewhere,
+   and a page that said so in prose would just be a second thing to read before being redirected. *@
+@code {
+    protected override void OnInitialized() => Navigation.NavigateTo("/sign-in");
+}

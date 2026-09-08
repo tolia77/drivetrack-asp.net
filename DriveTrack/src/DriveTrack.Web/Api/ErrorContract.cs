@@ -29,6 +29,20 @@ internal static class ErrorContract
         ErrorCode.AUTH_UNAUTHENTICATED => StatusCodes.Status401Unauthorized,
         ErrorCode.AUTH_FORBIDDEN => StatusCodes.Status403Forbidden,
 
+        // 401, not 403: no usable credentials were established, and the caller's next move is to
+        // present some. The status comes from the code, never from the exception type - which is
+        // why a ForbiddenException carrying this code still answers 401.
+        ErrorCode.AUTH_INVALID_CREDENTIALS => StatusCodes.Status401Unauthorized,
+
+        // A genuine collision with a row that already exists, like every other 409 here.
+        ErrorCode.AUTH_EMAIL_ALREADY_IN_USE => StatusCodes.Status409Conflict,
+
+        // Four refusals on the content of the request (NFR-4).
+        ErrorCode.AUTH_EMAIL_INVALID => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.AUTH_PHONE_NUMBER_INVALID => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.AUTH_PASSWORD_TOO_WEAK => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.AUTH_PASSWORD_CONFIRMATION_MISMATCH => StatusCodes.Status422UnprocessableEntity,
+
         // AD-8 splits the two constraint kinds where AD-7 folds them together, and AD-8 is the more
         // specific rule: a unique violation is a genuine conflict with another row, a check
         // violation is a value the caller should not have sent. That split is what keeps NFR-2

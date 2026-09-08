@@ -1,4 +1,5 @@
 using DriveTrack.Application.Abstractions;
+using DriveTrack.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace DriveTrack.Infrastructure.Persistence;
@@ -12,7 +13,9 @@ namespace DriveTrack.Infrastructure.Persistence;
 /// circuit, hours, accumulating tracked entities and throwing on concurrent renders.
 /// </para>
 /// </summary>
-public sealed class UnitOfWorkFactory(IDbContextFactory<AppDbContext> contextFactory)
+public sealed class UnitOfWorkFactory(
+    IDbContextFactory<AppDbContext> contextFactory,
+    ScopedIdentityFactory identityFactory)
     : IUnitOfWorkFactory
 {
     /// <inheritdoc />
@@ -23,8 +26,9 @@ public sealed class UnitOfWorkFactory(IDbContextFactory<AppDbContext> contextFac
         try
         {
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+            var identity = identityFactory.Create(context);
 
-            return new UnitOfWork(context, transaction);
+            return new UnitOfWork(context, transaction, identity);
         }
         catch
         {

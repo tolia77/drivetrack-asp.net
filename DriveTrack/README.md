@@ -27,6 +27,39 @@ first code that reads or writes an object. Nothing in the app calls S3 before th
 
 Stop with `docker compose down`; add `-v` to discard the database and object-store volumes.
 
+## The first administrator
+
+There is no sign-up for privileged roles, so the first administrator is provisioned from the
+environment. Four variables drive it, all documented in `.env.example` and forwarded by
+`compose.yaml`:
+
+| Variable | Meaning |
+|---|---|
+| `Admin__Email` | The address the administrator signs in with. |
+| `Admin__Password` | Their password. Change it before any deployment that is not a laptop. |
+| `Admin__FirstName` | Given name, shown wherever a person is named. |
+| `Admin__LastName` | Family name. |
+
+On every start the app ensures one role row per role (`Admin`, `Dispatcher`, `Driver`,
+`Client`) and then creates that administrator **only if no account already holds the
+address**. Starting the stack a second time against the same volume therefore writes
+nothing: there is exactly one administrator and exactly four roles however many times the
+container restarts.
+
+Leaving `Admin__Email` or `Admin__Password` blank is not an error. The roles are still
+ensured, the administrator is skipped with a warning in the log, and startup continues.
+
+Authentication itself needs `Jwt__SigningKey` — at least 32 bytes, with no committed
+default. The app refuses to start without it rather than failing at the first sign-in.
+
+## Signing out
+
+`POST /sign-out` clears the browser's session cookie, and that is all it does. There are no
+refresh tokens and no revocation list yet, so a bearer token already issued to that person —
+by `POST /api/auth/sign-in` or by the same registration — keeps working until it expires on
+its own. `Jwt__LifetimeMinutes` is that window; it defaults to 60. Shorten it if a signed-out
+session must lose its REST access sooner. Token revocation belongs to a later epic.
+
 ## Develop against it
 
 The .NET 10 SDK is the only extra prerequisite.
@@ -62,7 +95,8 @@ DriveTrack/
     DriveTrack.Infrastructure  EF Core and adapters; depends on Application and Domain
     DriveTrack.Web             Blazor and REST adapters; Program.cs is the composition root
   tests/
-    DriveTrack.Integration.Tests   layering, configuration and migration-pipeline tests
+    DriveTrack.Application.Tests   guard coverage, guard behaviour and validators; no Docker
+    DriveTrack.Integration.Tests   layering, configuration, persistence and identity tests
 ```
 
 The dependency direction above is enforced by a test, not by convention: see

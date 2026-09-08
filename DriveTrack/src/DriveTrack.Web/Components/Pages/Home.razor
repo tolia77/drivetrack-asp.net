@@ -1,10 +1,27 @@
 @page "/"
-@using DriveTrack.Web.Resources
-@using Microsoft.Extensions.Localization
+@attribute [AllowAnonymous]
 @inject IStringLocalizer<UiText> Localizer
 
 <PageTitle>DriveTrack</PageTitle>
 
 <h1>DriveTrack</h1>
 
-<p>@Localizer["HomeStatus"]</p>
+<p class="lead">@Localizer["HomeStatus"]</p>
+
+<ul>
+    <li>@Localizer["HomeFeatureTracking"]</li>
+    <li>@Localizer["HomeFeatureFleet"]</li>
+    <li>@Localizer["HomeFeatureProof"]</li>
+</ul>
+
+@* FR-99: one landing page, two audiences. An anonymous visitor is offered the two anonymous
+   entry points; anyone already signed in is offered the way into the application. *@
+<AuthorizeView>
+    <Authorized>
+        <a class="btn btn-primary" href="profile">@Localizer["GoToApp"]</a>
+    </Authorized>
+    <NotAuthorized>
+        <a class="btn btn-primary me-2" href="sign-in">@Localizer["SignIn"]</a>
+        <a class="btn btn-outline-primary" href="register">@Localizer["Register"]</a>
+    </NotAuthorized>
+</AuthorizeView>

@@ -12,6 +12,12 @@ namespace DriveTrack.Application.Abstractions;
 /// </summary>
 public interface IUnitOfWork : IAsyncDisposable
 {
+    /// <summary>
+    /// User accounts (FR-1, FR-4, FR-9). AD-5: Identity writes go through this scope and this
+    /// commit, so an account and its subtype row can never be half-created.
+    /// </summary>
+    IUserAccountRepository Users { get; }
+
     /// <summary>Clients (FR-47).</summary>
     IClientRepository Clients { get; }
 

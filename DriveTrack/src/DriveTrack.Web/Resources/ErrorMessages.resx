@@ -87,4 +87,22 @@
   <data name="PERSISTENCE_CHECK_VIOLATION" xml:space="preserve">
     <value>Значення виходить за межі допустимого діапазону.</value>
   </data>
+  <data name="AUTH_INVALID_CREDENTIALS" xml:space="preserve">
+    <value>Невірна електронна пошта або пароль.</value>
+  </data>
+  <data name="AUTH_EMAIL_ALREADY_IN_USE" xml:space="preserve">
+    <value>Обліковий запис із такою електронною поштою вже існує.</value>
+  </data>
+  <data name="AUTH_EMAIL_INVALID" xml:space="preserve">
+    <value>Укажіть коректну електронну пошту.</value>
+  </data>
+  <data name="AUTH_PHONE_NUMBER_INVALID" xml:space="preserve">
+    <value>Номер телефону має бути у міжнародному форматі, наприклад +380441234567.</value>
+  </data>
+  <data name="AUTH_PASSWORD_TOO_WEAK" xml:space="preserve">
+    <value>Пароль має містити щонайменше вісім символів, велику та малу літери й цифру.</value>
+  </data>
+  <data name="AUTH_PASSWORD_CONFIRMATION_MISMATCH" xml:space="preserve">
+    <value>Підтвердження пароля не збігається з паролем.</value>
+  </data>
 </root>
