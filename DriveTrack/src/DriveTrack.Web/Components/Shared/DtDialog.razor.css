@@ -1,0 +1,58 @@
+/*
+    FR-86 and NFR-29 together. Every palette value is a token; the two figures that are not are
+    geometry, and NFR-29's scan deliberately does not read `width` or `max-width`.
+
+    The pair is what makes the dialog fit a phone: `width` keeps it inside the viewport with a
+    margin either side, and `max-width` stops it stretching into a line nobody can read on a
+    desktop. A single value could do one or the other, not both.
+*/
+
+.dt-dialog {
+    width: 92vw;
+    max-width: 32rem;
+    /* The panel owns the padding, so the surface can run edge to edge if a screen wants it to. */
+    padding: 0;
+    border: var(--dt-border-width) solid var(--dt-border-subtle);
+    border-radius: var(--dt-radius-lg);
+    background-color: var(--dt-surface-card);
+    color: var(--dt-text-primary);
+    box-shadow: var(--dt-shadow-md);
+}
+
+/*
+    The scrim. `::backdrop` is the browser's own pseudo-element for a modal dialog - the same
+    mechanism ReconnectModal already styles - so the overlay needs no extra element and no z-index
+    of its own.
+*/
+.dt-dialog::backdrop {
+    background-color: var(--dt-overlay-backdrop);
+}
+
+.dt-dialog-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-4);
+    padding: var(--dt-space-5);
+}
+
+.dt-dialog-title {
+    margin: 0;
+    font-size: var(--dt-font-size-lg);
+    font-weight: var(--dt-font-weight-bold);
+    line-height: var(--dt-line-height-heading);
+}
+
+.dt-dialog-body {
+    color: var(--dt-text-primary);
+}
+
+/*
+    Wrapping rather than scrolling: on a narrow viewport two or three actions stack instead of
+    being pushed off the edge of the panel.
+*/
+.dt-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--dt-space-2);
+}

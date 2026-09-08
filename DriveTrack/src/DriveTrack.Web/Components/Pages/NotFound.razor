@@ -4,9 +4,23 @@
 @using Microsoft.AspNetCore.Components.Endpoints
 @using Microsoft.Extensions.Localization
 @* Rendered statically: with prerendering off (AD-14) an interactive not-found page is
-   an empty shell until a circuit connects. *@
+   an empty shell until a circuit connects.
+
+   FR-78: an <h1> rather than the scaffold's <h3>, because `FocusOnNavigate Selector="h1"` in
+   Routes.razor looks for one and found nothing here - so a keyboard user landing on this page kept
+   whatever focus the previous screen had. The link back is the other half: a dead end with no way
+   out is what the baseline shipped. *@
 @attribute [ExcludeFromInteractiveRouting]
 @inject IStringLocalizer<UiText> Localizer
 
-<h3>@Localizer["NotFoundTitle"]</h3>
+<PageTitle>@Localizer["NotFoundTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.NotFound" />@Localizer["NotFoundTitle"]
+</h1>
+
 <p>@Localizer["NotFoundMessage"]</p>
+
+<a class="btn btn-primary" href="/">
+    <Icon Name="IconName.Back" />@Localizer["BackToHome"]
+</a>

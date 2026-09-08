@@ -1,8 +1,32 @@
 @inject IStringLocalizer<UiText> Localizer
+@inject ICurrentUser Caller
+
+@* FR-77 / FR-12 / NFR-25: the shell every screen shares.
+
+   The role decides which destinations are worth offering, and that decision is a table
+   (NavDestinations) rather than a chain of conditionals here - so Epic 4 adds a row instead of
+   editing this markup. What stays here is how a destination renders, one independent @if block
+   apiece, each with its own literal localizer key: LocalizationTests harvests only the literal
+   indexer occurrences it can see in markup, so a key composed at run time would read as unused and
+   fail the closed-catalogue test.
+
+   FR-12 again, because it is the part worth repeating: hiding a link is a convenience. Whether a
+   caller may perform an operation is settled by IAccessGuard inside the service, which runs
+   whether or not the link was ever rendered. *@
+
+@{
+    // Read once per render: ICurrentUser answers from claims, and asking it per block would make
+    // the menu's shape depend on how many times it was asked.
+    var isSignedIn = Caller.IsAuthenticated;
+    var destinations = isSignedIn ? NavDestinations.For(Caller.Role) : NavDestinations.Anonymous;
+}
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">DriveTrack</a>
+        @* NFR-25: the mark and the wordmark travel together, on every screen. *@
+        <a class="navbar-brand" href="">
+            <Icon Name="IconName.Location" />DriveTrack
+        </a>
     </div>
 </div>
 
@@ -10,40 +34,50 @@
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> @Localizer["NavHome"]
-            </NavLink>
-        </div>
+        @if (destinations.Contains(NavDestination.Home))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <Icon Name="IconName.Home" />@Localizer["NavHome"]
+                </NavLink>
+            </div>
+        }
 
-        @* FR-12: convenience only. Hiding a link is not an authorization decision - the guard
-           inside the service is, and it runs whether or not the link was ever rendered. *@
-        <AuthorizeView>
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="profile">
-                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @Localizer["Profile"]
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <form method="post" action="/sign-out">
-                        <AntiforgeryToken />
-                        <button class="nav-link btn btn-link" type="submit">@Localizer["SignOut"]</button>
-                    </form>
-                </div>
-            </Authorized>
-            <NotAuthorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="sign-in">
-                        <span class="bi bi-lock-fill-nav-menu" aria-hidden="true"></span> @Localizer["SignIn"]
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="register">
-                        <span class="bi bi-person-plus-fill-nav-menu" aria-hidden="true"></span> @Localizer["Register"]
-                    </NavLink>
-                </div>
-            </NotAuthorized>
-        </AuthorizeView>
+        @if (destinations.Contains(NavDestination.Profile))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="profile">
+                    <Icon Name="IconName.Profile" />@Localizer["Profile"]
+                </NavLink>
+            </div>
+        }
+
+        @* The account actions are not destinations: they change who the caller is rather than where
+           they are, so they sit outside the destination table. *@
+        @if (isSignedIn)
+        {
+            <div class="nav-item px-3">
+                <form method="post" action="/sign-out">
+                    <AntiforgeryToken />
+                    <button class="nav-link btn btn-link" type="submit">
+                        <Icon Name="IconName.SignOut" />@Localizer["SignOut"]
+                    </button>
+                </form>
+            </div>
+        }
+
+        @if (!isSignedIn)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="sign-in">
+                    <Icon Name="IconName.SignIn" />@Localizer["SignIn"]
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="register">
+                    <Icon Name="IconName.Register" />@Localizer["Register"]
+                </NavLink>
+            </div>
+        }
     </nav>
 </div>

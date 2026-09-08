@@ -1,0 +1,116 @@
+@inject IStringLocalizer<UiText> Localizer
+
+@* FR-81: the one place a destructive action is confirmed.
+
+   The baseline shipped deletes that happened the moment the link was clicked. Making the prompt a
+   component - rather than a convention - is what stops a later epic forgetting it: a screen wires
+   OnConfirmed and gets the prompt, the destructive colour and the cancel route for free.
+
+   The default labels are rendered through independent @if blocks rather than a `??` in C#, because
+   LocalizationTests harvests only the literal localizer indexer occurrences it can see in markup: a
+   default composed in the @code block would make both keys look unreferenced and fail the
+   closed-catalogue test. *@
+
+<DtDialog @ref="_dialog" Title="@Title" OnClosed="OnDialogClosedAsync">
+    <ChildContent>
+        <p>@Message</p>
+    </ChildContent>
+    <Actions>
+        <button type="button" class="btn btn-danger dt-confirm-accept" @onclick="ConfirmAsync">
+            <Icon Name="IconName.Delete" />
+            @if (ConfirmLabel is null)
+            {
+                <span>@Localizer["Confirm"]</span>
+            }
+            @if (ConfirmLabel is not null)
+            {
+                <span>@ConfirmLabel</span>
+            }
+        </button>
+        <button type="button" class="btn btn-secondary dt-confirm-cancel" @onclick="CancelAsync">
+            <Icon Name="IconName.Close" />
+            @if (CancelLabel is null)
+            {
+                <span>@Localizer["Cancel"]</span>
+            }
+            @if (CancelLabel is not null)
+            {
+                <span>@CancelLabel</span>
+            }
+        </button>
+    </Actions>
+</DtDialog>
+
+@code {
+    private DtDialog? _dialog;
+
+    /// <summary>
+    /// True once this prompt's confirm action has been taken, so a second click - or a click and
+    /// then the dialog's own close event - cannot delete the same row twice. Reset when the prompt
+    /// is opened again.
+    /// </summary>
+    private bool _confirmed;
+
+    /// <summary>The prompt's heading, already localized by the screen that opens it.</summary>
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>What is about to happen, already localized by the screen that opens it.</summary>
+    [Parameter]
+    public string? Message { get; set; }
+
+    /// <summary>Overrides the confirm action's label. Null takes the shared default.</summary>
+    [Parameter]
+    public string? ConfirmLabel { get; set; }
+
+    /// <summary>Overrides the cancel action's label. Null takes the shared default.</summary>
+    [Parameter]
+    public string? CancelLabel { get; set; }
+
+    /// <summary>Raised exactly once per confirmation, and never for a cancellation.</summary>
+    [Parameter]
+    public EventCallback OnConfirmed { get; set; }
+
+    /// <summary>Raised when the prompt closes, however it was dismissed.</summary>
+    [Parameter]
+    public EventCallback OnClosed { get; set; }
+
+    /// <summary>Opens the prompt.</summary>
+    public async Task ShowAsync()
+    {
+        _confirmed = false;
+
+        if (_dialog is not null)
+        {
+            await _dialog.ShowAsync();
+        }
+    }
+
+    /// <summary>Closes the prompt without confirming.</summary>
+    public async Task CloseAsync()
+    {
+        if (_dialog is not null)
+        {
+            await _dialog.CloseAsync();
+        }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_confirmed)
+        {
+            return;
+        }
+
+        _confirmed = true;
+
+        // Closed first: the callback may navigate, and a dialog left open across a navigation is a
+        // modal nobody can reach.
+        await CloseAsync();
+        await OnConfirmed.InvokeAsync();
+    }
+
+    private Task CancelAsync() => CloseAsync();
+
+    private Task OnDialogClosedAsync() => OnClosed.InvokeAsync();
+}

@@ -46,33 +46,15 @@
     background-color: var(--dt-surface-nav-sunken);
 }
 
+/*
+    NFR-25: the mark and the wordmark are one lock-up, so the brand is a flex row rather than an
+    icon that happens to sit before some text - a baseline-aligned glyph drifts as the wordmark's
+    size changes, and the size is a token that a later story is free to change.
+*/
 .navbar-brand {
     font-size: var(--dt-font-size-lg);
-}
-
-.bi {
-    display: inline-block;
-    position: relative;
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-right: var(--dt-space-3);
-    top: -1px;
-    background-size: cover;
-}
-
-.bi-house-door-fill-nav-menu {
-    /*
-        The glyph is a shape, not a picture, so it is masked rather than painted: the colour
-        comes from the token and a retint of the navigation carries the icon with it. The
-        asset itself declares no `fill`, which is what keeps the last literal colour out of
-        this rule (NFR-29, AD-28) - a mask reads the alpha channel, and the default fill is
-        opaque, so the shape is unchanged.
-    */
-    background-color: var(--dt-text-on-nav-strong);
-    background-image: none;
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' class='bi bi-house-door-fill' viewBox='0 0 16 16'%3E%3Cpath d='M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5Z'/%3E%3C/svg%3E");
-    mask-size: cover;
-    mask-repeat: no-repeat;
+    display: inline-flex;
+    align-items: center;
 }
 
 .nav-item {

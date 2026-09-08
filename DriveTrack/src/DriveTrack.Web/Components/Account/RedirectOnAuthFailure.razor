@@ -1,0 +1,30 @@
+@inject NavigationManager Navigation
+@* FR-79 / FR-80: AuthorizeRouteView's NotAuthorized branch, which exists to send the caller
+   somewhere rather than to say anything.
+
+   It renders nothing on purpose - a page of prose explaining that a redirect is about to happen is
+   a second thing to read before being redirected - and it renders nothing on BOTH paths, which is
+   the part that matters: with prerendering off (AD-14) and no route view in this fragment, the
+   protected component's markup cannot reach the response whichever way the decision goes.
+
+   Which way it goes is AuthFailureRoute's, not this component's: a caller who is already signed in
+   and still refused must not be told to sign in again. *@
+
+@code {
+    /// <summary>
+    /// The circuit's authentication state, cascaded by <c>AddCascadingAuthenticationState</c>. Read
+    /// through the cascade rather than through ICurrentUser because this component runs inside the
+    /// route view, where the cascade is the framework's own answer to the same question.
+    /// </summary>
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = AuthenticationState is not null
+            && (await AuthenticationState).User.Identity?.IsAuthenticated == true;
+
+        Navigation.NavigateTo(AuthFailureRoute.For(isAuthenticated));
+    }
+}

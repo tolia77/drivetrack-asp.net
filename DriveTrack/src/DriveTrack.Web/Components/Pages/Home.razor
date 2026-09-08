@@ -1,5 +1,6 @@
 @page "/"
 @attribute [AllowAnonymous]
+@inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
 
 <PageTitle>DriveTrack</PageTitle>
@@ -15,13 +16,26 @@
 </ul>
 
 @* FR-99: one landing page, two audiences. An anonymous visitor is offered the two anonymous
-   entry points; anyone already signed in is offered the way into the application. *@
-<AuthorizeView>
-    <Authorized>
-        <a class="btn btn-primary" href="profile">@Localizer["GoToApp"]</a>
-    </Authorized>
-    <NotAuthorized>
-        <a class="btn btn-primary me-2" href="sign-in">@Localizer["SignIn"]</a>
-        <a class="btn btn-outline-primary" href="register">@Localizer["Register"]</a>
-    </NotAuthorized>
-</AuthorizeView>
+   entry points; anyone already signed in is offered the way into the application - and where that
+   is belongs to LandingRoute, which is the one place that knows where a role lands.
+
+   NFR-24: every action carries an icon AND its text. An icon on its own is a guess.
+
+   Independent @if blocks rather than if/else, and ICurrentUser rather than <AuthorizeView>, so the
+   signed-in branch can read the role it needs without a second notion of who the caller is. *@
+@if (Caller.IsAuthenticated)
+{
+    <a class="btn btn-primary" href="@LandingRoute.For(Caller.Role)">
+        <Icon Name="IconName.Home" />@Localizer["GoToApp"]
+    </a>
+}
+
+@if (!Caller.IsAuthenticated)
+{
+    <a class="btn btn-primary me-2" href="sign-in">
+        <Icon Name="IconName.SignIn" />@Localizer["SignIn"]
+    </a>
+    <a class="btn btn-outline-primary" href="register">
+        <Icon Name="IconName.Register" />@Localizer["Register"]
+    </a>
+}

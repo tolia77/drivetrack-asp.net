@@ -1,0 +1,35 @@
+/*
+    NFR-22: a table that is wider or longer than the space it has scrolls inside its own box rather
+    than widening the page. On a phone that is the difference between a horizontal scrollbar on the
+    table and a horizontal scrollbar on the whole screen.
+
+    `overflow`, `max-height`, `position` and `top` are geometry and outside NFR-29's scan; the
+    header's colours are not, and are tokens.
+*/
+
+.dt-table-scroll {
+    overflow: auto;
+    max-height: 32rem;
+}
+
+/*
+    ::deep, because the header cells come from the consumer's HeaderTemplate and therefore carry
+    the consuming component's scope, not this one's. The thead is ours, so it anchors the selector.
+
+    The opaque background is load-bearing rather than decorative: a sticky header is painted over
+    the rows scrolling beneath it, and a transparent one shows them through the column names.
+*/
+.dt-table-head ::deep th {
+    position: sticky;
+    top: 0;
+    background-color: var(--dt-surface-card);
+    border-bottom: var(--dt-border-width) solid var(--dt-border-subtle);
+}
+
+/* The two status rows are a statement, not data: centred and quietened so they do not read as a row. */
+.dt-table-status td,
+.dt-table-empty td {
+    color: var(--dt-text-muted);
+    text-align: center;
+    padding: var(--dt-space-5);
+}

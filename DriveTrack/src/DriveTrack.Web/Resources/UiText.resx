@@ -208,4 +208,32 @@
   <data name="NoAccount" xml:space="preserve">
     <value>Ще не маєте облікового запису?</value>
   </data>
+  <!-- Story 3.2: the shared component vocabulary and the two dead-end surfaces. -->
+  <data name="Close" xml:space="preserve">
+    <value>Закрити</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Підтвердити</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Скасувати</value>
+  </data>
+  <data name="TableEmpty" xml:space="preserve">
+    <value>Немає записів для показу.</value>
+  </data>
+  <data name="MapLabel" xml:space="preserve">
+    <value>Мапа з розташуванням</value>
+  </data>
+  <data name="Authorizing" xml:space="preserve">
+    <value>Перевіряємо права доступу…</value>
+  </data>
+  <data name="AccessDeniedTitle" xml:space="preserve">
+    <value>Доступ заборонено</value>
+  </data>
+  <data name="AccessDeniedMessage" xml:space="preserve">
+    <value>У вас немає прав на перегляд цієї сторінки. Якщо це помилка, зверніться до диспетчера.</value>
+  </data>
+  <data name="BackToHome" xml:space="preserve">
+    <value>Повернутися на головну</value>
+  </data>
 </root>

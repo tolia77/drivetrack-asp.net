@@ -1,0 +1,88 @@
+@* NFR-24: the one icon set. Hand-authored 16x16 paths rendered inline, so an action's glyph costs
+   no webfont, no sprite request and no third stylesheet link - App.razor is pinned to exactly two.
+
+   `fill="currentColor"` is declared once, on the wrapper: an icon takes the colour of the text it
+   sits beside, which is also the only colour keyword NFR-29's scanner allows. A glyph therefore
+   follows a token wherever it is placed, including onto the navy navigation.
+
+   Independent @if blocks rather than a switch expression in markup: an `else` reads to NFR-14's
+   scan as a rendered English word, and the conditions are mutually exclusive anyway. *@
+
+<svg class="dt-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    @if (Name == IconName.Home)
+    {
+        <path d="M8 1.25 1 7.5h2v6.25a1 1 0 0 0 1 1h2.5V10h3v4.75H12a1 1 0 0 0 1-1V7.5h2Z" />
+    }
+    @if (Name == IconName.Profile)
+    {
+        <path d="M8 8.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" />
+        <path d="M2.5 14.25c0-2.35 2.46-3.75 5.5-3.75s5.5 1.4 5.5 3.75v.5h-11Z" />
+    }
+    @if (Name == IconName.SignIn)
+    {
+        <path d="M9 2h4.25A1.75 1.75 0 0 1 15 3.75v8.5A1.75 1.75 0 0 1 13.25 14H9v-1.5h4.25a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25H9Z" />
+        <path d="M6.7 4.44 10.26 8 6.7 11.56 5.64 10.5l1.75-1.75H1.5v-1.5h5.89L5.64 5.5Z" />
+    }
+    @if (Name == IconName.SignOut)
+    {
+        <path d="M7 2H2.75A1.75 1.75 0 0 0 1 3.75v8.5A1.75 1.75 0 0 0 2.75 14H7v-1.5H2.75a.25.25 0 0 1-.25-.25v-8.5a.25.25 0 0 1 .25-.25H7Z" />
+        <path d="M11.7 4.44 15.26 8 11.7 11.56l-1.06-1.06 1.75-1.75H6.5v-1.5h5.89L10.64 5.5Z" />
+    }
+    @if (Name == IconName.Register)
+    {
+        <path d="M6.5 8.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" />
+        <path d="M1 14.25c0-2.35 2.46-3.75 5.5-3.75.62 0 1.2.06 1.74.17v4.08H1Z" />
+        <path d="M12.25 9.75h1.5v1.75h1.75v1.5h-1.75V14.75h-1.5V13H10.5v-1.5h1.75Z" />
+    }
+    @if (Name == IconName.Create)
+    {
+        <path d="M7.25 2h1.5v5.25H14v1.5H8.75V14h-1.5V8.75H2v-1.5h5.25Z" />
+    }
+    @if (Name == IconName.Edit)
+    {
+        <path d="M11.03 1.97a1.5 1.5 0 0 1 2.12 0l.88.88a1.5 1.5 0 0 1 0 2.12l-.9.9-3-3Z" />
+        <path d="M9.97 3.94l3 3-7.09 7.08-3.88.8.8-3.88Z" />
+    }
+    @if (Name == IconName.Delete)
+    {
+        <path d="M6.25 1.5h3.5a.75.75 0 0 1 .75.75v.5H14v1.5H2v-1.5h3.5v-.5a.75.75 0 0 1 .75-.75Z" />
+        <path d="M3.5 5.75h9l-.62 7.9A1.5 1.5 0 0 1 10.39 15H5.61a1.5 1.5 0 0 1-1.49-1.35Z" />
+    }
+    @if (Name == IconName.Confirm)
+    {
+        <path d="M14.03 4.28 6.5 11.81 1.97 7.28l1.06-1.06L6.5 9.69l6.47-6.47Z" />
+    }
+    @if (Name == IconName.Close)
+    {
+        <path d="M4.03 2.97 8 6.94l3.97-3.97 1.06 1.06L9.06 8l3.97 3.97-1.06 1.06L8 9.06l-3.97 3.97-1.06-1.06L6.94 8 2.97 4.03Z" />
+    }
+    @if (Name == IconName.Back)
+    {
+        <path d="M7.28 2.72 8.34 3.78 4.87 7.25H14.5v1.5H4.87l3.47 3.47-1.06 1.06L1.94 8Z" />
+    }
+    @if (Name == IconName.Warning)
+    {
+        <path fill-rule="evenodd" d="M8 1.25a1 1 0 0 1 .87.5l6.5 11.25a1 1 0 0 1-.87 1.5h-13a1 1 0 0 1-.87-1.5L7.13 1.75a1 1 0 0 1 .87-.5Zm-.75 4.5v4.5h1.5v-4.5Zm0 5.5v1.5h1.5v-1.5Z" />
+    }
+    @if (Name == IconName.Forbidden)
+    {
+        <path fill-rule="evenodd" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z" />
+        <path d="M11.89 3.05 12.95 4.11 4.11 12.95 3.05 11.89Z" />
+    }
+    @if (Name == IconName.NotFound)
+    {
+        <path fill-rule="evenodd" d="M6.75 1.5a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Zm0 1.5a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z" />
+        <path d="M10.28 11.34 11.34 10.28 14.9 13.84 13.84 14.9Z" />
+    }
+    @if (Name == IconName.Location)
+    {
+        <path fill-rule="evenodd" d="M8 1.25a4.75 4.75 0 0 0-4.75 4.75c0 3.56 4.75 8.75 4.75 8.75s4.75-5.19 4.75-8.75A4.75 4.75 0 0 0 8 1.25Zm0 6.5a1.75 1.75 0 1 1 0-3.5 1.75 1.75 0 0 1 0 3.5Z" />
+    }
+</svg>
+
+@code {
+    /// <summary>Which glyph to draw. A closed enum, so a typo is a build error.</summary>
+    [Parameter]
+    [EditorRequired]
+    public IconName Name { get; set; }
+}

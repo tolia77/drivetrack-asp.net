@@ -1,0 +1,111 @@
+@typeparam TItem
+@inject IStringLocalizer<UiText> Localizer
+
+@* FR-82 / FR-84 / NFR-22: one table, three states, and none of them is a blank rectangle.
+
+   The baseline's lists rendered nothing at all while loading and nothing at all when there was
+   nothing to show, which reads identically to a broken screen. Here the three states are mutually
+   exclusive and every one of them puts a row on the page.
+
+   Written as three independent @if blocks rather than an if/else chain: an `else` at markup level
+   reads to NFR-14's source scan as a rendered English word (Profile.razor already branches this
+   way for the same reason), and the conditions exclude each other regardless.
+
+   Striping and hover come from the themed Bootstrap build, not from a new rule: AD-28 themed the
+   framework's own variables, so `table-striped` is already wearing the palette. *@
+
+<div class="dt-table-scroll">
+    <table class="table table-striped table-hover">
+        <thead class="dt-table-head">
+            <tr>
+                @HeaderTemplate
+            </tr>
+        </thead>
+        <tbody>
+            @if (IsLoading)
+            {
+                <tr class="dt-table-status">
+                    @* colspan is deliberately larger than any header this component will be given:
+                       the column count is the consumer's HeaderTemplate to know, not ours, and a
+                       browser clamps an over-wide span to the row's actual width. *@
+                    @* role="status" belongs on the cell, not on the spinner: a live region has to
+                       contain the text it announces, and the spinner itself is decoration that
+                       assistive technology should skip. *@
+                    <td colspan="99" role="status">
+                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                        @Localizer["Loading"]
+                    </td>
+                </tr>
+            }
+            @if (!IsLoading && !HasItems)
+            {
+                <tr class="dt-table-empty">
+                    <td colspan="99">
+                        @if (EmptyText is null)
+                        {
+                            <span>@Localizer["TableEmpty"]</span>
+                        }
+                        @if (EmptyText is not null)
+                        {
+                            <span>@EmptyText</span>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (!IsLoading && HasItems)
+            {
+                @foreach (var item in Items!)
+                {
+                    <tr class="dt-table-row">
+                        @Row(item)
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    /// <summary>
+    /// The rows. Null is treated as empty rather than as an error: a screen whose query has not
+    /// answered yet holds null, and throwing there would turn a normal moment into a failure.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyCollection<TItem>? Items { get; set; }
+
+    /// <summary>True while the rows are being fetched.</summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>The header cells. Rendered inside the component's own single header row.</summary>
+    /// <remarks>
+    /// Required: a table with no header row is a grid of unlabelled columns, and omitting it
+    /// renders an empty &lt;tr&gt; inside the &lt;thead&gt; rather than failing.
+    /// </remarks>
+    [Parameter]
+    [EditorRequired]
+    public RenderFragment? HeaderTemplate { get; set; }
+
+    /// <summary>One item's cells. Rendered inside a row the component owns.</summary>
+    /// <remarks>Required: without it the rows branch renders N empty rows.</remarks>
+    [Parameter]
+    [EditorRequired]
+    public RenderFragment<TItem>? RowTemplate { get; set; }
+
+    /// <summary>
+    /// Overrides the empty-state text, so a screen can say "no deliveries" rather than "nothing
+    /// here". Null takes the shared default.
+    /// </summary>
+    [Parameter]
+    public string? EmptyText { get; set; }
+
+    private bool HasItems => Items is { Count: > 0 };
+
+    /// <summary>
+    /// One item's cells, or nothing when no template was supplied. Routed through a method rather
+    /// than written as `@@RowTemplate?.Invoke(item)` in markup: NFR-14's scan strips a Razor
+    /// expression only up to its first closing bracket, so the `.Invoke(...)` tail would be left
+    /// behind in the text node and read as a rendered English word.
+    /// </summary>
+    private RenderFragment? Row(TItem item) => RowTemplate?.Invoke(item);
+}

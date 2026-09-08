@@ -1,0 +1,145 @@
+@inject IJSRuntime JS
+@inject IStringLocalizer<UiText> Localizer
+@implements IAsyncDisposable
+
+@* NFR-26 / FR-15 / FR-21: one map component, two jobs.
+
+   Picking a point and showing one are the same map with one flag between them, so a delivery's
+   pickup address and a driver's last known position cannot drift into two different maps with two
+   different tile providers.
+
+   The component binds to MapLocation - the shared application DTO - and never to the domain's
+   Location: a screen hands over coordinates, not an entity.
+
+   The container is an empty div by design. Leaflet builds its own DOM inside it, outside Blazor's
+   diff, so anything rendered here would be wiped on the first pan. *@
+
+<div id="@_containerId"
+     class="dt-map"
+     role="region"
+     aria-label="@Localizer["MapLabel"]"></div>
+
+@code {
+    private const string ModulePath = "./Components/Shared/DtMap.razor.js";
+
+    /// <summary>
+    /// Where the map opens when the screen has no value yet: the centre of Kyiv, which is where
+    /// this fleet operates. A map has to be centred on something, and centring it on 0,0 puts the
+    /// user in the Atlantic.
+    /// </summary>
+    private const double FallbackLatitude = 50.4501;
+
+    /// <inheritdoc cref="FallbackLatitude" />
+    private const double FallbackLongitude = 30.5234;
+
+    /// <summary>
+    /// Generated, because Leaflet is handed an element id rather than an ElementReference, and two
+    /// maps on one screen must not answer to the same id.
+    /// </summary>
+    private readonly string _containerId = $"dt-map-{Guid.NewGuid():N}";
+
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _handle;
+    private DotNetObjectReference<DtMap>? _self;
+
+    /// <summary>The point the map is centred on and marks. Null opens on the fallback centre.</summary>
+    [Parameter]
+    public MapLocation? Value { get; set; }
+
+    /// <summary>Raised when the user picks a point. Only ever raised while <see cref="Picker"/> is true.</summary>
+    [Parameter]
+    public EventCallback<MapLocation> ValueChanged { get; set; }
+
+    /// <summary>True to let the user choose a point by clicking the map (FR-15).</summary>
+    [Parameter]
+    public bool Picker { get; set; }
+
+    /// <summary>The initial zoom level.</summary>
+    [Parameter]
+    public int Zoom { get; set; } = 13;
+
+    /// <summary>
+    /// The value the map is currently centred on. Kept so a re-render that did not change the value
+    /// does not re-centre the map underneath a user who has just panned it away.
+    /// </summary>
+    private MapLocation? _centred;
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Created at first render rather than at initialisation: the container element does not
+            // exist until the markup above has been written, and Leaflet is handed that element.
+            _self = DotNetObjectReference.Create(this);
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+
+            var latitude = Value?.Latitude ?? FallbackLatitude;
+            var longitude = Value?.Longitude ?? FallbackLongitude;
+
+            _handle = await _module.InvokeAsync<IJSObjectReference>(
+                "create", _containerId, _self, latitude, longitude, Zoom, Picker);
+
+            // FR-21: a map opened on a delivery that already has a location shows that location,
+            // rather than opening on the fallback and making the user find it.
+            _centred = Value;
+
+            return;
+        }
+
+        if (_module is null || _handle is null || Value is not { } value || value == _centred)
+        {
+            return;
+        }
+
+        _centred = value;
+
+        await _module.InvokeVoidAsync("setView", _handle, value.Latitude, value.Longitude);
+    }
+
+    /// <summary>Called by the module when the user clicks the map while picking is on.</summary>
+    /// <param name="latitude">Latitude in decimal degrees.</param>
+    /// <param name="longitude">Longitude in decimal degrees.</param>
+    [JSInvokable]
+    public Task OnPickedAsync(double latitude, double longitude)
+    {
+        var picked = new MapLocation(latitude, longitude);
+
+        // Recorded before the callback, so the re-render the parent's state change causes does not
+        // read the new value as a change this component still has to apply - the marker is already
+        // where the user put it.
+        _centred = picked;
+
+        return ValueChanged.InvokeAsync(picked);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_handle is not null)
+            {
+                if (_module is not null)
+                {
+                    // Leaflet holds document-level listeners, so the map is torn down explicitly
+                    // rather than left for the element's removal to collect.
+                    await _module.InvokeVoidAsync("destroy", _handle);
+                }
+
+                await _handle.DisposeAsync();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit went away before the component did; there is no browser left to tidy.
+        }
+
+        _self?.Dispose();
+    }
+}

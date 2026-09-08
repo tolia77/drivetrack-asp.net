@@ -1,0 +1,42 @@
+@page "/access-denied"
+@* FR-79: the surface a refused caller lands on.
+
+   [AllowAnonymous] is load-bearing rather than tidy: a page that required a session would be
+   refused for the same reason the caller got here, and the redirect would loop.
+
+   ICurrentUser.Role throws for an anonymous caller, so it is read only inside the authenticated
+   branch - and the branches are independent @if blocks rather than if/else, because an `else` at
+   markup level reads to NFR-14's scan as a rendered English word. *@
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Components.Endpoints
+@* Rendered statically, like the not-found page: this page is reached by a redirect from the cookie
+   handler, and with prerendering off (AD-14) an interactive version would answer that redirect with
+   the document shell and none of the heading, message or route back until a circuit connects. It
+   injects a caller and a localizer and needs nothing else. *@
+@attribute [ExcludeFromInteractiveRouting]
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+
+<PageTitle>@Localizer["AccessDeniedTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.Forbidden" />@Localizer["AccessDeniedTitle"]
+</h1>
+
+<p>@Localizer["AccessDeniedMessage"]</p>
+
+@* A dead end with no way out is the failure this page exists to remove, so both branches offer
+   one. Where "back" leads is LandingRoute's to know, not this page's. *@
+@if (Caller.IsAuthenticated)
+{
+    <a class="btn btn-primary" href="@LandingRoute.For(Caller.Role)">
+        <Icon Name="IconName.Back" />@Localizer["BackToHome"]
+    </a>
+}
+
+@if (!Caller.IsAuthenticated)
+{
+    <a class="btn btn-primary" href="/">
+        <Icon Name="IconName.Back" />@Localizer["BackToHome"]
+    </a>
+}

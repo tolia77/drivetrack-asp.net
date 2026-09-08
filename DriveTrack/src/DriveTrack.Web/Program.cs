@@ -94,7 +94,9 @@ builder.Services.AddAuthentication(SelectorScheme)
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         options.LoginPath = "/sign-in";
-        options.AccessDeniedPath = "/sign-in";
+        // FR-79: forbidden and unauthenticated are different failures. A signed-in caller the
+        // handler refuses is told they lack access, not told to sign in - which they already have.
+        options.AccessDeniedPath = "/access-denied";
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
 

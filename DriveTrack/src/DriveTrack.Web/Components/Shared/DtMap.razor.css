@@ -1,0 +1,22 @@
+/*
+    The container, and only the container.
+
+    Leaflet builds its panes, tiles and controls inside this element after Blazor has finished with
+    it, so none of that DOM carries this component's scope attribute - a rule written for
+    `.leaflet-control` here would compile to a selector that matches nothing and quietly do nothing.
+    Anything Leaflet's own chrome needs belongs in its vendored stylesheet, which is served
+    unmodified from wwwroot/lib/leaflet/.
+
+    The height is a literal because a map has to be given one: a div with no content has no height,
+    and Leaflet measures the element it is handed. Height is geometry and outside NFR-29's scan.
+*/
+
+.dt-map {
+    width: 100%;
+    height: 20rem;
+    border: var(--dt-border-width) solid var(--dt-border-subtle);
+    border-radius: var(--dt-radius-md);
+    /* Tiles are square and the container is not, so the corners have to clip. */
+    overflow: hidden;
+    background-color: var(--dt-surface-muted);
+}
