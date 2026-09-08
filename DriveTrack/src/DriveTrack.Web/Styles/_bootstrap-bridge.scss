@@ -40,6 +40,16 @@ $warning:                     $dt-feedback-warning;
 // to no palette in this app. Info takes the link hue: an informational control and a
 // link say the same thing.
 $secondary:                   $dt-text-muted;
+// `$info` resolves to the same hue as `$primary`, and that is deliberate rather than an
+// oversight: NFR-23's vocabulary is create / edit / destructive, with success / warning /
+// danger for feedback. There is no `info` action in this product, so there is no hue to
+// give it - inventing a sixth would be design this spec never asked for.
+//
+// The consequence is that `.btn-info` and `.btn-primary` render identically, as do the
+// `.alert-`, `.text-bg-` and `.border-` pairs. A component reaching for `-info` expecting a
+// distinction would get none and the screen would look right until someone put the two side
+// by side. `No_component_uses_the_info_variant` closes that off, so the collision cannot
+// become a silent bug in a later story.
 $info:                        $dt-text-link;
 $light:                       $dt-surface-page;
 $dark:                        $dt-surface-nav;
@@ -138,6 +148,32 @@ $popover-bg:                  $dt-surface-card;
 $offcanvas-bg-color:          $dt-surface-card;
 $list-group-bg:               $dt-surface-card;
 $accordion-bg:                $dt-surface-card;
+
+
+// -----------------------------------------------------------------------------
+// Form controls and pagination
+//
+// The same `var(--bs-body-bg)` default as the surfaces above, and for a CRUD app the
+// one that shows on every screen: a field left at the page tint reads as a grey box on
+// a white card rather than as somewhere to type. `$input-bg` is the only one that has
+// to be said - Bootstrap chains `$input-focus-bg`, `$form-check-input-bg` and
+// `$form-select-bg` off it - and these assignments precede the import, so the chain
+// picks the token up.
+//
+// The disabled and addon steps are separate because Bootstrap defaults them to its own
+// neutral ramp (`--bs-secondary-bg`, `--bs-tertiary-bg`), which the token layer does
+// not own. Left stock, an enabled field and a disabled one differ by about two percent
+// of lightness - the state is invisible rather than merely subtle.
+// -----------------------------------------------------------------------------
+$input-bg:                    $dt-surface-card;
+$input-disabled-bg:           $dt-surface-muted;
+$input-group-addon-bg:        $dt-surface-page;
+
+$nav-tabs-link-active-bg:     $dt-surface-card;
+
+$pagination-bg:               $dt-surface-card;
+$pagination-hover-bg:         $dt-surface-page;
+$pagination-disabled-bg:      $dt-surface-muted;
 
 
 // -----------------------------------------------------------------------------

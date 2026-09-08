@@ -261,6 +261,15 @@ public class DesignTokenTests
     private static readonly string[] RecordedUrlColourExemptions =
         ["M4 7h22M4 15h22M4 23h22"];
 
+    /// <summary>
+    /// A Bootstrap <c>-info</c> theme variant. The families are named rather than matched by a
+    /// bare <c>-info</c> suffix, so an ordinary word ending in "info" is not a false positive.
+    /// </summary>
+    private static readonly Regex InfoVariant = new(
+        @"\b(?:btn|btn-outline|alert|alert-link|text-bg|bg|border|text|link|list-group-item|table)-info\b",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
     /// <summary>A <c>$dt-…:</c> variable declaration at the start of a line.</summary>
     private static readonly Regex SemanticVariable = new(
         @"^\s*\$dt-(?<name>[a-z0-9-]+)\s*:",
@@ -416,6 +425,33 @@ public class DesignTokenTests
     /// somebody writes a <c>var()</c> for it. The publication test walks map to CSS; this walks
     /// declaration to map, and between them the two tiers cannot drift apart.
     /// </summary>
+    /// <summary>
+    /// NFR-23's action vocabulary has no <c>info</c>, and the palette has no hue for one, so
+    /// <c>$info</c> is aliased to the link colour in the bridge - which makes every
+    /// <c>-info</c> variant render identically to its <c>-primary</c> counterpart. A component
+    /// that reaches for one expecting a distinction gets none, and the screen looks correct
+    /// until the two appear side by side. Asserted rather than commented, because the comment
+    /// lives in the bridge and the component author is not reading the bridge.
+    /// <para>
+    /// Scoped to components: the bridge itself names these classes while explaining the rule.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void No_component_uses_the_info_variant()
+    {
+        var offenders = new List<string>();
+
+        foreach (var path in MarkupFiles().Concat(ScopedStylesheets()))
+        {
+            foreach (Match use in InfoVariant.Matches(Preprocess(File.ReadAllText(path))))
+            {
+                offenders.Add($"{Path.GetFileName(path)}: {use.Value}");
+            }
+        }
+
+        Assert.Empty(offenders);
+    }
+
     [Fact]
     public void Every_semantic_token_variable_is_in_the_map()
     {
