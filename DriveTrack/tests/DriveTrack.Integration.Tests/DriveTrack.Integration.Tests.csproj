@@ -24,4 +24,51 @@
     <ProjectReference Include="..\..\src\DriveTrack.Web\DriveTrack.Web.csproj" />
   </ItemGroup>
 
+  <!--
+    NFR-29 / AD-28: "an automated check fails the build on any literal colour, font family or
+    size, spacing figure, radius or shadow in a component". A test that only runs when someone
+    runs tests is a review convention with extra steps - the criterion says *the build*, so the
+    guard runs here.
+
+    Only the design class, and only through the class filter: it is pure file scanning plus a
+    read of the compiled theme, needs no database or container, and takes about a third of a
+    second. The rest of the suite stays where it belongs.
+
+    Invoked as `dotnet <dll>` rather than the apphost so the target is portable - xunit's
+    generated entry point runs its console runner for both, and only switches to the
+    Microsoft.Testing.Platform protocol when passed the server switch.
+
+    Skipped for design-time builds so the IDE does not run it on every keystroke, and behind
+    DesignTokenGate so a bisect or a spike can turn it off deliberately rather than by deleting
+    the target.
+  -->
+  <PropertyGroup>
+    <DesignTokenGate Condition=" '$(DesignTokenGate)' == '' ">true</DesignTokenGate>
+  </PropertyGroup>
+
+  <Target Name="EnforceDesignTokenContract"
+          AfterTargets="Build"
+          Condition=" '$(DesignTokenGate)' == 'true' AND '$(DesignTimeBuild)' != 'true' AND '$(TargetFramework)' != '' ">
+    <!--
+      The output is captured rather than streamed, and replayed only on failure: a passing
+      build says nothing, and a failing one says which declaration in which file, which is the
+      only part anyone needs. A bare "exited with code 1" would send the reader to run the
+      suite by hand to find out what it caught.
+    -->
+    <Exec Command="dotnet &quot;$(TargetPath)&quot; -class DriveTrack.Integration.Tests.Design.DesignTokenTests"
+          WorkingDirectory="$(TargetDir)"
+          StandardOutputImportance="low"
+          ConsoleToMSBuild="true"
+          IgnoreExitCode="true"
+          ContinueOnError="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_DesignTokenGateOutput" />
+      <Output TaskParameter="ExitCode" PropertyName="_DesignTokenGateExit" />
+    </Exec>
+
+    <Error Condition=" '$(_DesignTokenGateExit)' != '0' "
+           Code="NFR29"
+           File="$(MSBuildProjectFullPath)"
+           Text="The design token contract is broken (NFR-29 / AD-28). A component may only express a visual value as a token reference.$(_NewLine)$(_DesignTokenGateOutput)" />
+  </Target>
+
 </Project>
