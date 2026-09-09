@@ -72,6 +72,10 @@ builder.Services.AddControllers(options => options.Filters.Add<EnvelopeResultFil
         options.JsonSerializerOptions.Converters.Add(new UserIdJsonConverter());
         options.JsonSerializerOptions.Converters.Add(new DriverIdJsonConverter());
         options.JsonSerializerOptions.Converters.Add(new ClientIdJsonConverter());
+
+        // AD-23: a partial update has to be able to say "I did not send this field" and "I sent
+        // this field empty" differently. Without this factory a PATCH-shaped body cannot.
+        options.JsonSerializerOptions.Converters.Add(new OptionalJsonConverterFactory());
     });
 
 // The scheme selector, and the two handlers it forwards to.

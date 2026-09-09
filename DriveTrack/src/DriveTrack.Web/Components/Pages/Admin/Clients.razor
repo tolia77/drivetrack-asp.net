@@ -1,0 +1,295 @@
+@page "/clients"
+@attribute [Authorize]
+@inject IClientAdministrationService Roster
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IDisposable
+
+@* FR-46 / FR-47 / FR-48: the client roster, and the two operations an administrator performs on it.
+
+   [Authorize] carries no roles on purpose. Who may open this screen, and who may change what is on
+   it, is decided by IAccessGuard inside IClientAdministrationService - reads are dispatcher-or-admin
+   so FR-48 works, writes are admin. A role on the attribute would be a second copy of that rule,
+   worded slightly differently, in a place no test of the rule would read (AD-2, FR-12).
+
+   Independent @if blocks and one literal localizer key per string, for the two reasons the shell
+   components already state: an `else` at markup level reads to NFR-14's scan as a rendered English
+   word, and a key composed at run time is a key the closed-catalogue test cannot see. *@
+
+<PageTitle>@Localizer["ClientsTitle"]</PageTitle>
+
+<h1>@Localizer["ClientsTitle"]</h1>
+
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+<DtDataTable TItem="ClientAccount" Items="_clients" IsLoading="_isLoading">
+    <HeaderTemplate>
+        <th scope="col">@Localizer["FirstName"]</th>
+        <th scope="col">@Localizer["LastName"]</th>
+        <th scope="col">@Localizer["Email"]</th>
+        <th scope="col">@Localizer["PhoneNumber"]</th>
+        <th scope="col">@Localizer["Actions"]</th>
+    </HeaderTemplate>
+    <RowTemplate Context="client">
+        <td>@client.FirstName</td>
+        <td>@client.LastName</td>
+        <td>@client.Email</td>
+        <td>@client.PhoneNumber</td>
+        <td class="dt-row-actions">
+            @* FR-48 brings a dispatcher to this screen to read the roster, and both writes behind
+               these buttons are RequireRole(Admin) - so for a dispatcher they could only ever fail.
+               Offering an action that cannot succeed is worse than not offering it.
+
+               FR-12 unchanged: this hides, it does not decide. IAccessGuard inside the service is
+               still what refuses the write, and it runs whether or not the button was rendered.
+
+               The handler is built in C# rather than written as a lambda in the attribute: a `=>`
+               here would close the tag as far as NFR-14's markup scan is concerned, and everything
+               after it would be read as rendered English. *@
+            @if (_isAdmin)
+            {
+                <button type="button" class="btn btn-primary btn-sm dt-client-edit" @onclick="Edit(client)">
+                    <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                </button>
+                <button type="button" class="btn btn-danger btn-sm dt-client-delete" @onclick="Remove(client)">
+                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                </button>
+            }
+        </td>
+    </RowTemplate>
+</DtDataTable>
+
+<DtDialog @ref="_editDialog" Title="@Localizer["EditClientTitle"]">
+    <ChildContent>
+        @* Repeated inside the dialog, not only at the top of the page: a native <dialog> opened with
+           showModal() sits in the top layer with everything behind it inert, so a banner rendered up
+           there is invisible to the administrator who just pressed Save and got a 422. *@
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+        <div class="mb-3">
+            <label class="form-label" for="client-first-name">@Localizer["FirstName"]</label>
+            <input id="client-first-name" class="form-control" @bind="_form.FirstName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="client-last-name">@Localizer["LastName"]</label>
+            <input id="client-last-name" class="form-control" @bind="_form.LastName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="client-phone">@Localizer["PhoneNumber"]</label>
+            <input id="client-phone" class="form-control" @bind="_form.PhoneNumber" />
+            <div class="form-text">@Localizer["PhoneNumberHint"]</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="client-password">@Localizer["Password"]</label>
+            @* new-password, so a browser does not offer the signed-in administrator's own saved
+               password for somebody else's account. *@
+            <input id="client-password" type="password" autocomplete="new-password"
+                   class="form-control" @bind="_form.Password" />
+            @* FR-50 / AD-23: an empty box is the absent case, which is why it does not have to be
+               spelled as a magic empty string anywhere below. *@
+            <div class="form-text">@Localizer["PasswordUnchangedHint"]</div>
+        </div>
+    </ChildContent>
+    <Actions>
+        <button type="button" class="btn btn-primary dt-client-save" @onclick="SaveAsync">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-client-cancel" @onclick="CancelEditAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+<DtConfirmDialog @ref="_deleteDialog"
+                 Title="@Localizer["DeleteClientTitle"]"
+                 Message="@Localizer["DeleteClientMessage"]"
+                 OnConfirmed="DeleteAsync" />
+
+@code {
+    // The screen's own lifetime. A user who navigates away mid-load leaves a query running against
+    // a pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private readonly ClientForm _form = new();
+
+    private DtDialog? _editDialog;
+    private DtConfirmDialog? _deleteDialog;
+
+    private IReadOnlyList<ClientAccount>? _clients;
+    private ClientAccount? _selected;
+    private IReadOnlyList<string> _failures = [];
+    private bool _isLoading = true;
+    private bool _isAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen calls a service. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        // Read once, after the authenticated check: ICurrentUser.Role throws for an anonymous
+        // caller, so asking outside that branch would take the screen down instead of refusing it.
+        _isAdmin = Caller.Role == UserRole.Admin;
+
+        await ReloadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+
+        // Rendered before the await, or the flag is set and cleared inside one synchronous stretch
+        // and DtDataTable's loading row never reaches the browser on a post-write refetch.
+        StateHasChanged();
+
+        try
+        {
+            _clients = await Roster.ListAsync(_cancellation.Token);
+        }
+        finally
+        {
+            // In a finally so a refused or failed read leaves the table in its empty state rather
+            // than spinning forever, which reads to a user as a hung screen.
+            _isLoading = false;
+        }
+    }
+
+    private Func<Task> Edit(ClientAccount client) => () => ShowEditAsync(client);
+
+    private Func<Task> Remove(ClientAccount client) => () => ShowDeleteAsync(client);
+
+    private async Task ShowEditAsync(ClientAccount client)
+    {
+        _selected = client;
+        _failures = [];
+
+        _form.FirstName = client.FirstName;
+        _form.LastName = client.LastName;
+        _form.PhoneNumber = client.PhoneNumber;
+
+        // Never pre-filled: only a hash is stored (FR-8), so there is nothing to pre-fill it with,
+        // and an empty box is exactly what "leave the password alone" looks like.
+        _form.Password = null;
+
+        if (_editDialog is not null)
+        {
+            await _editDialog.ShowAsync();
+        }
+    }
+
+    private async Task ShowDeleteAsync(ClientAccount client)
+    {
+        _selected = client;
+        _failures = [];
+
+        if (_deleteDialog is not null)
+        {
+            await _deleteDialog.ShowAsync();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_selected is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Roster.UpdateAsync(
+                _selected.UserId,
+                new UpdateClientCommand(
+                    Optional<string?>.Present(_form.FirstName),
+                    Optional<string?>.Present(_form.LastName),
+                    Optional<string?>.Present(_form.PhoneNumber),
+                    PasswordBox.ToOptional(_form.Password)),
+                _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            // A refused edit must not render the submitted password back, exactly as the two
+            // account forms do not.
+            _form.Password = null;
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Cleared on the way out, not only when a dialog opens: the banner is rendered at page
+        // level as well as inside the dialog, so a refused attempt that is then corrected and
+        // accepted would otherwise leave the failure standing on the page behind the closed
+        // dialog, contradicting the row the user can see was written.
+        _failures = [];
+
+        // Outside the try, because the write has already committed by now: a refetch that failed
+        // inside it would be caught and rendered as though the edit had been refused, which is the
+        // one thing the user must not be told.
+        await CancelEditAsync();
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_selected is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Roster.DeleteAsync(_selected.UserId, _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Cleared here too: a refused delete followed by a confirmed one would otherwise leave the
+        // refusal standing above a table the row is already gone from.
+        _failures = [];
+
+        await ReloadAsync();
+    }
+
+    private async Task CancelEditAsync()
+    {
+        if (_editDialog is not null)
+        {
+            await _editDialog.CloseAsync();
+        }
+    }
+
+    /// <summary>What the edit dialog is bound to. Nullable throughout, because a box can be empty.</summary>
+    private sealed class ClientForm
+    {
+        public string? FirstName { get; set; }
+
+        public string? LastName { get; set; }
+
+        public string? PhoneNumber { get; set; }
+
+        public string? Password { get; set; }
+    }
+}

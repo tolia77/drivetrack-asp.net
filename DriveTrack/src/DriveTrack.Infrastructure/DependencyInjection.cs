@@ -180,5 +180,10 @@ public static class DependencyInjection
         // ICurrentUser itself is registered by the adapter that can actually read a caller.
         services.AddScoped<IAccessGuard, AccessGuard>();
         services.AddScoped<IUserService, UserService>();
+
+        // FR-46…FR-50: the two account-administration capabilities. Scoped for the same reason as
+        // the guard - each reads the caller of the request or circuit it is serving.
+        services.AddScoped<IClientAdministrationService, ClientAdministrationService>();
+        services.AddScoped<IDispatcherAdministrationService, DispatcherAdministrationService>();
     }
 }

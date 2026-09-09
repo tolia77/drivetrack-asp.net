@@ -1,0 +1,357 @@
+@page "/dispatchers"
+@attribute [Authorize]
+@inject IDispatcherAdministrationService Roster
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IDisposable
+
+@* FR-49 / FR-50: dispatcher accounts, and the first surface in the system that can make one - until
+   now the startup seeder was the only thing that could.
+
+   Every operation here is admin-only, and that is settled by IAccessGuard inside the service rather
+   than by a role on the attribute (AD-2). The navigation offers this destination to an administrator
+   and to nobody else, which is a convenience on top of the same decision, not a second copy of it. *@
+
+<PageTitle>@Localizer["DispatchersTitle"]</PageTitle>
+
+<h1>@Localizer["DispatchersTitle"]</h1>
+
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+<p>
+    <button type="button" class="btn btn-success dt-dispatcher-new" @onclick="ShowCreateAsync">
+        <Icon Name="IconName.Create" />@Localizer["Create"]
+    </button>
+</p>
+
+<DtDataTable TItem="DispatcherAccount" Items="_dispatchers" IsLoading="_isLoading">
+    <HeaderTemplate>
+        <th scope="col">@Localizer["FirstName"]</th>
+        <th scope="col">@Localizer["LastName"]</th>
+        <th scope="col">@Localizer["Email"]</th>
+        <th scope="col">@Localizer["Actions"]</th>
+    </HeaderTemplate>
+    <RowTemplate Context="dispatcher">
+        <td>@dispatcher.FirstName</td>
+        <td>@dispatcher.LastName</td>
+        <td>@dispatcher.Email</td>
+        <td class="dt-row-actions">
+            <button type="button" class="btn btn-primary btn-sm dt-dispatcher-edit" @onclick="Edit(dispatcher)">
+                <Icon Name="IconName.Edit" />@Localizer["Edit"]
+            </button>
+            <button type="button" class="btn btn-danger btn-sm dt-dispatcher-delete" @onclick="Remove(dispatcher)">
+                <Icon Name="IconName.Delete" />@Localizer["Delete"]
+            </button>
+        </td>
+    </RowTemplate>
+</DtDataTable>
+
+<DtDialog @ref="_createDialog" Title="@Localizer["CreateDispatcherTitle"]">
+    <ChildContent>
+        @* Repeated inside the dialog, not only at the top of the page: a native <dialog> opened with
+           showModal() sits in the top layer with everything behind it inert, so a banner rendered up
+           there is invisible to the administrator who just pressed Create and got a 409. *@
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+        <div class="mb-3">
+            <label class="form-label" for="new-dispatcher-first-name">@Localizer["FirstName"]</label>
+            <input id="new-dispatcher-first-name" class="form-control" @bind="_createForm.FirstName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="new-dispatcher-last-name">@Localizer["LastName"]</label>
+            <input id="new-dispatcher-last-name" class="form-control" @bind="_createForm.LastName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="new-dispatcher-email">@Localizer["Email"]</label>
+            <input id="new-dispatcher-email" class="form-control" @bind="_createForm.Email" />
+            @* FR-87 belongs to story 7.3: the address is settled here and nowhere else, so the edit
+               dialog below has no email field at all. *@
+            <div class="form-text">@Localizer["EmailAtCreationHint"]</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="new-dispatcher-password">@Localizer["Password"]</label>
+            @* new-password, so a browser does not offer the signed-in administrator's own saved
+               password for the account they are opening. *@
+            <input id="new-dispatcher-password" type="password" autocomplete="new-password"
+                   class="form-control" @bind="_createForm.Password" />
+        </div>
+    </ChildContent>
+    <Actions>
+        <button type="button" class="btn btn-success dt-dispatcher-create" @onclick="CreateAsync">
+            <Icon Name="IconName.Confirm" />@Localizer["Create"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-dispatcher-create-cancel" @onclick="CancelCreateAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+<DtDialog @ref="_editDialog" Title="@Localizer["EditDispatcherTitle"]">
+    <ChildContent>
+        @* Same reason as the create dialog above: the page behind a modal is inert, so a refusal has
+           to appear where the administrator is looking. *@
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+        <div class="mb-3">
+            <label class="form-label" for="dispatcher-first-name">@Localizer["FirstName"]</label>
+            <input id="dispatcher-first-name" class="form-control" @bind="_editForm.FirstName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="dispatcher-last-name">@Localizer["LastName"]</label>
+            <input id="dispatcher-last-name" class="form-control" @bind="_editForm.LastName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="dispatcher-password">@Localizer["Password"]</label>
+            <input id="dispatcher-password" type="password" autocomplete="new-password"
+                   class="form-control" @bind="_editForm.Password" />
+            <div class="form-text">@Localizer["PasswordUnchangedHint"]</div>
+        </div>
+    </ChildContent>
+    <Actions>
+        <button type="button" class="btn btn-primary dt-dispatcher-save" @onclick="SaveAsync">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-dispatcher-cancel" @onclick="CancelEditAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+<DtConfirmDialog @ref="_deleteDialog"
+                 Title="@Localizer["DeleteDispatcherTitle"]"
+                 Message="@Localizer["DeleteDispatcherMessage"]"
+                 OnConfirmed="DeleteAsync" />
+
+@code {
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private readonly DispatcherCreateForm _createForm = new();
+    private readonly DispatcherEditForm _editForm = new();
+
+    private DtDialog? _createDialog;
+    private DtDialog? _editDialog;
+    private DtConfirmDialog? _deleteDialog;
+
+    private IReadOnlyList<DispatcherAccount>? _dispatchers;
+    private DispatcherAccount? _selected;
+    private IReadOnlyList<string> _failures = [];
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        await ReloadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+
+        // Rendered before the await, or the flag is set and cleared inside one synchronous stretch
+        // and DtDataTable's loading row never reaches the browser on a post-write refetch.
+        StateHasChanged();
+
+        try
+        {
+            _dispatchers = await Roster.ListAsync(_cancellation.Token);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private Func<Task> Edit(DispatcherAccount dispatcher) => () => ShowEditAsync(dispatcher);
+
+    private Func<Task> Remove(DispatcherAccount dispatcher) => () => ShowDeleteAsync(dispatcher);
+
+    private async Task ShowCreateAsync()
+    {
+        _failures = [];
+
+        _createForm.FirstName = null;
+        _createForm.LastName = null;
+        _createForm.Email = null;
+        _createForm.Password = null;
+
+        if (_createDialog is not null)
+        {
+            await _createDialog.ShowAsync();
+        }
+    }
+
+    private async Task ShowEditAsync(DispatcherAccount dispatcher)
+    {
+        _selected = dispatcher;
+        _failures = [];
+
+        _editForm.FirstName = dispatcher.FirstName;
+        _editForm.LastName = dispatcher.LastName;
+        _editForm.Password = null;
+
+        if (_editDialog is not null)
+        {
+            await _editDialog.ShowAsync();
+        }
+    }
+
+    private async Task ShowDeleteAsync(DispatcherAccount dispatcher)
+    {
+        _selected = dispatcher;
+        _failures = [];
+
+        if (_deleteDialog is not null)
+        {
+            await _deleteDialog.ShowAsync();
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        try
+        {
+            await Roster.CreateAsync(
+                new CreateDispatcherCommand(
+                    _createForm.FirstName,
+                    _createForm.LastName,
+                    _createForm.Email,
+                    _createForm.Password),
+                _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            _createForm.Password = null;
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Cleared on the way out, not only when a dialog opens: the banner is rendered at page
+        // level as well as inside the dialog, so a refused attempt that is then corrected and
+        // accepted would otherwise leave the failure standing on the page behind the closed
+        // dialog, contradicting the row the user can see was written.
+        _failures = [];
+
+        // Outside the try, because the account already exists by now: a refetch that failed inside
+        // it would be rendered as though the creation had been refused.
+        await CancelCreateAsync();
+        await ReloadAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_selected is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Roster.UpdateAsync(
+                _selected.UserId,
+                new UpdateDispatcherCommand(
+                    Optional<string?>.Present(_editForm.FirstName),
+                    Optional<string?>.Present(_editForm.LastName),
+
+                    // FR-50: an empty box leaves the existing password signing in.
+                    PasswordBox.ToOptional(_editForm.Password)),
+                _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            _editForm.Password = null;
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        _failures = [];
+
+        await CancelEditAsync();
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_selected is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Roster.DeleteAsync(_selected.UserId, _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Cleared here too: a refused delete followed by a confirmed one would otherwise leave the
+        // refusal standing above a table the row is already gone from.
+        _failures = [];
+
+        await ReloadAsync();
+    }
+
+    private async Task CancelCreateAsync()
+    {
+        if (_createDialog is not null)
+        {
+            await _createDialog.CloseAsync();
+        }
+    }
+
+    private async Task CancelEditAsync()
+    {
+        if (_editDialog is not null)
+        {
+            await _editDialog.CloseAsync();
+        }
+    }
+
+    /// <summary>What the create dialog is bound to.</summary>
+    private sealed class DispatcherCreateForm
+    {
+        public string? FirstName { get; set; }
+
+        public string? LastName { get; set; }
+
+        public string? Email { get; set; }
+
+        public string? Password { get; set; }
+    }
+
+    /// <summary>What the edit dialog is bound to. No email: story 7.3 owns that (FR-87).</summary>
+    private sealed class DispatcherEditForm
+    {
+        public string? FirstName { get; set; }
+
+        public string? LastName { get; set; }
+
+        public string? Password { get; set; }
+    }
+}

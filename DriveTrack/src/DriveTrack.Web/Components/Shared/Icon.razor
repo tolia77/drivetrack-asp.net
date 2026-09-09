@@ -78,6 +78,21 @@
     {
         <path fill-rule="evenodd" d="M8 1.25a4.75 4.75 0 0 0-4.75 4.75c0 3.56 4.75 8.75 4.75 8.75s4.75-5.19 4.75-8.75A4.75 4.75 0 0 0 8 1.25Zm0 6.5a1.75 1.75 0 1 1 0-3.5 1.75 1.75 0 0 1 0 3.5Z" />
     }
+    @* Two people rather than one: the clients screen is a roster, and the profile glyph beside it
+       in the navigation is a single figure. The pair reads as "the others". *@
+    @if (Name == IconName.Clients)
+    {
+        <path d="M6 7.75a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5Z" />
+        <path d="M1 13.75c0-2.07 2.24-3.25 5-3.25s5 1.18 5 3.25v.5H1Z" />
+        <path d="M11.75 7.5a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5Z" />
+        <path d="M12.02 9.25c1.7.09 2.98 1.11 2.98 2.75v2.25h-2.5v-.5c0-1.79-.86-3.19-2.2-4.06.53-.28 1.14-.44 1.72-.44Z" />
+    }
+    @* A figure wearing a headset: the dispatch desk, and distinct from the client pair at 16px. *@
+    @if (Name == IconName.Dispatchers)
+    {
+        <path fill-rule="evenodd" d="M8 1.25c-2.9 0-5.25 2.35-5.25 5.25v.25H1.5v3.5h2.75V6.5a3.75 3.75 0 0 1 7.5 0v4.25H8.75v1.5h1.75c.7 0 1.32-.36 1.68-.9h2.32v-3.6h-1.25V6.5c0-2.9-2.35-5.25-5.25-5.25Z" />
+        <path d="M5.5 12.25h1.5v2.5H5.5Z" />
+    }
 </svg>
 
 @code {

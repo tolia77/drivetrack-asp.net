@@ -42,4 +42,36 @@ public sealed class AccessGuard(ICurrentUser currentUser) : IAccessGuard
                 + " attempted an operation reserved to user "
                 + userId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".");
     }
+
+    /// <inheritdoc />
+    public void RequireRole(UserRole role)
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            // 401 for the same reason RequireSelf answers 401: an expired cookie on a live circuit
+            // is not a caller who lacks permission, it is a caller who has none left.
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "An anonymous caller attempted an operation reserved to role " + role + ".");
+        }
+
+        // AD-4 again, and still the only place: admin passes by rule, so no capability has to
+        // remember to write `RequireRole(Dispatcher) || RequireRole(Admin)`.
+        if (currentUser.Role == UserRole.Admin)
+        {
+            return;
+        }
+
+        if (currentUser.Role == role)
+        {
+            return;
+        }
+
+        throw new ForbiddenException(
+            ErrorCode.AUTH_FORBIDDEN,
+            "User "
+                + currentUser.UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + " holds role " + currentUser.Role
+                + " and attempted an operation reserved to role " + role + ".");
+    }
 }

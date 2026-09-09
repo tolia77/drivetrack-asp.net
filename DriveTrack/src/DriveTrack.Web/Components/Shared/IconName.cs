@@ -60,4 +60,10 @@ public enum IconName
 
     /// <summary>A point on the map (FR-15, FR-21).</summary>
     Location,
+
+    /// <summary>The client roster (FR-46).</summary>
+    Clients,
+
+    /// <summary>The dispatcher roster (FR-49).</summary>
+    Dispatchers,
 }

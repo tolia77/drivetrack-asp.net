@@ -1,0 +1,12 @@
+/*
+    The actions cell. Bootstrap's buttons carry no margin of their own, so Edit and Delete would
+    otherwise touch; the gap is a token because NFR-29 scans it as a visual value.
+
+    A row where the buttons are absent - a dispatcher reading the roster under FR-48 - collapses to
+    an empty cell, which is what an empty cell should look like.
+*/
+.dt-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dt-space-2);
+}

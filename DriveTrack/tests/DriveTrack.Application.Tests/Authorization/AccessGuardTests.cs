@@ -57,6 +57,73 @@ public class AccessGuardTests
     }
 
     [Fact]
+    public void An_anonymous_caller_asking_for_a_role_is_unauthenticated_not_forbidden()
+    {
+        // Same 401-not-403 reasoning as RequireSelf, and it has to be stated separately: a second
+        // member that answered 403 here would send an expired session down FR-13's wrong branch.
+        var guard = new AccessGuard(new StubCurrentUser());
+
+        var failure = Assert.Throws<ForbiddenException>(() => guard.RequireRole(UserRole.Dispatcher));
+
+        Assert.Equal(ErrorCode.AUTH_UNAUTHENTICATED, failure.Code);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Dispatcher)]
+    [InlineData(UserRole.Driver)]
+    [InlineData(UserRole.Client)]
+    public void A_caller_holding_the_role_passes(UserRole role)
+    {
+        var guard = new AccessGuard(new StubCurrentUser(Target, role));
+
+        guard.RequireRole(role);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Dispatcher)]
+    [InlineData(UserRole.Driver)]
+    [InlineData(UserRole.Client)]
+    public void An_admin_passes_every_role_check(UserRole required)
+    {
+        // AD-4, on the new member. This is why FR-48 needs no second guard member and why no
+        // capability writes `RequireRole(Dispatcher) || RequireRole(Admin)`: `RequireRole(Dispatcher)`
+        // already means "a dispatcher or an admin", decided here and nowhere else.
+        var guard = new AccessGuard(new StubCurrentUser(new UserId(8), UserRole.Admin));
+
+        guard.RequireRole(required);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Client, UserRole.Dispatcher)]
+    [InlineData(UserRole.Driver, UserRole.Dispatcher)]
+    [InlineData(UserRole.Dispatcher, UserRole.Admin)]
+    [InlineData(UserRole.Client, UserRole.Admin)]
+    public void A_caller_holding_another_role_is_forbidden(UserRole held, UserRole required)
+    {
+        // The row of the matrix that matters most: a dispatcher asked for Admin is refused, which
+        // is what keeps every write on both administration surfaces admin-only.
+        var guard = new AccessGuard(new StubCurrentUser(Target, held));
+
+        var failure = Assert.Throws<ForbiddenException>(() => guard.RequireRole(required));
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
+    }
+
+    [Fact]
+    public void Holding_the_row_being_addressed_does_not_satisfy_a_role_check()
+    {
+        // The two members answer different questions, and conflating them is the failure worth
+        // pinning: being the user an operation is about says nothing about being allowed to
+        // perform an operation reserved to a role.
+        var guard = new AccessGuard(new StubCurrentUser(Target, UserRole.Client));
+
+        guard.RequireSelf(Target);
+
+        Assert.Throws<ForbiddenException>(() => guard.RequireRole(UserRole.Dispatcher));
+    }
+
+    [Fact]
     public void Reading_a_caller_that_is_not_there_throws_rather_than_answering_user_zero()
     {
         // The reason ICurrentUser throws instead of returning a default: default(UserId) is user

@@ -15,10 +15,11 @@ namespace DriveTrack.Application.Authorization;
 /// passed check.
 /// </para>
 /// <para>
-/// One member, deliberately (NFR-6). <c>RequireSelf</c> is the only decision this story's services
-/// need; a role member or a scope predicate arrives with the first capability that has a caller
-/// for it. AD-4's "admin satisfies every check" lives inside the implementation, so the override
-/// is still in exactly one place when a second member appears.
+/// Two members, and no more (NFR-6). <c>RequireSelf</c> answers "is this the caller's own row";
+/// <c>RequireRole</c> answers "is this caller one of these people". A scope predicate arrives with
+/// the first capability that has a caller for it, exactly as the role member did. AD-4's "admin
+/// satisfies every check" lives inside the implementation, once, so both members inherit it and
+/// neither restates it.
 /// </para>
 /// </summary>
 public interface IAccessGuard
@@ -32,4 +33,20 @@ public interface IAccessGuard
     /// (<c>AUTH_FORBIDDEN</c>, 403).
     /// </exception>
     void RequireSelf(UserId userId);
+
+    /// <summary>
+    /// Requires that the caller holds <paramref name="role"/>, or holds
+    /// <see cref="UserRole.Admin"/>.
+    /// <para>
+    /// <c>RequireRole(Dispatcher)</c> therefore reads as "a dispatcher or an admin", which is what
+    /// FR-48 asks for and what the original's <c>require_role("dispatcher")</c> meant. The override
+    /// is not repeated at the call site, because it is not a property of any one capability.
+    /// </para>
+    /// </summary>
+    /// <param name="role">The role the operation is reserved to.</param>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401) or holds neither that role nor
+    /// <see cref="UserRole.Admin"/> (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    void RequireRole(UserRole role);
 }
