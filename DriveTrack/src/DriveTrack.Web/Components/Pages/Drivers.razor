@@ -1,0 +1,514 @@
+@page "/drivers"
+@* FR-35 to FR-39, FR-45: the dispatcher's driver roster.
+
+   The Roles argument is what routes a wrong role to /access-denied (FR-79) rather than into an
+   error boundary. It is still a convenience, not the decision: IAccessGuard.RequireRole inside
+   IDriverService settles whether this caller may do any of this, and it runs whether or not the
+   screen was ever rendered.
+
+   No @rendermode: the shell is globally InteractiveServerRenderMode(prerender: false), so this page
+   is interactive by inheritance and @bind works without [SupplyParameterFromForm].
+
+   The @if blocks below are independent rather than if/else chains: an `else` at markup level reads
+   to NFR-14's source scan as a rendered English word, and the conditions exclude each other
+   anyway. *@
+@attribute [Authorize(Roles = "Dispatcher,Admin")]
+@* Named for what they are rather than for the capability: a member called `Drivers` on a
+   component called `Drivers` does not compile. *@
+@inject IDriverService Roster
+@inject IVehicleService Fleet
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IDisposable
+
+<PageTitle>@Localizer["DriversTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.Drivers" />@Localizer["DriversTitle"]
+</h1>
+
+@* NFR-3: the message is the localized string for the code the service threw, resolved through the
+   same catalogue the REST envelope uses. Nothing an exception carries reaches this page. *@
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+<div class="row g-3 align-items-end mb-3">
+    <div class="col-sm">
+        <label class="form-label" for="drivers-search">@Localizer["Search"]</label>
+        @* FR-36 runs over the list already fetched - PRD section 8 excludes server-side filtering,
+           so typing here never becomes a query. *@
+        <input id="drivers-search" type="search" class="form-control"
+               @bind="_search" @bind:event="oninput" />
+    </div>
+    <div class="col-sm-auto">
+        <button type="button" class="btn btn-success" @onclick="OpenCreateAsync">
+            <Icon Name="IconName.Create" />@Localizer["Create"]
+        </button>
+    </div>
+</div>
+
+<DtDataTable TItem="DriverSummary"
+             Items="Visible"
+             IsLoading="_loading"
+             EmptyText="@Localizer["DriversEmpty"]">
+    <HeaderTemplate>
+        <th scope="col">@Localizer["FirstName"]</th>
+        <th scope="col">@Localizer["LastName"]</th>
+        <th scope="col">@Localizer["Email"]</th>
+        <th scope="col">@Localizer["LicenseNumber"]</th>
+        <th scope="col">@Localizer["Vehicle"]</th>
+        <th scope="col">@Localizer["Actions"]</th>
+    </HeaderTemplate>
+    <RowTemplate Context="driver">
+        <td>@driver.FirstName</td>
+        <td>@driver.LastName</td>
+        <td>@driver.Email</td>
+        <td>@driver.LicenseNumber</td>
+        <td>
+            @if (driver.VehicleId is null)
+            {
+                <span>@Localizer["NoVehicle"]</span>
+            }
+            @if (driver.VehicleId is not null)
+            {
+                <span>@driver.VehicleModel — @driver.VehicleLicensePlate</span>
+            }
+        </td>
+        <td>
+            @* The handler is built in code rather than written as a lambda here: a `=>` inside an
+               attribute closes the tag as far as a source scan is concerned, and everything after
+               it reads as rendered English. *@
+            <button type="button" class="btn btn-primary btn-sm" @onclick="EditHandler(driver)">
+                <Icon Name="IconName.Edit" />@Localizer["Edit"]
+            </button>
+            <button type="button" class="btn btn-danger btn-sm" @onclick="DeleteHandler(driver)">
+                <Icon Name="IconName.Delete" />@Localizer["Delete"]
+            </button>
+        </td>
+    </RowTemplate>
+</DtDataTable>
+
+@* FR-85: the one dialog every screen opens, rather than a modal of this screen's own. *@
+@* One heading for both create and edit. A title composed at run time would be a key no test can
+   see, and the catalogue is closed against the keys components literally ask for. *@
+<DtDialog @ref="_formDialog" Title="@Localizer["DriverForm"]">
+    <ChildContent>
+        @* The same list as the one at the top of the page, and deliberately a second copy. A
+           DtDialog opens with showModal(), so everything outside it is in the inert layer
+           behind the backdrop: a refusal rendered only up there is a message nobody can see,
+           and the form would simply fail to close. The page-level copy still carries the
+           refusals raised with no dialog open - a delete, above all. *@
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+
+        <EditForm id="driver-form" Model="_form" OnValidSubmit="SaveAsync">
+            @* A parse failure from an input the framework could not read lands on the
+               EditContext and stops OnValidSubmit firing at all, so without this the Save
+               button would do nothing and say nothing. ValidationSummary rather than per-field
+               ValidationMessage: a `For="@(() => ...)"` lambda inside an attribute is the
+               construct NFR-14's source scan misreads. *@
+            <ValidationSummary />
+            @* FR-37 names the driver's name among the things a dispatcher may change, so these two
+               are on both the create and the edit form. *@
+            <div class="mb-3">
+                <label class="form-label" for="driver-first-name">@Localizer["FirstName"]</label>
+                <InputText id="driver-first-name" class="form-control" @bind-Value="_form.FirstName" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="driver-last-name">@Localizer["LastName"]</label>
+                <InputText id="driver-last-name" class="form-control" @bind-Value="_form.LastName" />
+            </div>
+
+            @* The address and the password are create-only. FR-37 does not name them, and AD-24
+               keeps this screen's reach into an account to what a requirement asks for. *@
+            @if (_form.Id is null)
+            {
+                <div class="mb-3">
+                    <label class="form-label" for="driver-email">@Localizer["Email"]</label>
+                    <InputText id="driver-email" class="form-control" @bind-Value="_form.Email" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="driver-password">@Localizer["Password"]</label>
+                    <InputText id="driver-password" type="password" class="form-control"
+                               @bind-Value="_form.Password" />
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label" for="driver-license-number">@Localizer["LicenseNumber"]</label>
+                <InputText id="driver-license-number" class="form-control"
+                           @bind-Value="_form.LicenseNumber" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="driver-vehicle">@Localizer["Vehicle"]</label>
+                @* FR-45 and FR-38 in one control: the choices are the vehicles nobody holds, and the
+                   empty option is an explicit "no vehicle" - which is how a dispatcher releases an
+                   assignment. The original had no such choice, so an assigned vehicle stayed
+                   assigned for good. *@
+                <select id="driver-vehicle" class="form-select" @bind="_form.VehicleId">
+                    <option value="">@Localizer["NoVehicle"]</option>
+                    @foreach (var vehicle in _vehicleChoices)
+                    {
+                        <option value="@vehicle.Id">@vehicle.Model — @vehicle.LicensePlate</option>
+                    }
+                </select>
+            </div>
+        </EditForm>
+    </ChildContent>
+    <Actions>
+        <button type="submit" form="driver-form" class="btn btn-primary">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary" @onclick="CloseFormAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+@* FR-81: a destructive action is confirmed through the shared prompt, never performed on the click
+   that asked for it. *@
+<DtConfirmDialog @ref="_deleteDialog"
+                 Title="@Localizer["DeleteDriverTitle"]"
+                 Message="@Localizer["DeleteDriverMessage"]"
+                 OnConfirmed="ConfirmDeleteAsync" />
+
+@code {
+    // The screen's own lifetime. A dispatcher who navigates away mid-load leaves a query running
+    // against a pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private IReadOnlyList<DriverSummary> _drivers = [];
+    private IReadOnlyList<VehicleChoice> _vehicleChoices = [];
+    private IReadOnlyList<string> _failures = [];
+    private DriverForm _form = new();
+    private DriverSummary? _pendingDeletion;
+    private DtDialog? _formDialog;
+    private DtConfirmDialog? _deleteDialog;
+    private string _search = string.Empty;
+    private bool _loading = true;
+
+    /// <summary>FR-36, over the list already fetched: name, email, licence number and vehicle.</summary>
+    private IReadOnlyCollection<DriverSummary> Visible =>
+        [.. _drivers.Where(driver => Matches(driver, _search))];
+
+    /// <summary>The row's edit action, bound as a delegate so no lambda has to live in markup.</summary>
+    private Func<Task> EditHandler(DriverSummary driver) => () => OpenEditAsync(driver);
+
+    /// <summary>The row's delete action, for the same reason.</summary>
+    private Func<Task> DeleteHandler(DriverSummary driver) => () => OpenDeleteAsync(driver);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen calls a service. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        await LoadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    /// <summary>
+    /// FR-36's whole implementation: whether a driver matches what a dispatcher typed, across
+    /// name, email, licence number and vehicle.
+    /// </summary>
+    /// <remarks>
+    /// Internal and static so it can be tested directly. The search is the one thing on this
+    /// screen a render test cannot reach - static rendering dispatches no events - so
+    /// narrowing the comparison or dropping a field from the disjunction would break FR-36
+    /// with every markup assertion still passing.
+    /// </remarks>
+    /// <param name="driver">The row being considered.</param>
+    /// <param name="search">What the dispatcher typed. Blank keeps everything.</param>
+    internal static bool Matches(DriverSummary driver, string? search)
+    {
+        ArgumentNullException.ThrowIfNull(driver);
+
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        var needle = search.Trim();
+
+        return Contains(driver.FirstName, needle)
+            || Contains(driver.LastName, needle)
+            || Contains(driver.Email, needle)
+            || Contains(driver.LicenseNumber, needle)
+            || Contains(driver.VehicleModel, needle)
+            || Contains(driver.VehicleLicensePlate, needle);
+    }
+
+    /// <summary>
+    /// The vehicles the assignment control offers: every vehicle nobody holds, plus the one
+    /// this driver already holds when it is not among them.
+    /// </summary>
+    /// <remarks>
+    /// A pure function, and internal so it can be tested directly, because the second half is
+    /// the part that breaks silently. A driver's own vehicle is held, so it is absent from the
+    /// unassigned list; a select whose current value is not among its options reads back as
+    /// null, and the next save would release the vehicle. No render test would notice - static
+    /// rendering opens no edit dialog - so until this lived here the rule was protected by a
+    /// comment and nothing else.
+    /// </remarks>
+    /// <param name="unassigned">Every vehicle no driver holds (FR-45).</param>
+    /// <param name="driver">The driver being edited, or null while creating one.</param>
+    internal static IReadOnlyList<VehicleChoice> ChoicesFor(
+        IReadOnlyList<VehicleSummary> unassigned,
+        DriverSummary? driver)
+    {
+        ArgumentNullException.ThrowIfNull(unassigned);
+
+        var choices = unassigned
+            .Select(vehicle => new VehicleChoice(vehicle.Id, vehicle.Model, vehicle.LicensePlate))
+            .ToList();
+
+        if (driver?.VehicleId is { } vehicleId && !choices.Exists(choice => choice.Id == vehicleId))
+        {
+            choices.Insert(
+                0,
+                new VehicleChoice(
+                    vehicleId,
+                    driver.VehicleModel ?? string.Empty,
+                    driver.VehicleLicensePlate ?? string.Empty));
+        }
+
+        return choices;
+    }
+
+    // Culture-aware and case-insensitive: the roster is Ukrainian, and a dispatcher typing a name
+    // in lower case is searching for the same person.
+    private static bool Contains(string? haystack, string needle) =>
+        haystack is not null
+        && haystack.Contains(needle, StringComparison.CurrentCultureIgnoreCase);
+
+    /// <summary>The roster and the assignment choices: what the screen shows when it opens.</summary>
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        try
+        {
+            _drivers = await Roster.ListAsync(_cancellation.Token);
+            _vehicleChoices = ChoicesFor(
+                await Fleet.ListUnassignedAsync(_cancellation.Token),
+                driver: null);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Refreshes only the choices the assignment control offers, which is all opening a dialog
+    /// needs. Reloading the roster here would re-read every driver's account to answer a
+    /// question about vehicles.
+    /// </summary>
+    /// <returns>False when the read was refused, in which case the failure is already on screen.</returns>
+    private async Task<bool> LoadVehicleChoicesAsync(DriverSummary? driver)
+    {
+        try
+        {
+            _vehicleChoices = ChoicesFor(
+                await Fleet.ListUnassignedAsync(_cancellation.Token),
+                driver);
+
+            return true;
+        }
+        catch (DriveTrackException failure)
+        {
+            // An @onclick handler sits inside nothing that would catch this: without the try, a
+            // refused read escapes into the circuit's error boundary and the screen is gone.
+            _failures = FailureKeys.For(failure);
+
+            return false;
+        }
+    }
+
+    private async Task OpenCreateAsync()
+    {
+        _failures = [];
+        _form = new DriverForm();
+
+        // Not opened when the choices could not be read: the refusal renders at page level,
+        // where a dispatcher can see it, and a dialog whose vehicle list is stale is worse than
+        // no dialog at all.
+        if (!await LoadVehicleChoicesAsync(driver: null))
+        {
+            return;
+        }
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task OpenEditAsync(DriverSummary driver)
+    {
+        _failures = [];
+        _form = new DriverForm
+        {
+            Id = driver.Id,
+            FirstName = driver.FirstName,
+            LastName = driver.LastName,
+            LicenseNumber = driver.LicenseNumber,
+            VehicleId = driver.VehicleId,
+        };
+
+        // The driver is passed in so ChoicesFor can add back the vehicle they already hold,
+        // which the unassigned list does not carry.
+        if (!await LoadVehicleChoicesAsync(driver))
+        {
+            return;
+        }
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task CloseFormAsync()
+    {
+        if (_formDialog is not null)
+        {
+            await _formDialog.CloseAsync();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (_form.Id is { } driverId)
+            {
+                await Roster.UpdateAsync(
+                    driverId,
+                    new UpdateDriverCommand(
+                        Optional<string>.Of(_form.FirstName),
+                        Optional<string>.Of(_form.LastName),
+                        Optional<string>.Of(_form.LicenseNumber),
+                        // Always present: this screen states the assignment it means, and an
+                        // explicit null is FR-38's release.
+                        Optional<int?>.Of(_form.VehicleId)),
+                    _cancellation.Token);
+            }
+
+            if (_form.Id is null)
+            {
+                await Roster.CreateAsync(
+                    new CreateDriverCommand(
+                        _form.FirstName,
+                        _form.LastName,
+                        _form.Email,
+                        _form.Password,
+                        _form.LicenseNumber,
+                        _form.VehicleId),
+                    _cancellation.Token);
+            }
+
+            _failures = [];
+
+            await CloseFormAsync();
+        }
+        catch (DriveTrackException failure)
+        {
+            // A refused save must not render the submitted password back.
+            _form.Password = null;
+
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Outside the try, deliberately. The write has committed, so a failure refreshing the
+        // list afterwards is a failed read: reporting it as a refused save would tell the
+        // dispatcher their driver was not created, and blank the password that just worked.
+        await LoadAsync();
+    }
+
+    private async Task OpenDeleteAsync(DriverSummary driver)
+    {
+        _failures = [];
+        _pendingDeletion = driver;
+
+        if (_deleteDialog is not null)
+        {
+            await _deleteDialog.ShowAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_pendingDeletion is not { } driver)
+        {
+            return;
+        }
+
+        _pendingDeletion = null;
+
+        try
+        {
+            await Roster.DeleteAsync(driver.Id, _cancellation.Token);
+
+            _failures = [];
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Outside the try: the driver is gone, and a failed refresh afterwards must not be
+        // reported as a delete that did not happen.
+        await LoadAsync();
+    }
+
+    /// <summary>One vehicle as the assignment control offers it.</summary>
+    /// <param name="Id">The id the select posts back.</param>
+    /// <param name="Model">Make and model.</param>
+    /// <param name="LicensePlate">The registration plate.</param>
+    internal sealed record VehicleChoice(int Id, string Model, string LicensePlate);
+
+    /// <summary>
+    /// What the dialog is editing. A screen-local shape rather than a command: a command's fields
+    /// are <c>Optional&lt;T&gt;</c>, and two-way binding needs somewhere plain to write.
+    /// </summary>
+    private sealed class DriverForm
+    {
+        /// <summary>The driver being edited, or null while creating one.</summary>
+        public DriverId? Id { get; set; }
+
+        public string? FirstName { get; set; }
+
+        public string? LastName { get; set; }
+
+        public string? Email { get; set; }
+
+        public string? Password { get; set; }
+
+        public string? LicenseNumber { get; set; }
+
+        public int? VehicleId { get; set; }
+    }
+}

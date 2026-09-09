@@ -15,10 +15,10 @@ namespace DriveTrack.Application.Authorization;
 /// passed check.
 /// </para>
 /// <para>
-/// One member, deliberately (NFR-6). <c>RequireSelf</c> is the only decision this story's services
-/// need; a role member or a scope predicate arrives with the first capability that has a caller
-/// for it. AD-4's "admin satisfies every check" lives inside the implementation, so the override
-/// is still in exactly one place when a second member appears.
+/// Two members, and each arrived with a caller for it (NFR-6). <c>RequireSelf</c> is the ownership
+/// decision the account capability needs; <c>RequireRole</c> is the one the fleet capability needs,
+/// and it was minted by story 4.1 rather than anticipated. AD-4's "admin satisfies every check"
+/// lives inside the implementation, so the override is in exactly one place for both.
 /// </para>
 /// </summary>
 public interface IAccessGuard
@@ -32,4 +32,20 @@ public interface IAccessGuard
     /// (<c>AUTH_FORBIDDEN</c>, 403).
     /// </exception>
     void RequireSelf(UserId userId);
+
+    /// <summary>
+    /// Requires that the caller holds <paramref name="role"/>, or holds
+    /// <see cref="UserRole.Admin"/>.
+    /// <para>
+    /// AD-4 gives a user exactly one role and makes admin satisfy every check by rule, so
+    /// "a dispatcher or an admin" is written <c>RequireRole(UserRole.Dispatcher)</c> and there is
+    /// no set-of-roles overload to keep consistent with it.
+    /// </para>
+    /// </summary>
+    /// <param name="role">The role the operation is reserved to.</param>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401) or holds a different, non-admin
+    /// role (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    void RequireRole(UserRole role);
 }

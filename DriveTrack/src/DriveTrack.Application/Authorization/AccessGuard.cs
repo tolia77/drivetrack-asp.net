@@ -42,4 +42,34 @@ public sealed class AccessGuard(ICurrentUser currentUser) : IAccessGuard
                 + " attempted an operation reserved to user "
                 + userId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".");
     }
+
+    /// <inheritdoc />
+    public void RequireRole(UserRole role)
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            // 401, not 403, for the same reason RequireSelf answers it: FR-13's session-expiry flow
+            // branches on this single code, and an expired cookie on a live circuit reaches here.
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "An anonymous caller attempted an operation reserved to role " + role + ".");
+        }
+
+        // AD-4: admin passes by rule, never by holding a second role row. The override sits beside
+        // RequireSelf's rather than being repeated per capability, which is what keeps it auditable.
+        if (currentUser.Role == UserRole.Admin)
+        {
+            return;
+        }
+
+        if (currentUser.Role == role)
+        {
+            return;
+        }
+
+        throw new ForbiddenException(
+            ErrorCode.AUTH_FORBIDDEN,
+            "A caller holding role " + currentUser.Role + " attempted an operation reserved to role "
+                + role + ".");
+    }
 }

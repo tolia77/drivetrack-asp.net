@@ -52,6 +52,18 @@ public enum ErrorCode
     /// <summary>The confirmation does not equal the password. 422 (FR-3).</summary>
     AUTH_PASSWORD_CONFIRMATION_MISMATCH,
 
+    /// <summary>
+    /// The named vehicle is already held by another driver. 409 (FR-44). Distinct from
+    /// <see cref="FLEET_VEHICLE_IN_USE"/>: this refuses an assignment, that one refuses a deletion.
+    /// </summary>
+    FLEET_VEHICLE_ALREADY_ASSIGNED,
+
+    /// <summary>A driver holds this vehicle, so it cannot be deleted. 409 (FR-43).</summary>
+    FLEET_VEHICLE_IN_USE,
+
+    /// <summary>Another vehicle already carries this licence plate. 409 (FR-41).</summary>
+    FLEET_LICENSE_PLATE_IN_USE,
+
     /// <summary>PostgreSQL SQLSTATE 23505, translated in Infrastructure. 409 (AD-8).</summary>
     PERSISTENCE_UNIQUE_VIOLATION,
 

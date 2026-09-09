@@ -67,6 +67,41 @@ public interface IUserAccountRepository
         UserRole role,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Stages a change to the account's name, so it lands with the rest of the operation at
+    /// <see cref="IUnitOfWork.CommitAsync"/> (FR-37).
+    /// <para>
+    /// Deliberately narrow: the two name fields and nothing else. The address and the credentials
+    /// are the account capability's, and a general "update the user" method here would be the seam
+    /// through which a second writer of them appeared.
+    /// </para>
+    /// <para>
+    /// An id no account holds is not an error: the caller has already loaded the row it means to
+    /// rename and answered 404 if there was none.
+    /// </para>
+    /// </summary>
+    Task RenameAsync(
+        UserId userId,
+        string firstName,
+        string lastName,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stages the account for deletion, so it lands with the rest of the operation at
+    /// <see cref="IUnitOfWork.CommitAsync"/> (FR-39).
+    /// <para>
+    /// Deleting the account rather than only the subtype row is the point: an account still holding
+    /// role <c>Driver</c> with no driver row behind it is signable-in and carries a null driver
+    /// claim, which is a worse state than either. The declared cascades do the rest — the driver
+    /// row, its shifts and its chat messages go with it, and its deliveries are left unassigned.
+    /// </para>
+    /// <para>
+    /// An id no account holds is not an error here: the caller has already loaded the row it means
+    /// to delete and answered 404 if there was none.
+    /// </para>
+    /// </summary>
+    Task DeleteAsync(UserId userId, CancellationToken cancellationToken);
+
     /// <summary>Whether <paramref name="password"/> matches the stored hash for that user.</summary>
     Task<bool> VerifyPasswordAsync(UserId userId, string password, CancellationToken cancellationToken);
 

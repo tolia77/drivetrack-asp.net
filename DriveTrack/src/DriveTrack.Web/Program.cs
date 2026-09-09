@@ -72,6 +72,12 @@ builder.Services.AddControllers(options => options.Filters.Add<EnvelopeResultFil
         options.JsonSerializerOptions.Converters.Add(new UserIdJsonConverter());
         options.JsonSerializerOptions.Converters.Add(new DriverIdJsonConverter());
         options.JsonSerializerOptions.Converters.Add(new ClientIdJsonConverter());
+
+        // AD-23: absent and null are different requests on an update. System.Text.Json only invokes
+        // a converter for a property that is present, which is exactly what makes the two
+        // distinguishable - so this registration is not a formatting preference, it is the
+        // mechanism FR-38's "release the vehicle" travels on.
+        options.JsonSerializerOptions.Converters.Add(new OptionalJsonConverterFactory());
     });
 
 // The scheme selector, and the two handlers it forwards to.

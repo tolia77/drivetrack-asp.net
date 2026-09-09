@@ -105,4 +105,13 @@
   <data name="AUTH_PASSWORD_CONFIRMATION_MISMATCH" xml:space="preserve">
     <value>Підтвердження пароля не збігається з паролем.</value>
   </data>
+  <data name="FLEET_VEHICLE_ALREADY_ASSIGNED" xml:space="preserve">
+    <value>Цей автомобіль уже закріплено за іншим водієм.</value>
+  </data>
+  <data name="FLEET_VEHICLE_IN_USE" xml:space="preserve">
+    <value>Автомобіль закріплено за водієм. Спочатку зніміть закріплення, а потім видаляйте.</value>
+  </data>
+  <data name="FLEET_LICENSE_PLATE_IN_USE" xml:space="preserve">
+    <value>Автомобіль із таким номерним знаком уже є у парку.</value>
+  </data>
 </root>

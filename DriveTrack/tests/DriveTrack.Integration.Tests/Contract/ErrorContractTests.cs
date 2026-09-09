@@ -31,7 +31,7 @@ public class ErrorContractTests
     private static readonly ErrorCode[] Codes = Enum.GetValues<ErrorCode>();
 
     /// <summary>The capability prefixes minted so far. A new capability adds one here deliberately.</summary>
-    private static readonly string[] KnownPrefixes = ["COMMON_", "AUTH_", "PERSISTENCE_"];
+    private static readonly string[] KnownPrefixes = ["COMMON_", "AUTH_", "FLEET_", "PERSISTENCE_"];
 
     /// <summary>AD-8's closed failure set, by name.</summary>
     private static readonly string[] ExpectedExceptionTypes =

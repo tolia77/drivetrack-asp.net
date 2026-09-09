@@ -60,4 +60,10 @@ public enum IconName
 
     /// <summary>A point on the map (FR-15, FR-21).</summary>
     Location,
+
+    /// <summary>The driver roster (FR-35).</summary>
+    Drivers,
+
+    /// <summary>The vehicle fleet (FR-40).</summary>
+    Vehicles,
 }

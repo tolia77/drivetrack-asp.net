@@ -1,0 +1,404 @@
+@page "/vehicles"
+@* FR-40 to FR-43: the dispatcher's fleet.
+
+   The Roles argument routes a wrong role to /access-denied (FR-79) rather than into an error
+   boundary. It is a convenience, not the decision: IAccessGuard.RequireRole inside IVehicleService
+   settles whether this caller may manage the fleet, and it runs whether or not this screen was ever
+   rendered.
+
+   No @rendermode: the shell is globally InteractiveServerRenderMode(prerender: false), so this page
+   is interactive by inheritance and @bind works without [SupplyParameterFromForm].
+
+   The @if blocks below are independent rather than if/else chains: an `else` at markup level reads
+   to NFR-14's source scan as a rendered English word. *@
+@attribute [Authorize(Roles = "Dispatcher,Admin")]
+@* Named for what it is rather than for the capability: a member called `Vehicles` on a
+   component called `Vehicles` does not compile. *@
+@inject IVehicleService Fleet
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IDisposable
+
+<PageTitle>@Localizer["VehiclesTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.Vehicles" />@Localizer["VehiclesTitle"]
+</h1>
+
+@* FR-43's refusal arrives here: the localized FLEET_VEHICLE_IN_USE message tells the dispatcher to
+   unassign the driver first, which is a way out the original system did not have. Resolved through
+   the same catalogue the REST envelope uses, so the two cannot disagree (NFR-3). *@
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+<div class="row g-3 align-items-end mb-3">
+    <div class="col-sm">
+        <label class="form-label" for="vehicles-search">@Localizer["Search"]</label>
+        @* Over the list already fetched: PRD section 8 excludes server-side filtering, so typing
+           here never becomes a query. *@
+        <input id="vehicles-search" type="search" class="form-control"
+               @bind="_search" @bind:event="oninput" />
+    </div>
+    <div class="col-sm-auto">
+        <button type="button" class="btn btn-success" @onclick="OpenCreateAsync">
+            <Icon Name="IconName.Create" />@Localizer["Create"]
+        </button>
+    </div>
+</div>
+
+@* NFR-27 keeps the original's paging, and this screen asks for the first page and searches it
+   in the browser - so past a full page the rest of the fleet is neither shown nor findable.
+   Saying so is the difference between a limit and a screen that quietly lies about the fleet. *@
+@if (IsTruncated)
+{
+    <div class="alert alert-warning" role="status">@Localizer["ListTruncated"]</div>
+}
+
+<DtDataTable TItem="VehicleSummary"
+             Items="Visible"
+             IsLoading="_loading"
+             EmptyText="@Localizer["VehiclesEmpty"]">
+    <HeaderTemplate>
+        <th scope="col">@Localizer["Model"]</th>
+        <th scope="col">@Localizer["LicensePlate"]</th>
+        <th scope="col">@Localizer["CapacityKg"]</th>
+        <th scope="col">@Localizer["Actions"]</th>
+    </HeaderTemplate>
+    <RowTemplate Context="vehicle">
+        <td>@vehicle.Model</td>
+        <td>@vehicle.LicensePlate</td>
+        <td>@vehicle.CapacityKg</td>
+        <td>
+            @* The handlers are built in code rather than written as lambdas here: a `=>` inside an
+               attribute closes the tag as far as a source scan is concerned. *@
+            <button type="button" class="btn btn-primary btn-sm" @onclick="EditHandler(vehicle)">
+                <Icon Name="IconName.Edit" />@Localizer["Edit"]
+            </button>
+            <button type="button" class="btn btn-danger btn-sm" @onclick="DeleteHandler(vehicle)">
+                <Icon Name="IconName.Delete" />@Localizer["Delete"]
+            </button>
+        </td>
+    </RowTemplate>
+</DtDataTable>
+
+@* FR-85: the shared dialog. One heading for both create and edit - a title composed at run time
+   would be a key no test can see, and the catalogue is closed against the keys components ask for. *@
+<DtDialog @ref="_formDialog" Title="@Localizer["VehicleForm"]">
+    <ChildContent>
+        @* The same list as the one at the top of the page, and deliberately a second copy. A
+           DtDialog opens with showModal(), so everything outside it is in the inert layer
+           behind the backdrop: a duplicate plate refused with the message only up there is a
+           form that fails to close and says nothing, which is not FR-41's "clear message".
+           The page-level copy still carries the refusals raised with no dialog open - FR-43's
+           held-vehicle delete, above all. *@
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+
+        <EditForm id="vehicle-form" Model="_form" OnValidSubmit="SaveAsync">
+            @* Clearing a number or a date field leaves a parse failure on the EditContext, and
+               OnValidSubmit then never fires - so without this the Save button would do
+               nothing and say nothing. ValidationSummary rather than per-field
+               ValidationMessage: a `For="@(() => ...)"` lambda inside an attribute is the
+               construct NFR-14's source scan misreads. *@
+            <ValidationSummary />
+            <div class="mb-3">
+                <label class="form-label" for="vehicle-model">@Localizer["Model"]</label>
+                <InputText id="vehicle-model" class="form-control" @bind-Value="_form.Model" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="vehicle-license-plate">@Localizer["LicensePlate"]</label>
+                <InputText id="vehicle-license-plate" class="form-control"
+                           @bind-Value="_form.LicensePlate" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="vehicle-capacity">@Localizer["CapacityKg"]</label>
+                @* No {0} in the message: the framework fills it with the CLR property name,
+                   which would put a Latin word in front of a user (NFR-14). *@
+                <InputNumber id="vehicle-capacity" class="form-control"
+                             ParsingErrorMessage="@Localizer["NumberParseError"]"
+                             @bind-Value="_form.CapacityKg" />
+            </div>
+            @* FR-40 records these two; nothing in this milestone reads them, and PRD section 8
+               excludes the maintenance alerting rather than the fields. So they belong on the form,
+               where a dispatcher captures them, and not in the table above, which shows what a
+               screen in this milestone actually needs to read. *@
+            <div class="mb-3">
+                <label class="form-label" for="vehicle-mileage">@Localizer["Mileage"]</label>
+                <InputNumber id="vehicle-mileage" class="form-control"
+                             ParsingErrorMessage="@Localizer["NumberParseError"]"
+                             @bind-Value="_form.Mileage" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="vehicle-maintenance">@Localizer["NextMaintenanceDate"]</label>
+                <InputDate id="vehicle-maintenance" class="form-control"
+                           ParsingErrorMessage="@Localizer["DateParseError"]"
+                           @bind-Value="_form.NextMaintenanceDate" />
+            </div>
+        </EditForm>
+    </ChildContent>
+    <Actions>
+        <button type="submit" form="vehicle-form" class="btn btn-primary">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary" @onclick="CloseFormAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+@* FR-81: a destructive action is confirmed through the shared prompt. *@
+<DtConfirmDialog @ref="_deleteDialog"
+                 Title="@Localizer["DeleteVehicleTitle"]"
+                 Message="@Localizer["DeleteVehicleMessage"]"
+                 OnConfirmed="ConfirmDeleteAsync" />
+
+@code {
+    // The screen's own lifetime. A dispatcher who navigates away mid-load leaves a query running
+    // against a pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private IReadOnlyList<VehicleSummary> _vehicles = [];
+    private IReadOnlyList<string> _failures = [];
+    private VehicleForm _form = new();
+    private VehicleSummary? _pendingDeletion;
+    private DtDialog? _formDialog;
+    private DtConfirmDialog? _deleteDialog;
+    private string _search = string.Empty;
+    private bool _loading = true;
+
+    /// <summary>The rows the search leaves, filtered over the list already fetched.</summary>
+    private IReadOnlyCollection<VehicleSummary> Visible =>
+        [.. _vehicles.Where(vehicle => Matches(vehicle, _search))];
+
+    /// <summary>
+    /// True when the page came back full, which is as much as this screen can know: the query
+    /// returns no total (PRD section 8 excludes one), so "there may be more" is the honest
+    /// claim rather than a count.
+    /// </summary>
+    private bool IsTruncated => _vehicles.Count >= ListVehiclesQueryValidator.MaximumLimit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen calls a service. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        await LoadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    /// <summary>The row's edit action, bound as a delegate so no lambda has to live in markup.</summary>
+    private Func<Task> EditHandler(VehicleSummary vehicle) => () => OpenEditAsync(vehicle);
+
+    /// <summary>The row's delete action, for the same reason.</summary>
+    private Func<Task> DeleteHandler(VehicleSummary vehicle) => () => OpenDeleteAsync(vehicle);
+
+    /// <summary>
+    /// Whether a vehicle matches what a dispatcher typed, across the model and the plate.
+    /// </summary>
+    /// <remarks>
+    /// Internal and static so it can be tested directly: the search is the one thing on this
+    /// screen a render test cannot reach, since static rendering dispatches no events.
+    /// Culture-aware and case-insensitive - a dispatcher typing a plate in lower case is
+    /// looking for the same vehicle, and the plate is stored upper-cased.
+    /// </remarks>
+    /// <param name="vehicle">The row being considered.</param>
+    /// <param name="search">What the dispatcher typed. Blank keeps everything.</param>
+    internal static bool Matches(VehicleSummary vehicle, string? search)
+    {
+        ArgumentNullException.ThrowIfNull(vehicle);
+
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        var needle = search.Trim();
+
+        return vehicle.Model.Contains(needle, StringComparison.CurrentCultureIgnoreCase)
+            || vehicle.LicensePlate.Contains(needle, StringComparison.CurrentCultureIgnoreCase);
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        try
+        {
+            // NFR-27's default page, stated rather than assumed: the service refuses anything the
+            // original would have passed to the database unchecked.
+            _vehicles = await Fleet.ListAsync(
+                new ListVehiclesQuery(0, ListVehiclesQueryValidator.MaximumLimit),
+                _cancellation.Token);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenCreateAsync()
+    {
+        _failures = [];
+        _form = new VehicleForm();
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task OpenEditAsync(VehicleSummary vehicle)
+    {
+        _failures = [];
+        _form = new VehicleForm
+        {
+            Id = vehicle.Id,
+            Model = vehicle.Model,
+            LicensePlate = vehicle.LicensePlate,
+            CapacityKg = vehicle.CapacityKg,
+            Mileage = vehicle.Mileage,
+            NextMaintenanceDate = vehicle.NextMaintenanceDate,
+        };
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task CloseFormAsync()
+    {
+        if (_formDialog is not null)
+        {
+            await _formDialog.CloseAsync();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (_form.Id is { } vehicleId)
+            {
+                // Every field present: this screen edits the whole card, so there is nothing for it
+                // to leave alone. The Optional wrapper is still what carries them, because a later
+                // caller sending only one field must mean the same thing to the same service.
+                await Fleet.UpdateAsync(
+                    vehicleId,
+                    new UpdateVehicleCommand(
+                        Optional<string>.Of(_form.Model),
+                        Optional<string>.Of(_form.LicensePlate),
+                        Optional<decimal>.Of(_form.CapacityKg),
+                        Optional<int>.Of(_form.Mileage),
+                        // Present, and null when the dispatcher cleared the field: on this one
+                        // column "no value" is a state they can choose (FR-42).
+                        Optional<DateOnly?>.Of(_form.NextMaintenanceDate)),
+                    _cancellation.Token);
+            }
+
+            if (_form.Id is null)
+            {
+                await Fleet.CreateAsync(
+                    new CreateVehicleCommand(
+                        _form.Model,
+                        _form.LicensePlate,
+                        _form.CapacityKg,
+                        _form.Mileage,
+                        _form.NextMaintenanceDate),
+                    _cancellation.Token);
+            }
+
+            _failures = [];
+
+            await CloseFormAsync();
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Outside the try, deliberately. The write has committed, so a failure refreshing the
+        // list afterwards is a failed read, and reporting it as a refused save would tell the
+        // dispatcher their vehicle was not saved when it was.
+        await LoadAsync();
+    }
+
+    private async Task OpenDeleteAsync(VehicleSummary vehicle)
+    {
+        _failures = [];
+        _pendingDeletion = vehicle;
+
+        if (_deleteDialog is not null)
+        {
+            await _deleteDialog.ShowAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_pendingDeletion is not { } vehicle)
+        {
+            return;
+        }
+
+        _pendingDeletion = null;
+
+        try
+        {
+            await Fleet.DeleteAsync(vehicle.Id, _cancellation.Token);
+
+            _failures = [];
+        }
+        catch (DriveTrackException failure)
+        {
+            // FR-43: a held vehicle is refused, and the message above says what to do about it.
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Outside the try: the vehicle is gone, and a failed refresh afterwards must not be
+        // reported as a delete that did not happen.
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// What the dialog is editing. A screen-local shape rather than a command: a command's update
+    /// fields are <c>Optional&lt;T&gt;</c>, and two-way binding needs somewhere plain to write.
+    /// </summary>
+    private sealed class VehicleForm
+    {
+        /// <summary>The vehicle being edited, or null while creating one.</summary>
+        public int? Id { get; set; }
+
+        public string? Model { get; set; }
+
+        public string? LicensePlate { get; set; }
+
+        public decimal CapacityKg { get; set; }
+
+        public int Mileage { get; set; }
+
+        public DateOnly? NextMaintenanceDate { get; set; }
+    }
+}
