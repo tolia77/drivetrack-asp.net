@@ -52,6 +52,24 @@
             </div>
         }
 
+        @if (destinations.Contains(NavDestination.Clients))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="clients">
+                    <Icon Name="IconName.Clients" />@Localizer["NavClients"]
+                </NavLink>
+            </div>
+        }
+
+        @if (destinations.Contains(NavDestination.Dispatchers))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="dispatchers">
+                    <Icon Name="IconName.Dispatchers" />@Localizer["NavDispatchers"]
+                </NavLink>
+            </div>
+        }
+
         @* The account actions are not destinations: they change who the caller is rather than where
            they are, so they sit outside the destination table. *@
         @if (isSignedIn)

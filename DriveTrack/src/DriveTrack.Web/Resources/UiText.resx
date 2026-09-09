@@ -236,4 +236,60 @@
   <data name="BackToHome" xml:space="preserve">
     <value>Повернутися на головну</value>
   </data>
+  <!-- Story 7.1: the two account-administration screens and their navigation entries. -->
+  <data name="NavClients" xml:space="preserve">
+    <value>Клієнти</value>
+  </data>
+  <data name="NavDispatchers" xml:space="preserve">
+    <value>Диспетчери</value>
+  </data>
+  <data name="ClientsTitle" xml:space="preserve">
+    <value>Клієнти</value>
+  </data>
+  <data name="DispatchersTitle" xml:space="preserve">
+    <value>Диспетчери</value>
+  </data>
+  <data name="Actions" xml:space="preserve">
+    <value>Дії</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Редагувати</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Видалити</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Зберегти</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Створити</value>
+  </data>
+  <data name="EditClientTitle" xml:space="preserve">
+    <value>Редагування клієнта</value>
+  </data>
+  <data name="DeleteClientTitle" xml:space="preserve">
+    <value>Видалення клієнта</value>
+  </data>
+  <data name="DeleteClientMessage" xml:space="preserve">
+    <value>Обліковий запис клієнта буде видалено назавжди. Його доставки залишаться без замовника. Продовжити?</value>
+  </data>
+  <data name="CreateDispatcherTitle" xml:space="preserve">
+    <value>Новий диспетчер</value>
+  </data>
+  <data name="EditDispatcherTitle" xml:space="preserve">
+    <value>Редагування диспетчера</value>
+  </data>
+  <data name="DeleteDispatcherTitle" xml:space="preserve">
+    <value>Видалення диспетчера</value>
+  </data>
+  <data name="DeleteDispatcherMessage" xml:space="preserve">
+    <value>Обліковий запис диспетчера буде видалено назавжди. Продовжити?</value>
+  </data>
+  <!-- FR-50 / AD-23: порожнє поле означає «не змінювати», а не «стерти». -->
+  <data name="PasswordUnchangedHint" xml:space="preserve">
+    <value>Залиште поле порожнім, щоб не змінювати пароль.</value>
+  </data>
+  <data name="EmailAtCreationHint" xml:space="preserve">
+    <value>Адресу можна задати лише під час створення облікового запису.</value>
+  </data>
 </root>

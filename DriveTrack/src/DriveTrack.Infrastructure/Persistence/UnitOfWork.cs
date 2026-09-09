@@ -1,4 +1,5 @@
 using DriveTrack.Application.Abstractions;
+using DriveTrack.Application.Common;
 using DriveTrack.Infrastructure.Identity;
 using DriveTrack.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -85,6 +86,21 @@ public sealed class UnitOfWork : IUnitOfWork
         {
             await _context.SaveChangesAsync(cancellationToken);
             await _transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            // Ahead of the arm below, because this derives from DbUpdateException and the translator
+            // only recognises SQLSTATEs - so without this arm a lost update falls through as an
+            // unmodelled defect and leaves as a 500.
+            //
+            // It is a 409 for the same reason a unique violation is: the request collided with the
+            // current state of a row somebody else changed first. Two administrators editing or
+            // deleting the same account is the ordinary way to reach it, and the caller's next move
+            // is to re-read and try again - which is what a conflict means and what a 500 does not.
+            throw new ConflictException(
+                ErrorCode.COMMON_CONFLICT,
+                "The row was changed or removed by another caller since it was read.",
+                exception);
         }
         catch (DbUpdateException exception)
         {

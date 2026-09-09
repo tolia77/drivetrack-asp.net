@@ -36,10 +36,32 @@ public class NavigationTests
     [Fact]
     public void A_role_the_table_does_not_know_fails_loudly()
     {
-        // The table is uniform today because Profile is the only authenticated screen that exists.
-        // Epics 4+ add rows, and this is what makes a role added without one an error rather than
-        // an empty menu.
+        // The rows stopped being uniform with story 7.1, which is what the table was written for.
+        // This is what makes a role added without a row an error rather than an empty menu.
         Assert.Throws<ArgumentOutOfRangeException>(() => NavDestinations.For((UserRole)999));
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin, true, true)]
+    [InlineData(UserRole.Dispatcher, true, false)]
+    [InlineData(UserRole.Driver, false, false)]
+    [InlineData(UserRole.Client, false, false)]
+    public void The_two_administration_rosters_are_offered_to_the_roles_that_have_a_use_for_them(
+        UserRole role,
+        bool clients,
+        bool dispatchers)
+    {
+        // FR-77 over story 7.1's two new destinations. A dispatcher is offered the client roster
+        // because FR-48 gives them a reason to open it - they need it to attach a client to a
+        // delivery - and is not offered the dispatcher roster, which is admin-only work.
+        //
+        // FR-12 still holds: this is what is worth showing, not who is allowed to do what. A
+        // dispatcher who typed /clients would be served the screen and refused the moment it tried
+        // to write, by IAccessGuard, inside the service.
+        var destinations = NavDestinations.For(role);
+
+        Assert.Equal(clients, destinations.Contains(NavDestination.Clients));
+        Assert.Equal(dispatchers, destinations.Contains(NavDestination.Dispatchers));
     }
 
     [Fact]
@@ -109,8 +131,10 @@ public class NavigationTests
         Assert.DoesNotContain(".bi-house-door-fill-nav-menu {", stylesheet, StringComparison.Ordinal);
 
         // Every link and action carries an icon beside its text (NFR-24): the brand mark, home,
-        // profile, sign-out, sign-in and register - six in all.
-        Assert.Equal(6, SharedMarkup.Occurrences(menu, "<Icon Name="));
+        // profile, the two administration rosters, sign-out, sign-in and register - eight in all.
+        // The count moves with the destination table on purpose; a destination rendered without a
+        // glyph is markup with nothing behind it, which is the defect this whole test guards.
+        Assert.Equal(8, SharedMarkup.Occurrences(menu, "<Icon Name="));
     }
 
     [Fact]
@@ -155,6 +179,37 @@ public class NavigationTests
         Assert.Contains("action=\"/sign-out\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("sign-in", links);
         Assert.DoesNotContain("register", links);
+
+        // The rendered half of the table: no arrangement of source text can tell an admin's menu
+        // from a driver's, so each role's is rendered and read back.
+        var destinations = NavDestinations.For(role);
+
+        Assert.Equal(destinations.Contains(NavDestination.Clients), links.Contains("clients"));
+        Assert.Equal(destinations.Contains(NavDestination.Dispatchers), links.Contains("dispatchers"));
+    }
+
+    [Fact]
+    public async Task Only_an_administrator_is_offered_the_dispatcher_roster()
+    {
+        // Stated once as a flat claim as well as through the table, because "admin sees both,
+        // dispatcher sees one, the other two see neither" is the sentence FR-77 actually makes and
+        // a parameterised assertion can be true of the wrong table.
+        var admin = Hrefs(await ShellCaller.RenderAsync<NavMenu>(UserRole.Admin));
+        var dispatcher = Hrefs(await ShellCaller.RenderAsync<NavMenu>(UserRole.Dispatcher));
+        var driver = Hrefs(await ShellCaller.RenderAsync<NavMenu>(UserRole.Driver));
+        var client = Hrefs(await ShellCaller.RenderAsync<NavMenu>(UserRole.Client));
+
+        Assert.Contains("clients", admin);
+        Assert.Contains("dispatchers", admin);
+
+        Assert.Contains("clients", dispatcher);
+        Assert.DoesNotContain("dispatchers", dispatcher);
+
+        foreach (var links in new[] { driver, client })
+        {
+            Assert.DoesNotContain("clients", links);
+            Assert.DoesNotContain("dispatchers", links);
+        }
     }
 
     [Fact]

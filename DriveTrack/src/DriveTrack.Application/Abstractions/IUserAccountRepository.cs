@@ -76,4 +76,41 @@ public interface IUserAccountRepository
     /// once and nothing else ever adds one.
     /// </summary>
     Task EnsureRoleAsync(UserRole role, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every account holding <paramref name="role"/>, ordered by name (FR-46, FR-49).
+    /// <para>
+    /// Unpaginated on purpose: the original's two administration lists are unpaginated and NFR-27
+    /// preserves the paging that already existed rather than inventing more.
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<UserAccount>> ListByRoleAsync(UserRole role, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Renames an account, staged for the caller's commit (FR-46, FR-50). Neither the email nor
+    /// the role is touched — email editing is story 7.3, and AD-4 gives an account one role for
+    /// its whole life.
+    /// </summary>
+    /// <exception cref="Common.NotFoundException">No account has that id.</exception>
+    Task UpdateNameAsync(
+        UserId userId,
+        string firstName,
+        string lastName,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Replaces the stored password (FR-8, FR-46, FR-50). The plaintext reaches storage only
+    /// through Identity's hasher, and Identity's own strength policy runs here, so a weak password
+    /// is refused by the same rule and reported with the same code as at registration.
+    /// </summary>
+    /// <exception cref="Common.NotFoundException">No account has that id.</exception>
+    /// <exception cref="Common.ValidationException">Identity's own policy refused the password.</exception>
+    Task SetPasswordAsync(UserId userId, string password, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stages the account for deletion (FR-47, FR-50). The declared foreign keys do the rest: a
+    /// client or driver row cascades away with its user, and every actor reference goes null.
+    /// </summary>
+    /// <exception cref="Common.NotFoundException">No account has that id.</exception>
+    Task DeleteAsync(UserId userId, CancellationToken cancellationToken);
 }

@@ -12,6 +12,12 @@ public enum NavDestination
 
     /// <summary>The signed-in caller's own profile.</summary>
     Profile,
+
+    /// <summary>The client roster (FR-46, FR-48).</summary>
+    Clients,
+
+    /// <summary>The dispatcher roster (FR-49).</summary>
+    Dispatchers,
 }
 
 /// <summary>
@@ -23,16 +29,35 @@ public enum NavDestination
 /// what is worth showing.
 /// </para>
 /// <para>
-/// The set is uniform across roles today because <c>Profile</c> is the only authenticated screen
-/// that exists — the dashboards, delivery lists and fleet screens are Epics 4 and later. Writing the
-/// switch out in full anyway is what makes those epics a row here instead of another
-/// <c>@if</c> in <c>NavMenu.razor</c>, which is how the baseline's navigation grew.
+/// The rows stopped being uniform with story 7.1, which is what the table was written for. An admin
+/// administers both rosters; a dispatcher is offered the client roster because FR-48 gives them a
+/// reason to open it, and not the dispatcher roster, which is admin-only work; a driver and a client
+/// are offered neither.
 /// </para>
 /// </summary>
 internal static class NavDestinations
 {
-    /// <summary>Everything an authenticated caller can currently reach.</summary>
-    private static readonly IReadOnlySet<NavDestination> Everything =
+    /// <summary>What an administrator is offered: every destination that exists.</summary>
+    private static readonly IReadOnlySet<NavDestination> Administrator =
+        new HashSet<NavDestination>
+        {
+            NavDestination.Home,
+            NavDestination.Profile,
+            NavDestination.Clients,
+            NavDestination.Dispatchers,
+        };
+
+    /// <summary>What a dispatcher is offered: FR-48's roster, and nothing that administers accounts.</summary>
+    private static readonly IReadOnlySet<NavDestination> Dispatcher =
+        new HashSet<NavDestination>
+        {
+            NavDestination.Home,
+            NavDestination.Profile,
+            NavDestination.Clients,
+        };
+
+    /// <summary>What everyone else with a session is offered.</summary>
+    private static readonly IReadOnlySet<NavDestination> SignedIn =
         new HashSet<NavDestination> { NavDestination.Home, NavDestination.Profile };
 
     /// <summary>
@@ -47,10 +72,10 @@ internal static class NavDestinations
     /// <param name="role">The caller's single role (AD-4).</param>
     public static IReadOnlySet<NavDestination> For(UserRole role) => role switch
     {
-        UserRole.Admin => Everything,
-        UserRole.Dispatcher => Everything,
-        UserRole.Driver => Everything,
-        UserRole.Client => Everything,
+        UserRole.Admin => Administrator,
+        UserRole.Dispatcher => Dispatcher,
+        UserRole.Driver => SignedIn,
+        UserRole.Client => SignedIn,
 
         // Total, like LandingRoute: a fifth role added without a navigation decision fails loudly
         // here rather than silently rendering a menu with nothing in it.

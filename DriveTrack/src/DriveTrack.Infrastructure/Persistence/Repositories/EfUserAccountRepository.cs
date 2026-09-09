@@ -133,6 +133,124 @@ internal sealed class EfUserAccountRepository(AppDbContext context, ScopedIdenti
         Throw(await identity.Roles.CreateAsync(new IdentityRole<int>(name)));
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<UserAccount>> ListByRoleAsync(
+        UserRole role,
+        CancellationToken cancellationToken)
+    {
+        var roleName = role.ToString();
+
+        // Joined through the role rows rather than filtered in memory: "every client" is a question
+        // about the join, and answering it by loading every user and discarding most of them would
+        // get slower with every account the system ever opens.
+        var users = await (
+            from user in context.Users
+            join userRole in context.UserRoles on user.Id equals userRole.UserId
+            join declared in context.Roles on userRole.RoleId equals declared.Id
+            where declared.Name == roleName
+            orderby user.LastName, user.FirstName, user.Id
+            select user).ToListAsync(cancellationToken);
+
+        var accounts = new List<UserAccount>(users.Count);
+
+        foreach (var user in users)
+        {
+            // Through the same mapper as every single-account read, so a list row and a detail read
+            // of the same account can never disagree about its role or its subtype id.
+            accounts.Add(await MapAsync(user, cancellationToken));
+        }
+
+        return accounts;
+    }
+
+    /// <inheritdoc />
+    public async Task UpdateNameAsync(
+        UserId userId,
+        string firstName,
+        string lastName,
+        CancellationToken cancellationToken)
+    {
+        var user = await RequiredAsync(userId, cancellationToken);
+
+        // Staged on the tracked entity, and deliberately *not* through UserManager.UpdateAsync.
+        //
+        // That method calls Context.Attach first, and attaching an entity EF is already tracking as
+        // Modified accepts its current values as its original values - including the concurrency
+        // stamp the same method has just replaced. A second Identity update-path call in the same
+        // unit of work therefore builds `WHERE concurrency_stamp = <the stamp we invented>`, matches
+        // no row, and the commit fails as a concurrency conflict on a row nobody else touched. Since
+        // this story can change a name and a password in one operation, one such call per unit of
+        // work is the budget, and SetPasswordAsync below spends it.
+        //
+        // Nothing is lost by staging directly: the commit writes these columns with the loaded stamp
+        // in the WHERE clause, so the optimistic check is still the real one.
+        user.FirstName = firstName;
+        user.LastName = lastName;
+    }
+
+    /// <inheritdoc />
+    public async Task SetPasswordAsync(
+        UserId userId,
+        string password,
+        CancellationToken cancellationToken)
+    {
+        var user = await RequiredAsync(userId, cancellationToken);
+
+        // AddPasswordAsync is the call that matters: it runs Identity's strength policy and its
+        // IPasswordHasher, so a weak password is refused by the same rule and reported with the same
+        // code as at registration (FR-8), and only the hash is ever stored.
+        //
+        // It also rolls the security stamp, which changes nothing today and is worth saying plainly:
+        // nothing in this system validates that stamp. There is no SecurityStampValidator, no
+        // OnValidatePrincipal hook, and JwtAccessTokenIssuer puts no stamp claim in the token - so a
+        // bearer token issued before the change keeps working until it expires on its own. Revoking
+        // live sessions on a password change is a capability this story does not ship.
+        //
+        // AddPasswordAsync refuses a user who already has a password, so the stored hash is cleared
+        // first - by assignment rather than by RemovePasswordAsync. That is not a shortcut:
+        // RemovePasswordAsync is a second Identity update-path call, and two of them in one unit of
+        // work corrupt the concurrency stamp for the reason UpdateNameAsync above sets out. The
+        // assignment writes nothing on its own; the hash that reaches the database is the one
+        // AddPasswordAsync computes, at the unit of work's single commit.
+        //
+        // The precondition that follows from clearing it: once this method has been entered, the
+        // tracked user carries no password until AddPasswordAsync succeeds. A caller that catches
+        // the refusal must therefore abandon the unit of work rather than commit it - committing
+        // would store the null and leave an account nobody can sign in to. Every caller here does
+        // abandon it, because the exception propagates out of the service and the scope is disposed
+        // without a commit, which rolls the transaction back (NFR-9).
+        user.PasswordHash = null;
+
+        Throw(await identity.Users.AddPasswordAsync(user, password));
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteAsync(UserId userId, CancellationToken cancellationToken)
+    {
+        var user = await RequiredAsync(userId, cancellationToken);
+
+        // The declared foreign keys do the rest, and they are the reason no migration belongs to
+        // this story: clients and drivers cascade from asp_net_users, the client's own reviews
+        // cascade from clients, its deliveries' client_id goes null, and the timeline, message and
+        // proof actor references go null (see the DomainModel migration).
+        Throw(await identity.Users.DeleteAsync(user));
+    }
+
+    /// <summary>
+    /// Loads a user that must exist. The services have already refused an unknown id, so this
+    /// answers the case where a row disappeared between the read and the write - which is a 404
+    /// rather than a null reference two lines later.
+    /// </summary>
+    private async Task<ApplicationUser> RequiredAsync(UserId userId, CancellationToken cancellationToken)
+    {
+        var user = await context.Users
+            .FirstOrDefaultAsync(candidate => candidate.Id == userId.Value, cancellationToken);
+
+        return user ?? throw new NotFoundException(
+            ErrorCode.COMMON_NOT_FOUND,
+            "No user exists with id " + userId.Value.ToString(CultureInfo.InvariantCulture) + ".");
+    }
+
     /// <summary>
     /// Saves the staged changes inside the unit of work's transaction, translating a constraint
     /// refusal exactly as <c>UnitOfWork.CommitAsync</c> does, so the normalized-email unique index

@@ -19,6 +19,16 @@ internal sealed class EfClientRepository(AppDbContext context) : IClientReposito
         context.Clients.FirstOrDefaultAsync(client => client.Id == id, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Client>> ListAsync(CancellationToken cancellationToken) =>
+        // Ordered so this method answers the same way on every request rather than at the
+        // planner's discretion. It is not what orders the roster screen: the only caller joins
+        // this list into a dictionary and renders it in ListByRoleAsync's surname order.
+        // Awaited to a list, so nothing an IQueryable could carry escapes (AD-6).
+        await context.Clients
+            .OrderBy(client => client.Id)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public void Add(Client client) => context.Clients.Add(client);
 
     /// <inheritdoc />

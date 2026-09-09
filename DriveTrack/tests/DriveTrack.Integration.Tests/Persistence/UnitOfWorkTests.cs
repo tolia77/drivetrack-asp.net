@@ -1,4 +1,5 @@
 using System.Globalization;
+using DriveTrack.Application.Common;
 using DriveTrack.Domain.Deliveries;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Domain.Reviews;
@@ -188,6 +189,53 @@ public class UnitOfWorkTests(PostgresFixture postgres)
         Assert.Equal(2, entries.Count);
         Assert.Equal("First", entries[0].Note);
         Assert.Equal("Second", entries[1].Note);
+    }
+
+    [Fact]
+    public async Task A_lost_update_leaves_as_a_conflict_rather_than_a_defect()
+    {
+        // Two administrators editing the same account is the ordinary way to reach this, and the
+        // answer has to be 409: the request collided with a row somebody else changed first, and the
+        // caller's next move is to re-read and try again.
+        //
+        // The arm this covers is easy to lose, because DbUpdateConcurrencyException derives from
+        // DbUpdateException and the translator only recognises SQLSTATEs - so without an arm of its
+        // own it falls through as an unmodelled defect and leaves as a 500 (AD-8, NFR-2).
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var database = await TestDatabase.CreateAsync(postgres.ConnectionString, cancellationToken);
+
+        int userId;
+
+        await using (var seedContext = await database.CreateContextAsync(cancellationToken))
+        {
+            userId = (await Seed.UserAsync(seedContext, cancellationToken)).Id;
+        }
+
+        // The first scope reads the row and stages an edit against the stamp it read.
+        await using var stale = await database.UnitOfWorkFactory.CreateAsync(cancellationToken);
+
+        await stale.Users.UpdateNameAsync(new UserId(userId), "Перший", "Редактор", cancellationToken);
+
+        // The second commits first, moving the concurrency stamp the first scope is holding.
+        await using (var winner = await database.UnitOfWorkFactory.CreateAsync(cancellationToken))
+        {
+            await winner.Users.SetPasswordAsync(new UserId(userId), "Winner-Passw0rd", cancellationToken);
+            await winner.CommitAsync(cancellationToken);
+        }
+
+        var failure = await Assert.ThrowsAsync<ConflictException>(
+            () => stale.CommitAsync(cancellationToken));
+
+        Assert.Equal(ErrorCode.COMMON_CONFLICT, failure.Code);
+
+        // The cause is kept, so the log still carries the detail the envelope never shows.
+        Assert.IsType<DbUpdateConcurrencyException>(failure.InnerException);
+
+        // And the losing edit landed nowhere: the row still reads as the winner left it.
+        await using var context = await database.CreateContextAsync(cancellationToken);
+        var user = await context.Users.SingleAsync(candidate => candidate.Id == userId, cancellationToken);
+
+        Assert.NotEqual("Перший", user.FirstName);
     }
 
     [Fact]

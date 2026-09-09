@@ -1,0 +1,9 @@
+/*
+    The actions cell, on the same terms as the client roster's: Bootstrap's buttons carry no margin
+    of their own, and the gap is a token because NFR-29 scans it as a visual value.
+*/
+.dt-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dt-space-2);
+}
