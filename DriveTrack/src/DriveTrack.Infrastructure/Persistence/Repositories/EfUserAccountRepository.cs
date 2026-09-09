@@ -104,6 +104,57 @@ internal sealed class EfUserAccountRepository(AppDbContext context, ScopedIdenti
     }
 
     /// <inheritdoc />
+    public async Task RenameAsync(
+        UserId userId,
+        string firstName,
+        string lastName,
+        CancellationToken cancellationToken)
+    {
+        var user = await context.Users
+            .FirstOrDefaultAsync(candidate => candidate.Id == userId.Value, cancellationToken);
+
+        if (user is null)
+        {
+            // The caller loaded the row it means to rename and answered 404 if there was none, so
+            // an id with nothing behind it here is a row that vanished inside one transaction.
+            return;
+        }
+
+        // Assigned on the tracked entity and nothing else: no UserManager.UpdateAsync, which would
+        // roll the security stamp and re-validate the whole user, and no save - the UPDATE goes out
+        // with everything else the operation wrote at IUnitOfWork.CommitAsync (AD-5).
+        user.FirstName = firstName;
+        user.LastName = lastName;
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteAsync(UserId userId, CancellationToken cancellationToken)
+    {
+        var user = await context.Users
+            .FirstOrDefaultAsync(candidate => candidate.Id == userId.Value, cancellationToken);
+
+        if (user is null)
+        {
+            // The caller loaded the row it means to delete and answered 404 if there was none, so
+            // an id with nothing behind it here is a row that vanished between the two reads inside
+            // one transaction. Deleting nothing is the correct outcome either way.
+            return;
+        }
+
+        // Staged, not saved. identity.Users has AutoSaveChanges off, so the store marks the entity
+        // Deleted and returns success without touching the database; the DELETE goes out with
+        // everything else the operation wrote at IUnitOfWork.CommitAsync (AD-5).
+        //
+        // The role row, the driver row, its shifts and its chat messages follow by the cascades the
+        // schema declares, and the driver's deliveries are set to a null driver (FR-39). The client
+        // side is the same shape: the client row cascades from asp_net_users, its reviews cascade
+        // from clients, its deliveries' client_id goes null, and the timeline, message and proof
+        // actor references go null (FR-47, FR-50). None of that is restated here: a cascade written
+        // twice is a cascade that can disagree with itself.
+        Throw(await identity.Users.DeleteAsync(user));
+    }
+
+    /// <inheritdoc />
     public async Task<bool> VerifyPasswordAsync(
         UserId userId,
         string password,
@@ -222,18 +273,6 @@ internal sealed class EfUserAccountRepository(AppDbContext context, ScopedIdenti
         user.PasswordHash = null;
 
         Throw(await identity.Users.AddPasswordAsync(user, password));
-    }
-
-    /// <inheritdoc />
-    public async Task DeleteAsync(UserId userId, CancellationToken cancellationToken)
-    {
-        var user = await RequiredAsync(userId, cancellationToken);
-
-        // The declared foreign keys do the rest, and they are the reason no migration belongs to
-        // this story: clients and drivers cascade from asp_net_users, the client's own reviews
-        // cascade from clients, its deliveries' client_id goes null, and the timeline, message and
-        // proof actor references go null (see the DomainModel migration).
-        Throw(await identity.Users.DeleteAsync(user));
     }
 
     /// <summary>

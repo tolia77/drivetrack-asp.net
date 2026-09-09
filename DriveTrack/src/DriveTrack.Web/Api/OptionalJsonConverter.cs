@@ -59,6 +59,15 @@ internal sealed class OptionalJsonConverter<T> : JsonConverter<Optional<T>>
     /// </summary>
     public override bool HandleNull => true;
 
+    /// <summary>
+    /// Whether a <c>null</c> is a value this field could actually hold.
+    /// <c>Optional&lt;int?&gt;</c> and <c>Optional&lt;string&gt;</c> can;
+    /// <c>Optional&lt;int&gt;</c>, <c>Optional&lt;decimal&gt;</c> and <c>Optional&lt;DateOnly&gt;</c>
+    /// cannot.
+    /// </summary>
+    private static readonly bool CanHoldNull =
+        Nullable.GetUnderlyingType(typeof(T)) is not null || !typeof(T).IsValueType;
+
     /// <inheritdoc />
     public override Optional<T> Read(
         ref Utf8JsonReader reader,
@@ -67,7 +76,30 @@ internal sealed class OptionalJsonConverter<T> : JsonConverter<Optional<T>>
     {
         if (reader.TokenType == JsonTokenType.Null)
         {
-            return Optional<T>.Present(default!);
+            if (CanHoldNull)
+            {
+                // The arm FR-38 travels: `"vehicleId": null` releases the vehicle, and
+                // `"nextMaintenanceDate": null` means no servicing is scheduled.
+                return Optional<T>.Present(default!);
+            }
+
+            // A null for a field that cannot hold one is refused rather than folded into
+            // default(T). Reading `"mileage": null` as zero would reset an odometer on a malformed
+            // payload - the absent-versus-null ambiguity this type exists to remove, reappearing
+            // one layer down.
+            //
+            // The contract's own failure rather than a JsonException: a JsonException is caught by
+            // the input formatter and becomes a model-state error the pipeline deliberately
+            // suppresses (AD-9), while a DriveTrackException propagates out of model binding to
+            // ApiEnvelopeMiddleware and answers 422 with the envelope.
+            //
+            // No field list, deliberately. NFR-4 promises `error.fields` keys the caller can attach
+            // a message to, and this converter is handed a value and never the property it came
+            // from. A key invented from the CLR type would name an input the caller does not have.
+            throw new ValidationException(
+                ErrorCode.COMMON_VALIDATION_FAILED,
+                "A null was sent for a field of non-nullable type " + typeof(T).Name + ".",
+                []);
         }
 
         return Optional<T>.Present(JsonSerializer.Deserialize<T>(ref reader, options)!);

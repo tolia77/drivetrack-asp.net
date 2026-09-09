@@ -43,6 +43,13 @@ internal static class ErrorContract
         ErrorCode.AUTH_PASSWORD_TOO_WEAK => StatusCodes.Status422UnprocessableEntity,
         ErrorCode.AUTH_PASSWORD_CONFIRMATION_MISMATCH => StatusCodes.Status422UnprocessableEntity,
 
+        // Three genuine collisions with the current state of another row (FR-41, FR-43, FR-44).
+        // Each is a refusal the caller can act on - free the vehicle, unassign the driver, choose
+        // another plate - which is why they are distinct codes rather than one COMMON_CONFLICT.
+        ErrorCode.FLEET_VEHICLE_ALREADY_ASSIGNED => StatusCodes.Status409Conflict,
+        ErrorCode.FLEET_VEHICLE_IN_USE => StatusCodes.Status409Conflict,
+        ErrorCode.FLEET_LICENSE_PLATE_IN_USE => StatusCodes.Status409Conflict,
+
         // AD-8 splits the two constraint kinds where AD-7 folds them together, and AD-8 is the more
         // specific rule: a unique violation is a genuine conflict with another row, a check
         // violation is a value the caller should not have sent. That split is what keeps NFR-2

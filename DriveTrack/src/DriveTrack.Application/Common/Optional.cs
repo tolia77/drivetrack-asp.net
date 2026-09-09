@@ -48,7 +48,13 @@ public readonly struct Optional<T> : IEquatable<Optional<T>>
 
     /// <summary>The present case, including a present null.</summary>
     /// <param name="value">What the caller sent.</param>
-    public static Optional<T> Present(T value) => new(value);
+    /// <remarks>
+    /// The parameter is nullable because a present null is the whole point of the type: the caller
+    /// sent the field and sent nothing in it, which for a clearable field means clear it. A
+    /// non-nullable parameter would have made the one case this type exists to express the one case
+    /// it could not accept without a suppression at every call site.
+    /// </remarks>
+    public static Optional<T> Present(T? value) => new(value!);
 
     /// <summary>Two absents are equal; two presents are equal when their values are.</summary>
     public static bool operator ==(Optional<T> left, Optional<T> right) => left.Equals(right);

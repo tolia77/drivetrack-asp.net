@@ -66,4 +66,9 @@ public enum IconName
 
     /// <summary>The dispatcher roster (FR-49).</summary>
     Dispatchers,
+    /// <summary>The driver roster (FR-35).</summary>
+    Drivers,
+
+    /// <summary>The vehicle fleet (FR-40).</summary>
+    Vehicles,
 }

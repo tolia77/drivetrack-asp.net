@@ -102,7 +102,9 @@ public class AccessGuardTests
     public void A_caller_holding_another_role_is_forbidden(UserRole held, UserRole required)
     {
         // The row of the matrix that matters most: a dispatcher asked for Admin is refused, which
-        // is what keeps every write on both administration surfaces admin-only.
+        // is what keeps every write on both administration surfaces admin-only. The two client and
+        // driver rows are the fleet's whole authorization story - they are refused here, by the
+        // guard, and not by a controller attribute.
         var guard = new AccessGuard(new StubCurrentUser(Target, held));
 
         var failure = Assert.Throws<ForbiddenException>(() => guard.RequireRole(required));
@@ -133,6 +135,54 @@ public class AccessGuardTests
 
         Assert.Throws<InvalidOperationException>(() => anonymous.UserId);
         Assert.Throws<InvalidOperationException>(() => anonymous.Role);
+    }
+
+    // =====================================================================================
+    // RequireRole (story 4.1)
+    //
+    // The role member, tested directly for the same reason RequireSelf is: an endpoint test would
+    // be asserting the pipeline as much as the rule, and the rule is what the fleet capability
+    // rests on.
+    // =====================================================================================
+
+    [Fact]
+    public void An_anonymous_caller_asked_for_a_role_is_unauthenticated_not_forbidden()
+    {
+        // 401, not 403, exactly as RequireSelf answers it: FR-13's session-expiry flow branches on
+        // this single code, and an expired cookie on a live circuit arrives here too.
+        var guard = new AccessGuard(new StubCurrentUser());
+
+        var failure = Assert.Throws<ForbiddenException>(() => guard.RequireRole(UserRole.Dispatcher));
+
+        Assert.Equal(ErrorCode.AUTH_UNAUTHENTICATED, failure.Code);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Dispatcher)]
+    [InlineData(UserRole.Driver)]
+    [InlineData(UserRole.Client)]
+    public void The_caller_holding_the_required_role_passes(UserRole role)
+    {
+        var guard = new AccessGuard(new StubCurrentUser(Target, role));
+
+        guard.RequireRole(role);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Dispatcher)]
+    [InlineData(UserRole.Driver)]
+    [InlineData(UserRole.Client)]
+    public void No_role_but_admin_satisfies_a_check_for_admin(UserRole role)
+    {
+        // The other direction of AD-4, and the one the matrix beside it reads as covered without
+        // being: admin passing every check is not the same claim as every other role failing the
+        // check for admin. Without this a guard that returned early for any authenticated caller
+        // would satisfy every other case in this file.
+        var guard = new AccessGuard(new StubCurrentUser(Target, role));
+
+        var failure = Assert.Throws<ForbiddenException>(() => guard.RequireRole(UserRole.Admin));
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
     }
 
     /// <summary>

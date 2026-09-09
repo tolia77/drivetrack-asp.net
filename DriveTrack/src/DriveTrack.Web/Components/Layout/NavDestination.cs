@@ -13,6 +13,12 @@ public enum NavDestination
     /// <summary>The signed-in caller's own profile.</summary>
     Profile,
 
+    /// <summary>The driver roster, offered to a dispatcher or an admin (FR-35, FR-77).</summary>
+    Drivers,
+
+    /// <summary>The vehicle fleet, offered to a dispatcher or an admin (FR-40, FR-77).</summary>
+    Vehicles,
+
     /// <summary>The client roster (FR-46, FR-48).</summary>
     Clients,
 
@@ -29,36 +35,47 @@ public enum NavDestination
 /// what is worth showing.
 /// </para>
 /// <para>
-/// The rows stopped being uniform with story 7.1, which is what the table was written for. An admin
-/// administers both rosters; a dispatcher is offered the client roster because FR-48 gives them a
-/// reason to open it, and not the dispatcher roster, which is admin-only work; a driver and a client
-/// are offered neither.
+/// Story 4.1 is the first to make the table do anything: the fleet screens are offered to a
+/// dispatcher and an admin and to nobody else, so the rows are no longer uniform. A driver and a
+/// client are still offered what every signed-in caller has. That the switch was already written
+/// out in full is why this was a row rather than another <c>@if</c> in <c>NavMenu.razor</c>, which
+/// is how the baseline's navigation grew.
 /// </para>
 /// </summary>
 internal static class NavDestinations
 {
-    /// <summary>What an administrator is offered: every destination that exists.</summary>
-    private static readonly IReadOnlySet<NavDestination> Administrator =
-        new HashSet<NavDestination>
-        {
-            NavDestination.Home,
-            NavDestination.Profile,
-            NavDestination.Clients,
-            NavDestination.Dispatchers,
-        };
-
-    /// <summary>What a dispatcher is offered: FR-48's roster, and nothing that administers accounts.</summary>
-    private static readonly IReadOnlySet<NavDestination> Dispatcher =
-        new HashSet<NavDestination>
-        {
-            NavDestination.Home,
-            NavDestination.Profile,
-            NavDestination.Clients,
-        };
-
-    /// <summary>What everyone else with a session is offered.</summary>
-    private static readonly IReadOnlySet<NavDestination> SignedIn =
+    /// <summary>What every signed-in caller is offered, whatever their role.</summary>
+    private static readonly IReadOnlySet<NavDestination> Personal =
         new HashSet<NavDestination> { NavDestination.Home, NavDestination.Profile };
+
+    /// <summary>
+    /// The personal destinations plus the fleet, for the two roles that run dispatch. FR-12 still
+    /// holds: this decides what is worth showing, and <c>IAccessGuard</c> decides who may do it.
+    /// <para>
+    /// Built from <see cref="Personal"/> rather than restating its members: a destination added
+    /// there later must reach these two roles as well, and a second copy of the list is exactly the
+    /// drift this table exists to prevent.
+    /// </para>
+    /// </summary>
+    private static readonly IReadOnlySet<NavDestination> Fleet =
+        new HashSet<NavDestination>(Personal) { NavDestination.Drivers, NavDestination.Vehicles };
+
+    /// <summary>
+    /// What a dispatcher is offered: the fleet, plus FR-48's client roster, which they open to
+    /// attach a client to a delivery. Not the dispatcher roster - administering accounts is
+    /// admin-only work (FR-49).
+    /// </summary>
+    private static readonly IReadOnlySet<NavDestination> Dispatcher =
+        new HashSet<NavDestination>(Fleet) { NavDestination.Clients };
+
+    /// <summary>
+    /// What an administrator is offered: everything a dispatcher is, plus the roster of
+    /// dispatchers themselves. Built from <see cref="Dispatcher"/> for the reason
+    /// <see cref="Fleet"/> is built from <see cref="Personal"/>: a destination added to either
+    /// tier has to reach this one, and a restated list is how that stops happening.
+    /// </summary>
+    private static readonly IReadOnlySet<NavDestination> Administrator =
+        new HashSet<NavDestination>(Dispatcher) { NavDestination.Dispatchers };
 
     /// <summary>
     /// What a caller with no session is offered. The landing page is <c>[AllowAnonymous]</c>, so it
@@ -74,8 +91,8 @@ internal static class NavDestinations
     {
         UserRole.Admin => Administrator,
         UserRole.Dispatcher => Dispatcher,
-        UserRole.Driver => SignedIn,
-        UserRole.Client => SignedIn,
+        UserRole.Driver => Personal,
+        UserRole.Client => Personal,
 
         // Total, like LandingRoute: a fifth role added without a navigation decision fails loudly
         // here rather than silently rendering a menu with nothing in it.

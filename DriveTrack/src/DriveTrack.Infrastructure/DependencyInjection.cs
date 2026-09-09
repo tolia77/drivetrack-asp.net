@@ -1,7 +1,9 @@
 using System.Globalization;
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Application.Authorization;
+using DriveTrack.Application.Drivers;
 using DriveTrack.Application.Users;
+using DriveTrack.Application.Vehicles;
 using DriveTrack.Infrastructure.Identity;
 using DriveTrack.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -185,5 +187,9 @@ public static class DependencyInjection
         // the guard - each reads the caller of the request or circuit it is serving.
         services.AddScoped<IClientAdministrationService, ClientAdministrationService>();
         services.AddScoped<IDispatcherAdministrationService, DispatcherAdministrationService>();
+        // The fleet capabilities. Infrastructure is the one composition surface AD-1 permits, so a
+        // capability that lives in Application is still registered here.
+        services.AddScoped<IVehicleService, VehicleService>();
+        services.AddScoped<IDriverService, DriverService>();
     }
 }

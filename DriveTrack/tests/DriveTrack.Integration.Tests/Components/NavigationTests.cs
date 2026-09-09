@@ -131,10 +131,12 @@ public class NavigationTests
         Assert.DoesNotContain(".bi-house-door-fill-nav-menu {", stylesheet, StringComparison.Ordinal);
 
         // Every link and action carries an icon beside its text (NFR-24): the brand mark, home,
-        // profile, the two administration rosters, sign-out, sign-in and register - eight in all.
-        // The count moves with the destination table on purpose; a destination rendered without a
-        // glyph is markup with nothing behind it, which is the defect this whole test guards.
-        Assert.Equal(8, SharedMarkup.Occurrences(menu, "<Icon Name="));
+        // profile, the two fleet screens (4.1), the two administration rosters (7.1), sign-out,
+        // sign-in and register - ten in all. The count moves with the destination table on purpose:
+        // a destination rendered without a glyph is markup with nothing behind it, which is the
+        // defect this whole test guards, so adding a link has to be a deliberate edit to this line
+        // rather than an empty box nobody notices.
+        Assert.Equal(10, SharedMarkup.Occurrences(menu, "<Icon Name="));
     }
 
     [Fact]
@@ -174,6 +176,14 @@ public class NavigationTests
         // FR-77: what the table returns for that role, rendered.
         Assert.Contains("profile", links);
         Assert.Contains(string.Empty, links);
+
+        // FR-77: the fleet screens are offered to the two roles that run dispatch and to nobody
+        // else. Rendered per role rather than read off the table, because no arrangement of words
+        // in the markup can tell a dispatcher's menu from a client's.
+        var runsDispatch = role is UserRole.Admin or UserRole.Dispatcher;
+
+        Assert.Equal(runsDispatch, links.Contains("drivers"));
+        Assert.Equal(runsDispatch, links.Contains("vehicles"));
 
         // And the account action that belongs to a caller who has a session.
         Assert.Contains("action=\"/sign-out\"", html, StringComparison.Ordinal);
@@ -223,8 +233,10 @@ public class NavigationTests
         Assert.Contains(string.Empty, links);
 
         // The other half of the guard: a visitor with no session must not be offered a profile
-        // they cannot open, or a sign-out that would do nothing.
+        // they cannot open, a fleet screen they cannot reach, or a sign-out that would do nothing.
         Assert.DoesNotContain("profile", links);
+        Assert.DoesNotContain("drivers", links);
+        Assert.DoesNotContain("vehicles", links);
         Assert.DoesNotContain("/sign-out", html, StringComparison.Ordinal);
     }
 
