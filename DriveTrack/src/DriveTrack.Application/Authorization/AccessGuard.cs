@@ -127,4 +127,48 @@ public sealed class AccessGuard(ICurrentUser currentUser) : IAccessGuard
             ErrorCode.AUTH_FORBIDDEN,
             "No row scope is defined for role " + currentUser.Role + ".");
     }
+
+    /// <inheritdoc />
+    public void RequireAssignedDriver(DriverId? assignedDriverId)
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            // 401 for the reason every other member answers 401: an expired cookie on a live
+            // circuit is a caller with no credentials left, and FR-13 branches on this one code.
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "An anonymous caller attempted to act on a delivery's lifecycle.");
+        }
+
+        // AD-4 once more, in the one place it is ever written. A dispatcher stands beside the admin
+        // here because FR-34 gives dispatch the lifecycle as much as it gives it the board.
+        if (currentUser.Role is UserRole.Admin or UserRole.Dispatcher)
+        {
+            return;
+        }
+
+        if (currentUser.Role == UserRole.Driver)
+        {
+            // Both halves have to be present and equal. A null assignment never matches, so an
+            // unassigned parcel - and a delivery that does not exist at all, which reaches here as
+            // the same null - is refused rather than handed to whichever driver asked first.
+            if (assignedDriverId is { } assigned && currentUser.DriverId == assigned)
+            {
+                return;
+            }
+
+            throw new ForbiddenException(
+                ErrorCode.AUTH_FORBIDDEN,
+                "User "
+                    + currentUser.UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + " holds role Driver and is not the driver this delivery is assigned to.");
+        }
+
+        // Total over the enum, like RequireScope: a Client lands here, and so would a fifth role
+        // added without a decision about its part in the lifecycle. FR-90 is this line - a client
+        // may add a note and read the timeline, and may never change a status.
+        throw new ForbiddenException(
+            ErrorCode.AUTH_FORBIDDEN,
+            "Role " + currentUser.Role + " has no part in a delivery's status lifecycle.");
+    }
 }

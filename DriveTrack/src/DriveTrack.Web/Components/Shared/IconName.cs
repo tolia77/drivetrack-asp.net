@@ -74,4 +74,7 @@ public enum IconName
 
     /// <summary>Deliveries: the parcel that is the product's central record (FR-18, FR-25).</summary>
     Deliveries,
+
+    /// <summary>A delivery's append-only history (FR-105 to FR-108).</summary>
+    Timeline,
 }

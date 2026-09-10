@@ -123,4 +123,10 @@
   <data name="DELIVERY_EXCEEDS_VEHICLE_CAPACITY" xml:space="preserve">
     <value>Вага вантажу перевищує вантажопідйомність автомобіля водія.</value>
   </data>
+  <!-- FR-32. The wire carries one message per code (NFR-3), so the sentence names neither status:
+       the two statuses travel in the log message, and the screen already shows where the delivery
+       is and which moves it offers. -->
+  <data name="DELIVERY_INVALID_STATUS_TRANSITION" xml:space="preserve">
+    <value>Такий перехід стану доставки неможливий з її поточного стану.</value>
+  </data>
 </root>

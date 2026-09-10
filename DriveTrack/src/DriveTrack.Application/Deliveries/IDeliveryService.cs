@@ -72,4 +72,74 @@ public interface IDeliveryService
     /// <exception cref="Common.NotFoundException">No delivery has that id.</exception>
     /// <exception cref="Common.ForbiddenException">The caller is not an administrator.</exception>
     Task DeleteAsync(int id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Advances a delivery's lifecycle and records the change (FR-30 to FR-34, FR-105, FR-106).
+    /// <para>
+    /// The system's only status write path, whichever role or adapter initiated it (AD-10). The
+    /// timeline entry is written inside the same transaction as the change it records (AD-27), so a
+    /// status that moved without a record — or a record of a move that did not happen — is not a
+    /// state the database can hold.
+    /// </para>
+    /// <para>
+    /// Answers the entry rather than the delivery, and that is AD-17 rather than economy: a driver
+    /// advancing their own parcel must not be handed a payload with the client's name on it, and a
+    /// type with no party field cannot carry one.
+    /// </para>
+    /// </summary>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous, is a driver this delivery is not assigned to, holds a role with no
+    /// part in the lifecycle — a client, always (FR-90) — or presents a still-valid token for an
+    /// account that has since been deleted (<c>AUTH_UNAUTHENTICATED</c>, 401).
+    /// </exception>
+    /// <exception cref="Common.NotFoundException">No delivery has that id.</exception>
+    /// <exception cref="Common.ValidationException">
+    /// No status was named, the status named is not one the system declares, or the note is longer
+    /// than the column allows.
+    /// </exception>
+    /// <exception cref="Common.DomainRuleException">
+    /// The delivery's current status does not lead to the one asked for
+    /// (<c>DELIVERY_INVALID_STATUS_TRANSITION</c>, 409). The exception's own message names both
+    /// statuses (FR-32); what reaches the caller is the one catalogue sentence the code maps to,
+    /// because NFR-3 gives every code exactly one message and the envelope carries no other text.
+    /// </exception>
+    Task<TimelineEntryView> ChangeStatusAsync(
+        int id,
+        ChangeDeliveryStatusCommand command,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Appends a note to a delivery's timeline without changing anything else (FR-107).
+    /// <para>
+    /// Open to anyone who may see the delivery, which is precisely <c>IAccessGuard.RequireScope</c>
+    /// — including the client, who may never change a status and may always say something about
+    /// their own parcel.
+    /// </para>
+    /// </summary>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller has no session, has no row scope, or presents a still-valid token for an account
+    /// that has since been deleted (<c>AUTH_UNAUTHENTICATED</c>, 401).
+    /// </exception>
+    /// <exception cref="Common.NotFoundException">
+    /// No delivery has that id, or the caller's scope does not admit it — the same answer for both,
+    /// so a client learns nothing about another client's delivery.
+    /// </exception>
+    /// <exception cref="Common.ValidationException">The note is blank or longer than the column allows.</exception>
+    Task<TimelineEntryView> AddNoteAsync(
+        int id,
+        AddDeliveryNoteCommand command,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A delivery's history, oldest first (FR-108).
+    /// <para>
+    /// Every viewer of the delivery gets the same entries; what differs is whether each one names
+    /// its actor. A dispatcher or an admin sees the name, a driver or a client sees only the role
+    /// (FR-27, FR-96, FR-105), decided in this service's mapping step against the current user and
+    /// nowhere else (AD-17).
+    /// </para>
+    /// </summary>
+    /// <exception cref="Common.ForbiddenException">The caller has no session, or no row scope.</exception>
+    /// <exception cref="Common.NotFoundException">No delivery has that id, or the caller may not see it.</exception>
+    Task<IReadOnlyList<TimelineEntryView>> ListTimelineAsync(int id, CancellationToken cancellationToken);
 }

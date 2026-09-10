@@ -548,15 +548,16 @@ public class DeliveryManagementTests(PostgresFixture postgres)
         Assert.True(await IsOverdueAsync(client, dispatcher, deliveryId, cancellationToken));
 
         // And a delivered parcel is never overdue, however long the window has been shut: it
-        // arrived, and when it arrived is the timeline's record rather than a flag's. The status is
-        // set through the context because story 5.3 owns the write path a status changes through;
-        // what is under test is the derivation, not how a delivery becomes Delivered.
+        // arrived, and when it arrived is the timeline's record rather than a flag's. Walked through
+        // the entity's own mutator rather than through the endpoint, because what is under test is
+        // the derivation and not how a delivery becomes Delivered - but through TryChangeStatus all
+        // the same, since that is the only assignment to Status the system has (AD-10).
         await using (var delivered = await factory.Database.ContextFactory
                          .CreateDbContextAsync(cancellationToken))
         {
             var stored = await delivered.Deliveries.SingleAsync(row => row.Id == deliveryId, cancellationToken);
 
-            stored.Status = DeliveryStatus.Delivered;
+            Seed.Advance(stored, DeliveryStatus.Delivered);
 
             await delivered.SaveChangesAsync(cancellationToken);
         }
@@ -995,15 +996,16 @@ public class DeliveryManagementTests(PostgresFixture postgres)
             DeliveryApi.NewDelivery(weight: 1500m, driverId: driver.DriverId),
             cancellationToken);
 
-        // Story 5.3 owns the write path a status changes through, so the status is set directly
-        // here: what is under test is which rows the invariant counts, not how one reaches a
-        // status.
+        // Walked to the status rather than posted through the endpoint: what is under test is which
+        // rows the invariant counts, not how one reaches a status. It still goes through
+        // TryChangeStatus, which is the only assignment to Status anywhere (AD-10) - so this cannot
+        // seed a state the lifecycle forbids.
         await using (var context = await factory.Database.ContextFactory
                          .CreateDbContextAsync(cancellationToken))
         {
             var stored = await context.Deliveries.SingleAsync(row => row.Id == deliveryId, cancellationToken);
 
-            stored.Status = status;
+            Seed.Advance(stored, status);
 
             await context.SaveChangesAsync(cancellationToken);
         }

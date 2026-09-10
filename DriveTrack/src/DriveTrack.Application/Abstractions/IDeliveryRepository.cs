@@ -17,6 +17,27 @@ public interface IDeliveryRepository
     Task<Delivery?> GetByIdAsync(int id, CancellationToken cancellationToken);
 
     /// <summary>
+    /// One delivery, but only if <paramref name="scope"/> admits it — otherwise null, whether the
+    /// row is missing or merely somebody else's (FR-26, FR-27).
+    /// </summary>
+    /// <remarks>
+    /// A distinctly named method rather than an overload of <see cref="GetByIdAsync"/>, and the
+    /// reason is the note above it: the delete path depends on that one being tracked and
+    /// un-included, and an overload invites a caller to reach for whichever signature is nearest.
+    /// This one is <c>AsNoTracking</c>, because every caller of it reads.
+    /// <para>
+    /// The narrowing is a <c>WHERE</c> rather than a check after the fact, for AD-3's reason and one
+    /// more: a caller who is told "not found" learns nothing about a row they may not see, so the
+    /// non-disclosing 404 the requirements ask for falls out of the query instead of having to be
+    /// remembered at each call site.
+    /// </para>
+    /// </remarks>
+    /// <param name="id">The delivery being addressed.</param>
+    /// <param name="scope">The guard's answer to "whose rows may this caller see".</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<Delivery?> FindVisibleAsync(int id, AccessScope scope, CancellationToken cancellationToken);
+
+    /// <summary>
     /// One page of deliveries, oldest first, narrowed to the rows the caller may see (FR-18, FR-25,
     /// NFR-27).
     /// </summary>

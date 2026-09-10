@@ -226,24 +226,10 @@
         </td>
         <td>@delivery.PackageDetails</td>
         <td>@delivery.DeliveryNotes</td>
-        <td>
-            @if (delivery.Status == DeliveryStatus.Pending)
-            {
-                <span>@Localizer["StatusPending"]</span>
-            }
-            @if (delivery.Status == DeliveryStatus.InTransit)
-            {
-                <span>@Localizer["StatusInTransit"]</span>
-            }
-            @if (delivery.Status == DeliveryStatus.Delivered)
-            {
-                <span>@Localizer["StatusDelivered"]</span>
-            }
-            @if (delivery.Status == DeliveryStatus.Failed)
-            {
-                <span>@Localizer["StatusFailed"]</span>
-            }
-        </td>
+        @* One status vocabulary, shared with the own-deliveries screen and with every timeline
+           entry. The filter's <option> list below keeps its own literal keys, because those are
+           values as much as labels. *@
+        <td><DeliveryStatusLabel Status="delivery.Status" /></td>
         @* Routed through a method rather than formatted in markup: NFR-14's scan strips a Razor
            expression only up to its first closing bracket, so a `.ToString(...)` tail would be left
            behind in the text node and read as a rendered English word. *@
@@ -260,6 +246,12 @@
             <button type="button" class="btn btn-primary btn-sm dt-delivery-edit"
                     @onclick="EditHandler(delivery)">
                 <Icon Name="IconName.Edit" />@Localizer["Edit"]
+            </button>
+            @* FR-108: the history is a row action rather than a column, because it is a
+               conversation about one delivery and not a value to be compared across the table. *@
+            <button type="button" class="btn btn-secondary btn-sm dt-delivery-timeline"
+                    @onclick="TimelineHandler(delivery)">
+                <Icon Name="IconName.Timeline" />@Localizer["Timeline"]
             </button>
             @* FR-24 reserves deletion to an administrator, and the service refuses a dispatcher who
                asks. Offering an action that could only ever fail is worse than not offering it.
@@ -391,6 +383,27 @@
     </ChildContent>
 </DtDialog>
 
+@* FR-105 to FR-108: the delivery's history, and the two things dispatch may append to it. The panel
+   is built only once a row has been chosen, so the screen costs no timeline read until somebody
+   asks for one — and the same dialog serves every row. *@
+@* OnClosed drops the row, which disposes the panel inside. That is what makes each open a fresh
+   read: the panel caches the entries and the status it computes its buttons from, and a dialog left
+   holding them would offer moves from where the delivery was when it was last opened. *@
+<DtDialog @ref="_timelineDialog" Title="@Localizer["TimelineTitle"]" OnClosed="CloseTimeline">
+    <ChildContent>
+        @if (_timeline is not null)
+        {
+            @* AllowStatusChange is true for every caller who reaches this screen: the Roles
+               attribute already narrowed them to dispatch, and RequireAssignedDriver is what
+               actually decides (FR-12, FR-34). *@
+            <DeliveryTimeline DeliveryId="_timeline.Id"
+                              Status="_timeline.Status"
+                              AllowStatusChange="true"
+                              OnChanged="LoadAsync" />
+        }
+    </ChildContent>
+</DtDialog>
+
 @* FR-81: a destructive action is confirmed through the shared prompt, and only where it could
    succeed. *@
 @if (_isAdmin)
@@ -418,8 +431,12 @@
     private DeliverySummary? _pendingDeletion;
     private MapLocation? _viewed;
 
+    /// <summary>The row whose history is open, or null while none is.</summary>
+    private DeliverySummary? _timeline;
+
     private DtDialog? _formDialog;
     private DtDialog? _mapDialog;
+    private DtDialog? _timelineDialog;
     private DtConfirmDialog? _deleteDialog;
 
     private DeliveryColumn _sortColumn = DeliveryColumn.CreatedAt;
@@ -530,6 +547,9 @@
 
     /// <summary>The location cell's action, for the same reason.</summary>
     private Func<Task> ShowLocationHandler(LocationView location) => () => ShowLocationAsync(location);
+
+    /// <summary>The row's history action, for the same reason.</summary>
+    private Func<Task> TimelineHandler(DeliverySummary delivery) => () => ShowTimelineAsync(delivery);
 
     /// <summary>
     /// The creation instant in local time (AD-13: storage is offset zero, and the conversion
@@ -741,6 +761,23 @@
             await _mapDialog.ShowAsync();
         }
     }
+
+    private async Task ShowTimelineAsync(DeliverySummary delivery)
+    {
+        _failures = [];
+        _timeline = delivery;
+
+        if (_timelineDialog is not null)
+        {
+            await _timelineDialog.ShowAsync();
+        }
+    }
+
+    /// <summary>
+    /// Forgets which row the history dialog was showing, so the next open builds a new panel rather
+    /// than reusing one holding a stale status and a half-typed note.
+    /// </summary>
+    private void CloseTimeline() => _timeline = null;
 
     private async Task SaveAsync()
     {

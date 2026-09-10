@@ -82,4 +82,30 @@ public sealed class DeliveriesController(IDeliveryService deliveries) : Controll
     [HttpDelete("{id:int}")]
     public Task DeleteAsync(int id, CancellationToken cancellationToken) =>
         deliveries.DeleteAsync(id, cancellationToken);
+
+    /// <summary>
+    /// Advances a delivery's lifecycle (FR-30 to FR-34). Still no <c>Roles</c> argument: "the
+    /// assigned driver, or dispatch" is not a role list, and the guard states it precisely.
+    /// </summary>
+    [HttpPost("{id:int}/status")]
+    public Task<TimelineEntryView> ChangeStatusAsync(
+        int id,
+        [FromBody] ChangeDeliveryStatusCommand command,
+        CancellationToken cancellationToken) =>
+        deliveries.ChangeStatusAsync(id, command, cancellationToken);
+
+    /// <summary>Appends a note to a delivery's timeline, changing nothing else (FR-107).</summary>
+    [HttpPost("{id:int}/timeline")]
+    public Task<TimelineEntryView> AddNoteAsync(
+        int id,
+        [FromBody] AddDeliveryNoteCommand command,
+        CancellationToken cancellationToken) =>
+        deliveries.AddNoteAsync(id, command, cancellationToken);
+
+    /// <summary>A delivery's history, oldest first (FR-108).</summary>
+    [HttpGet("{id:int}/timeline")]
+    public Task<IReadOnlyList<TimelineEntryView>> ListTimelineAsync(
+        int id,
+        CancellationToken cancellationToken) =>
+        deliveries.ListTimelineAsync(id, cancellationToken);
 }

@@ -472,4 +472,26 @@
   <data name="VehicleCapacityHint" xml:space="preserve">
     <value>Вантажопідйомність автомобіля обраного водія, кг:</value>
   </data>
+  <!-- FR-105 to FR-108: the append-only history. The row action is short because it sits beside
+       two others in the same cell; the dialog says which delivery's history is open. -->
+  <data name="Timeline" xml:space="preserve">
+    <value>Історія</value>
+  </data>
+  <data name="TimelineTitle" xml:space="preserve">
+    <value>Історія доставки</value>
+  </data>
+  <data name="TimelineEmpty" xml:space="preserve">
+    <value>Історія цієї доставки поки порожня.</value>
+  </data>
+  <data name="TimelineNote" xml:space="preserve">
+    <value>Коментар</value>
+  </data>
+  <data name="AddNote" xml:space="preserve">
+    <value>Додати коментар</value>
+  </data>
+  <!-- The label above the transition buttons. There is one button per status the lifecycle allows
+       from the current one (AD-10), so the label names the action and the buttons name the states. -->
+  <data name="ChangeStatus" xml:space="preserve">
+    <value>Змінити стан:</value>
+  </data>
 </root>

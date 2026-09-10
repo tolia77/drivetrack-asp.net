@@ -85,9 +85,14 @@ public class DeliveryScreenTests
     [Fact]
     public async Task The_dispatch_board_offers_a_create_action_and_the_own_deliveries_screen_does_not()
     {
-        // The distinction the two screens exist to make. Neither a driver nor a client has any
-        // operation on a delivery in this story - a status change is 5.3's single write path, and a
-        // client's request is epic 8's - so an action offered there could only ever be refused.
+        // The distinction the two screens exist to make. Opening, editing and deleting a delivery
+        // are dispatch's alone - a client's request is epic 8's - so an action offered on the
+        // own-deliveries screen could only ever be refused.
+        //
+        // The timeline is the exception story 5.3 introduced, and it is not a counter-example: a
+        // driver advances the parcel they are carrying (FR-26) and a client adds a note to their own
+        // delivery (FR-107), so that dialog belongs on both screens. What must not appear there is
+        // the delivery form.
         var dispatch = await RenderDeliveriesAsync(UserRole.Dispatcher);
         var mine = await RenderMyDeliveriesAsync();
 
@@ -96,7 +101,65 @@ public class DeliveryScreenTests
 
         Assert.DoesNotContain("btn btn-success", mine, StringComparison.Ordinal);
         Assert.DoesNotContain("Створити", mine, StringComparison.Ordinal);
-        Assert.DoesNotContain("<dialog", mine, StringComparison.Ordinal);
+
+        // No create form, no edit form and no deletion prompt: the three dialogs the dispatch board
+        // carries and this screen has no operation for.
+        Assert.DoesNotContain("delivery-form", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-delivery-edit", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-confirm-accept", mine, StringComparison.Ordinal);
+
+        // And the count, because the three named checks above only rule out the three dialogs that
+        // exist today: a fourth, added for some later capability, would slip past every one of them.
+        // The timeline is the one operation this screen has, so it is the one dialog it may carry.
+        Assert.Equal(1, SharedMarkup.Occurrences(mine, "<dialog"));
+    }
+
+    [Fact]
+    public async Task Both_screens_offer_the_timeline_and_neither_pays_for_it_until_it_is_opened()
+    {
+        // FR-108 reaches every role that can see a delivery, so the action is on both screens. The
+        // panel inside the dialog is built only once a row has been chosen - a component per row
+        // would issue a timeline read per row on first paint, which is the cost this shape avoids
+        // and which nothing else in the suite would notice.
+        var dispatch = await RenderDeliveriesAsync(UserRole.Dispatcher);
+        var mine = await RenderMyDeliveriesAsync(StubDeliveryService.Assigned);
+
+        Assert.Contains("dt-delivery-timeline", dispatch, StringComparison.Ordinal);
+        Assert.Contains("dt-delivery-timeline", mine, StringComparison.Ordinal);
+
+        // The stub's entry would render its actor's name if the panel had been built.
+        Assert.DoesNotContain("dt-timeline-list", dispatch, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-timeline-list", mine, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_client_reaches_the_own_deliveries_screen_and_its_history_action()
+    {
+        // The screen serves both narrowed roles, and nothing else in the suite renders it as a
+        // client: FR-107 gives them the note field, so the row action has to be there for them too.
+        var html = await RenderMyDeliveriesAsync(
+            StubDeliveryService.Assigned, UserRole.Client);
+
+        Assert.Contains("dt-delivery-timeline", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Driver, true)]
+    [InlineData(UserRole.Client, false)]
+    [InlineData(UserRole.Dispatcher, false)]
+    [InlineData(UserRole.Admin, false)]
+    public void Only_a_driver_is_drawn_the_transition_buttons_on_their_own_deliveries(
+        UserRole role,
+        bool expected)
+    {
+        // FR-90, asserted where it actually lives. The render above cannot make this claim: the
+        // timeline panel is built only after a row is chosen, and static rendering dispatches no
+        // event that could choose one - so inverting the flag would leave every render assertion in
+        // this file green while a client was handed the buttons FR-90 says must not be drawn.
+        //
+        // The two dispatch roles are false here and that is not a contradiction: they read their
+        // deliveries on /deliveries, where the panel is opened with the flag set outright.
+        Assert.Equal(expected, Web.Components.Pages.MyDeliveries.OffersStatusChange(role));
     }
 
     [Fact]
@@ -600,12 +663,13 @@ public class DeliveryScreenTests
             });
 
     private static Task<string> RenderMyDeliveriesAsync(
-        IReadOnlyList<AssignedDeliverySummary>? rows = null) =>
+        IReadOnlyList<AssignedDeliverySummary>? rows = null,
+        UserRole role = UserRole.Driver) =>
         ComponentRenderer.RenderAsync<Web.Components.Pages.MyDeliveries>(
             parameters: null,
             services =>
             {
-                services.AddSingleton<ICurrentUser>(new StubCaller(UserRole.Driver));
+                services.AddSingleton<ICurrentUser>(new StubCaller(role));
                 services.AddSingleton<IDeliveryService>(new StubDeliveryService(rows ?? []));
             });
 
@@ -732,6 +796,36 @@ public class DeliveryScreenTests
             Task.FromResult(Board[0]);
 
         public Task DeleteAsync(int id, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        // Story 5.3's three members. Answering rather than recording, for the reason the writes
+        // above do: static rendering dispatches no events, so nothing here is ever called by a
+        // screen test - they exist because widening IDeliveryService widens every implementation of
+        // it, which is the compile-time consequence the stub is here to carry.
+        public Task<TimelineEntryView> ChangeStatusAsync(
+            int id,
+            ChangeDeliveryStatusCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Entry);
+
+        public Task<TimelineEntryView> AddNoteAsync(
+            int id,
+            AddDeliveryNoteCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Entry);
+
+        public Task<IReadOnlyList<TimelineEntryView>> ListTimelineAsync(
+            int id,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<TimelineEntryView>>([Entry]);
+
+        private static TimelineEntryView Entry => new(
+            1,
+            "Тарас Шевченко",
+            UserRole.Dispatcher,
+            DeliveryStatus.Pending,
+            DeliveryStatus.InTransit,
+            null,
+            Noon);
     }
 
     /// <summary>One driver, holding the vehicle the capacity hint reads.</summary>

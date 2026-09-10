@@ -264,19 +264,24 @@ public class AdministrationScreenTests
         // NFR-6, and the readability half of the acceptance criterion: a reviewer asking "who may do
         // what" has these methods to read, not a scattering of attributes.
         //
-        // The list is a pin rather than a limit, and story 5.1 moves it deliberately. AD-3 promised
-        // a scope predicate and IAccessGuard's own documentation said it would arrive "with the
-        // first capability that has a caller for it"; deliveries are that caller, because a driver
-        // seeing only their own rows is an authorization decision and a repository Where written
-        // inside a service would be a second place authorization lived. Adding a fourth member has
-        // to be an edit to this line for the same reason adding the third was.
+        // The list is a pin rather than a limit, and each story that moves it has to argue for the
+        // move here. Story 5.1 added RequireScope, because a driver seeing only their own rows is an
+        // authorization decision and a repository Where written inside a service would be a second
+        // place authorization lived. Story 5.3 adds RequireAssignedDriver for the same kind of
+        // reason and not a weaker one: "the driver carrying this parcel, or dispatch, and never the
+        // client whose delivery it is" (FR-34, FR-90) is a predicate none of the other three can
+        // express - a client's scope admits their own delivery, so RequireScope would let them
+        // change its status, and a role test inside the service would be authorization living
+        // somewhere else again.
         var members = typeof(IAccessGuard)
             .GetMethods()
             .Select(method => method.Name)
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["RequireRole", "RequireScope", "RequireSelf"], members);
+        Assert.Equal(
+            ["RequireAssignedDriver", "RequireRole", "RequireScope", "RequireSelf"],
+            members);
     }
 
     private static string WithoutComments(string source) =>

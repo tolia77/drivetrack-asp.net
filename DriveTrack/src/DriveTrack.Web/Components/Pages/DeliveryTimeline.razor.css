@@ -1,0 +1,77 @@
+/*
+    NFR-29: every colour, size, spacing figure and radius here resolves to a `--dt-*` token. The
+    figures that are geometry rather than palette - `display`, `flex-wrap`, `align-items`,
+    `list-style`, `text-align` - name no palette value and are outside the scan, as they are in
+    DtDataTable's stylesheet.
+*/
+
+.dt-timeline-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/*
+    A rule between entries rather than around each one: the timeline is one sequence, and a card per
+    line would read as a set of unrelated notices.
+*/
+.dt-timeline-entry {
+    padding: var(--dt-space-3);
+    border-bottom: var(--dt-border-width) solid var(--dt-border-subtle);
+}
+
+/* Who and when: quieter than the change itself, because the change is what a reader scans for. */
+.dt-timeline-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dt-space-2);
+    color: var(--dt-text-muted);
+    font-size: var(--dt-font-size-xs);
+}
+
+.dt-timeline-change {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dt-space-2);
+    font-weight: var(--dt-font-weight-medium);
+}
+
+.dt-timeline-arrow {
+    color: var(--dt-text-muted);
+}
+
+.dt-timeline-note {
+    margin: var(--dt-space-1) 0 0;
+    color: var(--dt-text-primary);
+    font-size: var(--dt-font-size-sm);
+}
+
+/* The two empty-ish states - loading and nothing yet - read as a statement, not as an entry. */
+.dt-timeline-empty {
+    margin: 0;
+    padding: var(--dt-space-5);
+    color: var(--dt-text-muted);
+    text-align: center;
+}
+
+.dt-timeline-compose {
+    margin-top: var(--dt-space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-2);
+    align-items: flex-start;
+}
+
+.dt-timeline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dt-space-2);
+    margin-top: var(--dt-space-4);
+}
+
+.dt-timeline-actions-label {
+    color: var(--dt-text-muted);
+    font-size: var(--dt-font-size-sm);
+}
