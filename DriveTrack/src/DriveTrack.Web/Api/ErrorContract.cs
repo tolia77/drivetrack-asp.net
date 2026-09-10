@@ -50,6 +50,19 @@ internal static class ErrorContract
         ErrorCode.FLEET_VEHICLE_IN_USE => StatusCodes.Status409Conflict,
         ErrorCode.FLEET_LICENSE_PLATE_IN_USE => StatusCodes.Status409Conflict,
 
+        // FR-29: a delivery named a party that is not there. 404 rather than 422, because the
+        // failure is a row that does not exist and not a value that is malformed - and distinct
+        // from COMMON_NOT_FOUND, because the resource the caller addressed does exist. A dispatcher
+        // told "driver not found" knows to pick another driver; one told "not found" does not know
+        // whether the delivery itself is gone.
+        ErrorCode.DELIVERY_DRIVER_NOT_FOUND => StatusCodes.Status404NotFound,
+        ErrorCode.DELIVERY_CLIENT_NOT_FOUND => StatusCodes.Status404NotFound,
+
+        // FR-103, and a 409 for the same reason the three fleet codes are: the request collides
+        // with the current state of another row - the vehicle the driver holds - and the caller's
+        // next move is to change one of the two figures.
+        ErrorCode.DELIVERY_EXCEEDS_VEHICLE_CAPACITY => StatusCodes.Status409Conflict,
+
         // AD-8 splits the two constraint kinds where AD-7 folds them together, and AD-8 is the more
         // specific rule: a unique violation is a genuine conflict with another row, a check
         // violation is a value the caller should not have sent. That split is what keeps NFR-2

@@ -107,6 +107,15 @@
         <path d="M4.25 13.5a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z" />
         <path d="M11.25 13.5a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z" />
     }
+    @* A parcel rather than a lorry: the vehicle glyph beside it in the navigation is the fleet, and
+       a delivery is the thing being moved, not the thing moving it. The band across the lid is what
+       tells the two apart at 16px, where a plain box reads as a square. *@
+    @if (Name == IconName.Deliveries)
+    {
+        <path d="M8 1.25 14.5 4.5 8 7.75 1.5 4.5Z" />
+        <path d="M1.25 5.85 7.25 8.85v5.9l-6-3Z" />
+        <path d="M8.75 14.75v-5.9l6-3v5.9Z" />
+    }
 </svg>
 
 @code {

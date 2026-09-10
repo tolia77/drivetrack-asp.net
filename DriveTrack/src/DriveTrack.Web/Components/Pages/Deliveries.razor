@@ -1,0 +1,944 @@
+@page "/deliveries"
+@* FR-18 to FR-24, FR-101: the dispatch board.
+
+   The Roles argument routes a wrong role to /access-denied (FR-79) rather than into an error
+   boundary. It is a convenience, not the decision: IAccessGuard inside IDeliveryService settles
+   whether this caller may run dispatch, and it runs whether or not this screen was ever rendered.
+
+   Sorting and filtering happen here, over the page already fetched. PRD section 8 excludes
+   server-side filtering, sorting and result counts, so a column heading never becomes a query and
+   no repository method gained a sort parameter.
+
+   The @if blocks below are independent rather than if/else chains: an `else` at markup level reads
+   to NFR-14's source scan as a rendered English word. *@
+@attribute [Authorize(Roles = "Dispatcher,Admin")]
+@* Named for what it does rather than for the capability: a member called `Deliveries` on a
+   component called `Deliveries` does not compile. *@
+@inject IDeliveryService Dispatch
+@inject IDriverService DriverRoster
+@inject IVehicleService VehicleFleet
+@inject IClientAdministrationService ClientRoster
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IDisposable
+
+<PageTitle>@Localizer["DeliveriesTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.Deliveries" />@Localizer["DeliveriesTitle"]
+</h1>
+
+@* FR-29 and FR-103 arrive here: a missing driver, a missing client and an overloaded vehicle each
+   resolve through the same catalogue the REST envelope uses, so the two cannot disagree (NFR-3). *@
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+@* NFR-27 keeps paging, and this screen asks for the first page and filters it in the browser - so
+   past a full page the rest is neither shown nor findable. Saying so is the difference between a
+   limit and a screen that quietly lies about how much work there is. *@
+@if (IsTruncated)
+{
+    <div class="alert alert-warning" role="status">@Localizer["DeliveriesTruncated"]</div>
+}
+
+<div class="row g-3 align-items-end mb-3">
+    <div class="col-sm-auto">
+        <button type="button" class="btn btn-success" @onclick="OpenCreateAsync">
+            <Icon Name="IconName.Create" />@Localizer["Create"]
+        </button>
+    </div>
+    <div class="col-sm-auto">
+        @* FR-101: one action clears every filter, including the date range. A per-field clear would
+           leave a dispatcher hunting for the one box still narrowing the list. *@
+        <button type="button" class="btn btn-secondary" @onclick="ResetFilters">
+            <Icon Name="IconName.Close" />@Localizer["ResetFilters"]
+        </button>
+    </div>
+</div>
+
+<div class="row g-3 align-items-end mb-3">
+    <div class="col-sm">
+        <label class="form-label" for="delivery-filter-driver">@Localizer["Driver"]</label>
+        <input id="delivery-filter-driver" type="search" class="form-control"
+               @bind="_filter.Driver" @bind:event="oninput" />
+    </div>
+    <div class="col-sm">
+        <label class="form-label" for="delivery-filter-client">@Localizer["Client"]</label>
+        <input id="delivery-filter-client" type="search" class="form-control"
+               @bind="_filter.Client" @bind:event="oninput" />
+    </div>
+    <div class="col-sm">
+        <label class="form-label" for="delivery-filter-pickup">@Localizer["Pickup"]</label>
+        <input id="delivery-filter-pickup" type="search" class="form-control"
+               @bind="_filter.Pickup" @bind:event="oninput" />
+    </div>
+    <div class="col-sm">
+        <label class="form-label" for="delivery-filter-dropoff">@Localizer["Dropoff"]</label>
+        <input id="delivery-filter-dropoff" type="search" class="form-control"
+               @bind="_filter.Dropoff" @bind:event="oninput" />
+    </div>
+</div>
+
+<div class="row g-3 align-items-end mb-3">
+    <div class="col-sm">
+        <label class="form-label" for="delivery-filter-details">@Localizer["PackageDetails"]</label>
+        <input id="delivery-filter-details" type="search" class="form-control"
+               @bind="_filter.PackageDetails" @bind:event="oninput" />
+    </div>
+    <div class="col-sm">
+        <label class="form-label" for="delivery-filter-notes">@Localizer["DeliveryNotes"]</label>
+        <input id="delivery-filter-notes" type="search" class="form-control"
+               @bind="_filter.DeliveryNotes" @bind:event="oninput" />
+    </div>
+    <div class="col-sm">
+        <label class="form-label" for="delivery-filter-status">@Localizer["Status"]</label>
+        <select id="delivery-filter-status" class="form-select" @bind="_filter.Status">
+            <option value="">@Localizer["FilterAll"]</option>
+            @* The value is the enum member rendered, not a literal beside it: AD-21 makes the member
+               name the wire form, and writing it out here would be a second copy to keep in step. *@
+            <option value="@DeliveryStatus.Pending">@Localizer["StatusPending"]</option>
+            <option value="@DeliveryStatus.InTransit">@Localizer["StatusInTransit"]</option>
+            <option value="@DeliveryStatus.Delivered">@Localizer["StatusDelivered"]</option>
+            <option value="@DeliveryStatus.Failed">@Localizer["StatusFailed"]</option>
+        </select>
+    </div>
+</div>
+
+<div class="row g-3 align-items-end mb-3">
+    <div class="col-sm">
+        <label class="form-label" for="delivery-filter-created-from">@Localizer["CreatedFrom"]</label>
+        <input id="delivery-filter-created-from" type="date" class="form-control"
+               @bind="_filter.CreatedFrom" />
+    </div>
+    <div class="col-sm">
+        <label class="form-label" for="delivery-filter-created-to">@Localizer["CreatedTo"]</label>
+        <input id="delivery-filter-created-to" type="date" class="form-control"
+               @bind="_filter.CreatedTo" />
+    </div>
+    <div class="col-sm">
+        <div class="form-check">
+            <input id="delivery-filter-overdue" type="checkbox" class="form-check-input"
+                   @bind="_filter.OverdueOnly" />
+            <label class="form-check-label" for="delivery-filter-overdue">@Localizer["OverdueOnly"]</label>
+        </div>
+    </div>
+</div>
+
+<DtDataTable TItem="DeliverySummary"
+             Items="Visible"
+             IsLoading="_loading"
+             EmptyText="@Localizer["DeliveriesEmpty"]">
+    <HeaderTemplate>
+        @* DtDataTable carries no sorting of its own - it renders whatever rows it is given - so the
+           sort controls belong to the consumer, and a heading is the control. The handlers are
+           built in code rather than written as lambdas here: a `=>` inside an attribute closes the
+           tag as far as a source scan is concerned.
+
+           aria-sort is what makes the reordering perceivable at all to a screen reader: without it
+           the rows silently rearrange and nothing says which column did it or in which direction.
+           Its three values are ARIA tokens rather than prose - a browser reads them out in the
+           user's own language - so they take no resource key, and they are computed in a method
+           for the same reason the handlers are. *@
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.Driver)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Driver)">
+                @Localizer["Driver"]
+            </button>
+        </th>
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.Client)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Client)">
+                @Localizer["Client"]
+            </button>
+        </th>
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.Pickup)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Pickup)">
+                @Localizer["Pickup"]
+            </button>
+        </th>
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.Dropoff)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Dropoff)">
+                @Localizer["Dropoff"]
+            </button>
+        </th>
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.PackageDetails)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.PackageDetails)">
+                @Localizer["PackageDetails"]
+            </button>
+        </th>
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.DeliveryNotes)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.DeliveryNotes)">
+                @Localizer["DeliveryNotes"]
+            </button>
+        </th>
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.Status)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Status)">
+                @Localizer["Status"]
+            </button>
+        </th>
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.CreatedAt)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.CreatedAt)">
+                @Localizer["CreatedAt"]
+            </button>
+        </th>
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.Overdue)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Overdue)">
+                @Localizer["Overdue"]
+            </button>
+        </th>
+        <th scope="col">@Localizer["Actions"]</th>
+    </HeaderTemplate>
+    <RowTemplate Context="delivery">
+        <td>
+            @if (delivery.Driver is null)
+            {
+                <span>@Localizer["NoDriver"]</span>
+            }
+            @if (delivery.Driver is not null)
+            {
+                <span>@delivery.Driver.Name</span>
+            }
+        </td>
+        <td>
+            @if (delivery.Client is null)
+            {
+                <span>@Localizer["NoClient"]</span>
+            }
+            @if (delivery.Client is not null)
+            {
+                <span>@delivery.Client.Name</span>
+            }
+        </td>
+        @* FR-21: the cell is the way to the map. The label is the address when one has been
+           resolved and the coordinates when none has (FR-94), so the cell is never empty. *@
+        <td>
+            <button type="button" class="btn btn-link btn-sm dt-delivery-pickup"
+                    @onclick="ShowLocationHandler(delivery.Pickup)">
+                <Icon Name="IconName.Location" />@LocationText.Describe(delivery.Pickup)
+            </button>
+        </td>
+        <td>
+            <button type="button" class="btn btn-link btn-sm dt-delivery-dropoff"
+                    @onclick="ShowLocationHandler(delivery.Dropoff)">
+                <Icon Name="IconName.Location" />@LocationText.Describe(delivery.Dropoff)
+            </button>
+        </td>
+        <td>@delivery.PackageDetails</td>
+        <td>@delivery.DeliveryNotes</td>
+        <td>
+            @if (delivery.Status == DeliveryStatus.Pending)
+            {
+                <span>@Localizer["StatusPending"]</span>
+            }
+            @if (delivery.Status == DeliveryStatus.InTransit)
+            {
+                <span>@Localizer["StatusInTransit"]</span>
+            }
+            @if (delivery.Status == DeliveryStatus.Delivered)
+            {
+                <span>@Localizer["StatusDelivered"]</span>
+            }
+            @if (delivery.Status == DeliveryStatus.Failed)
+            {
+                <span>@Localizer["StatusFailed"]</span>
+            }
+        </td>
+        @* Routed through a method rather than formatted in markup: NFR-14's scan strips a Razor
+           expression only up to its first closing bracket, so a `.ToString(...)` tail would be left
+           behind in the text node and read as a rendered English word. *@
+        <td>@Created(delivery)</td>
+        <td>
+            @* FR-19: derived from the window and the clock, never stored - so there is nothing to
+               show when a delivery is on time, and a badge only where there is something to say. *@
+            @if (delivery.IsOverdue)
+            {
+                <span class="badge text-bg-danger">@Localizer["Overdue"]</span>
+            }
+        </td>
+        <td>
+            <button type="button" class="btn btn-primary btn-sm dt-delivery-edit"
+                    @onclick="EditHandler(delivery)">
+                <Icon Name="IconName.Edit" />@Localizer["Edit"]
+            </button>
+            @* FR-24 reserves deletion to an administrator, and the service refuses a dispatcher who
+               asks. Offering an action that could only ever fail is worse than not offering it.
+               FR-12 unchanged: this hides, IAccessGuard decides. *@
+            @if (_isAdmin)
+            {
+                <button type="button" class="btn btn-danger btn-sm dt-delivery-delete"
+                        @onclick="DeleteHandler(delivery)">
+                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                </button>
+            }
+        </td>
+    </RowTemplate>
+</DtDataTable>
+
+@* FR-85: the shared dialog. One heading for both create and edit - a title composed at run time
+   would be a key no test can see, and the catalogue is closed against the keys components ask for. *@
+<DtDialog @ref="_formDialog" Title="@Localizer["DeliveryForm"]">
+    <ChildContent>
+        @* A second copy of the banner, deliberately. A DtDialog opens with showModal(), so
+           everything outside it is inert behind the backdrop: a refusal rendered only at page level
+           is a form that fails to close and says nothing. *@
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+
+        <EditForm id="delivery-form" Model="_form" OnValidSubmit="SaveAsync">
+            @* Clearing a number or a date field leaves a parse failure on the EditContext, and
+               OnValidSubmit then never fires - so without this the Save button would do nothing and
+               say nothing. ValidationSummary rather than per-field ValidationMessage: a
+               `For="@(() => ...)"` lambda inside an attribute is what NFR-14's scan misreads. *@
+            <ValidationSummary />
+
+            @* FR-15: a point is set by clicking the map. There is no address search here and no
+               reverse geocoding - both are IGeocoder's, which is story 5.2's port - so the map is
+               the whole of the input and the stored address stays null until then. *@
+            <div class="mb-3">
+                @* No `for`: a map is a region rather than a labelable control, and a `for` pointing
+                   at one would be an association a browser ignores. DtMap carries its own
+                   aria-label. *@
+                <label class="form-label">@Localizer["Pickup"]</label>
+                <DtMap Value="_form.Pickup" ValueChanged="PickPickup" Picker="true" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">@Localizer["Dropoff"]</label>
+                <DtMap Value="_form.Dropoff" ValueChanged="PickDropoff" Picker="true" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="delivery-details">@Localizer["PackageDetails"]</label>
+                <InputText id="delivery-details" class="form-control" @bind-Value="_form.PackageDetails" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="delivery-weight">@Localizer["PackageWeightKg"]</label>
+                @* No {0} in the message: the framework fills it with the CLR property name, which
+                   would put a Latin word in front of a user (NFR-14). *@
+                <InputNumber id="delivery-weight" class="form-control"
+                             ParsingErrorMessage="@Localizer["NumberParseError"]"
+                             @bind-Value="_form.PackageWeightKg" />
+                @* FR-103's second figure. NFR-3 gives one wire message per code, so the refusal
+                   itself cannot name the numbers - this is where the dispatcher sees the one they
+                   are about to exceed, at the moment they could exceed it. *@
+                <div class="form-text">@Localizer["VehicleCapacityHint"] @CapacityText</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="delivery-notes">@Localizer["DeliveryNotes"]</label>
+                <InputTextArea id="delivery-notes" class="form-control" @bind-Value="_form.DeliveryNotes" />
+            </div>
+
+            @* FR-100: either bound may stand alone and both may be absent; only an inverted pair is
+               refused, by the validator and by the check constraint behind it. *@
+            <div class="mb-3">
+                <label class="form-label" for="delivery-window-earliest">@Localizer["WindowEarliestAt"]</label>
+                <InputDate id="delivery-window-earliest" class="form-control"
+                           Type="InputDateType.DateTimeLocal"
+                           ParsingErrorMessage="@Localizer["DateParseError"]"
+                           @bind-Value="_form.WindowEarliestAt" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="delivery-window-latest">@Localizer["WindowLatestAt"]</label>
+                <InputDate id="delivery-window-latest" class="form-control"
+                           Type="InputDateType.DateTimeLocal"
+                           ParsingErrorMessage="@Localizer["DateParseError"]"
+                           @bind-Value="_form.WindowLatestAt" />
+            </div>
+
+            @* FR-16: both are optional, and the empty choice is how a dispatcher says so - on an
+               edit it is also how they unassign, which AD-23 carries as a present null. *@
+            <div class="mb-3">
+                <label class="form-label" for="delivery-driver">@Localizer["Driver"]</label>
+                <select id="delivery-driver" class="form-select" @bind="_form.DriverId">
+                    <option value="">@Localizer["NoDriver"]</option>
+                    @foreach (var driver in _drivers)
+                    {
+                        <option value="@driver.Id.Value">@driver.FirstName @driver.LastName</option>
+                    }
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="delivery-client">@Localizer["Client"]</label>
+                <select id="delivery-client" class="form-select" @bind="_form.ClientId">
+                    <option value="">@Localizer["NoClient"]</option>
+                    @foreach (var client in _clients)
+                    {
+                        <option value="@client.ClientId.Value">@client.FirstName @client.LastName</option>
+                    }
+                </select>
+            </div>
+        </EditForm>
+    </ChildContent>
+    <Actions>
+        <button type="submit" form="delivery-form" class="btn btn-primary">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary" @onclick="CloseFormAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+@* FR-21: the same map component, with picking off. One map, two jobs (NFR-26). *@
+<DtDialog @ref="_mapDialog" Title="@Localizer["LocationTitle"]">
+    <ChildContent>
+        @if (_viewed is not null)
+        {
+            <DtMap Value="_viewed" Picker="false" />
+        }
+    </ChildContent>
+</DtDialog>
+
+@* FR-81: a destructive action is confirmed through the shared prompt, and only where it could
+   succeed. *@
+@if (_isAdmin)
+{
+    <DtConfirmDialog @ref="_deleteDialog"
+                     Title="@Localizer["DeleteDeliveryTitle"]"
+                     Message="@Localizer["DeleteDeliveryMessage"]"
+                     OnConfirmed="ConfirmDeleteAsync" />
+}
+
+@code {
+    // The screen's own lifetime. A dispatcher who navigates away mid-load leaves a query running
+    // against a pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private DeliveryFilter _filter = new();
+
+    private IReadOnlyList<DeliverySummary> _deliveries = [];
+    private IReadOnlyList<DriverSummary> _drivers = [];
+    private IReadOnlyList<ClientAccount> _clients = [];
+    private IReadOnlyList<VehicleSummary> _vehicles = [];
+    private IReadOnlyList<string> _failures = [];
+
+    private DeliveryForm _form = new();
+    private DeliverySummary? _pendingDeletion;
+    private MapLocation? _viewed;
+
+    private DtDialog? _formDialog;
+    private DtDialog? _mapDialog;
+    private DtConfirmDialog? _deleteDialog;
+
+    private DeliveryColumn _sortColumn = DeliveryColumn.CreatedAt;
+    private bool _sortDescending;
+    private bool _loading = true;
+    private bool _isAdmin;
+
+    /// <summary>The rows the filters leave, in the order the headings asked for.</summary>
+    private IReadOnlyCollection<DeliverySummary> Visible =>
+        Sort([.. _deliveries.Where(delivery => Matches(delivery, _filter))], _sortColumn, _sortDescending);
+
+    /// <summary>
+    /// True when the page came back full, which is as much as this screen can know: the query
+    /// returns no total (PRD section 8 excludes one), so "there may be more" is the honest claim.
+    /// </summary>
+    private bool IsTruncated => _deliveries.Count >= ListDeliveriesQueryValidator.MaximumLimit;
+
+    /// <summary>
+    /// The capacity of the vehicle the selected driver holds, or null when there is no driver or
+    /// they hold nothing — which is the case FR-38 makes legal and FR-103 leaves unchecked.
+    /// </summary>
+    private decimal? SelectedCapacityKg => CapacityOf(_drivers, _vehicles, _form.DriverId);
+
+    /// <summary>
+    /// The capacity of the vehicle a driver holds, or null when no driver is named, the named
+    /// driver is not on the page, or they hold nothing.
+    /// </summary>
+    /// <remarks>
+    /// Internal and static for the same reason <see cref="Matches"/> is: static rendering
+    /// dispatches no events, so no render test can select a driver, and the number this hint exists
+    /// to show would otherwise be asserted nowhere at all.
+    /// </remarks>
+    /// <param name="drivers">The drivers the form offers.</param>
+    /// <param name="vehicles">The fleet the page fetched, which is where a capacity is read from.</param>
+    /// <param name="driverId">The driver the form has selected, or null while none is.</param>
+    internal static decimal? CapacityOf(
+        IReadOnlyList<DriverSummary> drivers,
+        IReadOnlyList<VehicleSummary> vehicles,
+        int? driverId)
+    {
+        ArgumentNullException.ThrowIfNull(drivers);
+        ArgumentNullException.ThrowIfNull(vehicles);
+
+        var driver = drivers.FirstOrDefault(candidate => candidate.Id.Value == driverId);
+
+        if (driver?.VehicleId is not { } vehicleId)
+        {
+            return null;
+        }
+
+        return vehicles.FirstOrDefault(vehicle => vehicle.Id == vehicleId)?.CapacityKg;
+    }
+
+    /// <summary>The capacity as the hint renders it, or a dash when there is none to show.</summary>
+    private string CapacityText => SelectedCapacityKg is { } capacity
+        ? capacity.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)
+        : "—";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen calls a service. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        // Read once, after the authenticated check: ICurrentUser.Role throws for an anonymous
+        // caller, so asking outside that branch would take the screen down instead of refusing it.
+        _isAdmin = Caller.Role == UserRole.Admin;
+
+        await LoadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    /// <summary>The heading's sort action, bound as a delegate so no lambda has to live in markup.</summary>
+    private Action SortHandler(DeliveryColumn column) => () => SortBy(column);
+
+    /// <summary>
+    /// The ARIA sort state of a heading: which way this column is ordered, or that it is not the
+    /// column the table is ordered by. The three values are ARIA tokens rather than text a user
+    /// reads, so they are literals here and carry no resource key (NFR-14).
+    /// </summary>
+    private string SortState(DeliveryColumn column)
+    {
+        if (_sortColumn != column)
+        {
+            return "none";
+        }
+
+        return _sortDescending ? "descending" : "ascending";
+    }
+
+    /// <summary>The row's edit action, for the same reason.</summary>
+    private Func<Task> EditHandler(DeliverySummary delivery) => () => OpenEditAsync(delivery);
+
+    /// <summary>The row's delete action, for the same reason.</summary>
+    private Func<Task> DeleteHandler(DeliverySummary delivery) => () => OpenDeleteAsync(delivery);
+
+    /// <summary>The location cell's action, for the same reason.</summary>
+    private Func<Task> ShowLocationHandler(LocationView location) => () => ShowLocationAsync(location);
+
+    /// <summary>
+    /// The creation instant in local time (AD-13: storage is offset zero, and the conversion
+    /// happens here, in the presentation layer, and nowhere else).
+    /// </summary>
+    /// <remarks>
+    /// Local here is the server's configured zone, not the browser's: the shell renders
+    /// interactively on the server, so <c>ToLocalTime</c> resolves against the host. The system is
+    /// single-region, so configuring the host for it is the whole of the answer; reading the
+    /// reader's own zone would need it carried from the browser, which nothing does yet.
+    /// </remarks>
+    private static string Created(DeliverySummary delivery) =>
+        delivery.CreatedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
+
+    /// <summary>
+    /// Whether a delivery survives every filter the dispatcher has set (FR-20).
+    /// </summary>
+    /// <remarks>
+    /// Internal and static so it can be tested directly: static rendering dispatches no events, so
+    /// this is the one thing on the screen a render test cannot reach. Every text comparison is
+    /// culture-aware and case-insensitive — a dispatcher typing a name in lower case is looking for
+    /// the same delivery.
+    /// </remarks>
+    /// <param name="delivery">The row being considered.</param>
+    /// <param name="filter">What the dispatcher has narrowed by. A blank field narrows nothing.</param>
+    internal static bool Matches(DeliverySummary delivery, DeliveryFilter filter)
+    {
+        ArgumentNullException.ThrowIfNull(delivery);
+        ArgumentNullException.ThrowIfNull(filter);
+
+        // The creation date is compared as a date rather than an instant: the two range boxes are
+        // dates, and a delivery created at 18:00 on the last day of the range is inside it.
+        var created = DateOnly.FromDateTime(delivery.CreatedAt.ToLocalTime().DateTime);
+
+        return Contains(delivery.Driver?.Name, filter.Driver)
+            && Contains(delivery.Client?.Name, filter.Client)
+            && Contains(LocationText.Describe(delivery.Pickup), filter.Pickup)
+            && Contains(LocationText.Describe(delivery.Dropoff), filter.Dropoff)
+            && Contains(delivery.PackageDetails, filter.PackageDetails)
+            && Contains(delivery.DeliveryNotes, filter.DeliveryNotes)
+            && (filter.Status is not { } status || delivery.Status == status)
+            && (filter.CreatedFrom is not { } from || created >= from)
+            && (filter.CreatedTo is not { } to || created <= to)
+            && (!filter.OverdueOnly || delivery.IsOverdue);
+    }
+
+    /// <summary>
+    /// The deliveries in the order a column heading asked for, with the row id as the tie-break so
+    /// two rows that compare equal do not swap places between renders.
+    /// </summary>
+    /// <remarks>
+    /// Internal and static for the reason <see cref="Matches"/> is, and pure for a second one: this
+    /// is what makes "sorting issues no second request" a property a test can assert rather than a
+    /// claim about the network.
+    /// </remarks>
+    /// <param name="deliveries">The rows to order.</param>
+    /// <param name="column">The column the dispatcher clicked.</param>
+    /// <param name="descending">True on the second click of the same heading.</param>
+    internal static IReadOnlyList<DeliverySummary> Sort(
+        IReadOnlyList<DeliverySummary> deliveries,
+        DeliveryColumn column,
+        bool descending)
+    {
+        ArgumentNullException.ThrowIfNull(deliveries);
+
+        var ordered = column switch
+        {
+            DeliveryColumn.Driver => deliveries.OrderBy(Text(delivery => delivery.Driver?.Name)),
+            DeliveryColumn.Client => deliveries.OrderBy(Text(delivery => delivery.Client?.Name)),
+            DeliveryColumn.Pickup => deliveries.OrderBy(Text(delivery => LocationText.Describe(delivery.Pickup))),
+            DeliveryColumn.Dropoff => deliveries.OrderBy(Text(delivery => LocationText.Describe(delivery.Dropoff))),
+            DeliveryColumn.PackageDetails => deliveries.OrderBy(Text(delivery => delivery.PackageDetails)),
+            DeliveryColumn.DeliveryNotes => deliveries.OrderBy(Text(delivery => delivery.DeliveryNotes)),
+
+            // By the member rather than by its label: the lifecycle has an order, and sorting a
+            // status column alphabetically would put "Delivered" before "Pending" for no reason a
+            // dispatcher could name.
+            DeliveryColumn.Status => deliveries.OrderBy(delivery => delivery.Status),
+            DeliveryColumn.CreatedAt => deliveries.OrderBy(delivery => delivery.CreatedAt),
+            DeliveryColumn.Overdue => deliveries.OrderBy(delivery => delivery.IsOverdue),
+
+            // Total over the enum: a column added without an ordering fails loudly here rather than
+            // silently rendering the rows in whatever order they arrived.
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(column),
+                column,
+                "No ordering is defined for this column."),
+        };
+
+        var stable = ordered.ThenBy(delivery => delivery.Id);
+
+        return descending ? [.. stable.Reverse()] : [.. stable];
+    }
+
+    /// <summary>
+    /// A text key for a column, with a null reading as empty so an unassigned row sorts to one end
+    /// rather than throwing.
+    /// </summary>
+    private static Func<DeliverySummary, string> Text(Func<DeliverySummary, string?> select) =>
+        delivery => select(delivery) ?? string.Empty;
+
+    /// <summary>True when the haystack carries the needle, or the needle is blank.</summary>
+    private static bool Contains(string? value, string? needle)
+    {
+        if (string.IsNullOrWhiteSpace(needle))
+        {
+            return true;
+        }
+
+        return value is not null
+            && value.Contains(needle.Trim(), StringComparison.CurrentCultureIgnoreCase);
+    }
+
+    private void SortBy(DeliveryColumn column)
+    {
+        // The second click on the same heading reverses; a click on another heading starts that
+        // column ascending. Nothing here fetches anything: the rows are already in the browser.
+        _sortDescending = _sortColumn == column && !_sortDescending;
+        _sortColumn = column;
+    }
+
+    private void ResetFilters() => _filter = new DeliveryFilter();
+
+    private void PickPickup(MapLocation picked) => _form.Pickup = picked;
+
+    private void PickDropoff(MapLocation picked) => _form.Dropoff = picked;
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        // Rendered before the await, or the flag is set and cleared inside one synchronous stretch
+        // and DtDataTable's loading row never reaches the browser on a post-write refetch.
+        StateHasChanged();
+
+        try
+        {
+            // NFR-27's default page, stated rather than assumed: the service refuses anything the
+            // original would have passed to the database unchecked.
+            _deliveries = await Dispatch.ListAsync(
+                new ListDeliveriesQuery(0, ListDeliveriesQueryValidator.MaximumLimit),
+                _cancellation.Token);
+
+            // The three lists the form is built from. Read here rather than when the dialog opens,
+            // so choosing a driver does not wait on a round trip - and so the capacity hint has
+            // something to read the moment a driver is picked.
+            _drivers = await DriverRoster.ListAsync(_cancellation.Token);
+            _clients = await ClientRoster.ListAsync(_cancellation.Token);
+            _vehicles = await VehicleFleet.ListAsync(
+                new ListVehiclesQuery(0, ListVehiclesQueryValidator.MaximumLimit),
+                _cancellation.Token);
+        }
+        finally
+        {
+            // In a finally so a refused or failed read leaves the table in its empty state rather
+            // than spinning forever, which reads to a user as a hung screen.
+            _loading = false;
+        }
+    }
+
+    private async Task OpenCreateAsync()
+    {
+        _failures = [];
+        _form = new DeliveryForm();
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task OpenEditAsync(DeliverySummary delivery)
+    {
+        _failures = [];
+        _form = new DeliveryForm
+        {
+            Id = delivery.Id,
+            Pickup = delivery.Pickup.Point,
+            Dropoff = delivery.Dropoff.Point,
+            PackageDetails = delivery.PackageDetails,
+            PackageWeightKg = delivery.PackageWeightKg,
+            DeliveryNotes = delivery.DeliveryNotes,
+            WindowEarliestAt = delivery.WindowEarliestAt?.ToLocalTime(),
+            WindowLatestAt = delivery.WindowLatestAt?.ToLocalTime(),
+            DriverId = delivery.Driver?.Id,
+            ClientId = delivery.Client?.Id,
+        };
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task CloseFormAsync()
+    {
+        if (_formDialog is not null)
+        {
+            await _formDialog.CloseAsync();
+        }
+    }
+
+    private async Task ShowLocationAsync(LocationView location)
+    {
+        _viewed = location.Point;
+
+        if (_mapDialog is not null)
+        {
+            await _mapDialog.ShowAsync();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (_form.Id is { } deliveryId)
+            {
+                // Every field present: this screen edits the whole card, so there is nothing for it
+                // to leave alone. The Optional wrapper is still what carries them, because a later
+                // caller sending only one field must mean the same thing to the same service - and
+                // because an empty driver box has to reach the service as a present null (FR-16).
+                await Dispatch.UpdateAsync(
+                    deliveryId,
+                    new UpdateDeliveryCommand(
+                        Optional<LocationInput>.Present(Coordinates(_form.Pickup)),
+                        Optional<LocationInput>.Present(Coordinates(_form.Dropoff)),
+                        Optional<string>.Present(_form.PackageDetails),
+                        Optional<decimal>.Present(_form.PackageWeightKg),
+                        Optional<string?>.Present(_form.DeliveryNotes),
+                        Optional<DateTimeOffset?>.Present(_form.WindowEarliestAt),
+                        Optional<DateTimeOffset?>.Present(_form.WindowLatestAt),
+                        Optional<int?>.Present(_form.DriverId),
+                        Optional<int?>.Present(_form.ClientId)),
+                    _cancellation.Token);
+            }
+
+            if (_form.Id is null)
+            {
+                await Dispatch.CreateAsync(
+                    new CreateDeliveryCommand(
+                        Coordinates(_form.Pickup),
+                        Coordinates(_form.Dropoff),
+                        _form.PackageDetails,
+                        _form.PackageWeightKg,
+                        _form.DeliveryNotes,
+                        _form.WindowEarliestAt,
+                        _form.WindowLatestAt,
+                        _form.DriverId,
+                        _form.ClientId),
+                    _cancellation.Token);
+            }
+
+            _failures = [];
+
+            await CloseFormAsync();
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Outside the try, deliberately. The write has committed, so a failure refreshing the list
+        // afterwards is a failed read, and reporting it as a refused save would tell the dispatcher
+        // their delivery was not saved when it was.
+        await LoadAsync();
+    }
+
+    private async Task OpenDeleteAsync(DeliverySummary delivery)
+    {
+        _failures = [];
+        _pendingDeletion = delivery;
+
+        if (_deleteDialog is not null)
+        {
+            await _deleteDialog.ShowAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_pendingDeletion is not { } delivery)
+        {
+            return;
+        }
+
+        _pendingDeletion = null;
+
+        try
+        {
+            await Dispatch.DeleteAsync(delivery.Id, _cancellation.Token);
+
+            _failures = [];
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Outside the try: the delivery is gone, and a failed refresh afterwards must not be
+        // reported as a delete that did not happen.
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// The coordinates a picked point sends, or null when nothing has been picked — which the
+    /// service refuses with a field name rather than this screen guessing at one.
+    /// </summary>
+    private static LocationInput? Coordinates(MapLocation? point) =>
+        point is { } value ? new LocationInput(value.Latitude, value.Longitude) : null;
+
+    /// <summary>The columns the dispatch table can be ordered by (FR-20).</summary>
+    internal enum DeliveryColumn
+    {
+        /// <summary>The assigned driver's name.</summary>
+        Driver,
+
+        /// <summary>The requesting client's name.</summary>
+        Client,
+
+        /// <summary>The pickup point, as the cell shows it.</summary>
+        Pickup,
+
+        /// <summary>The dropoff point, as the cell shows it.</summary>
+        Dropoff,
+
+        /// <summary>What is being moved.</summary>
+        PackageDetails,
+
+        /// <summary>The free-text instructions.</summary>
+        DeliveryNotes,
+
+        /// <summary>Where the delivery is in its lifecycle.</summary>
+        Status,
+
+        /// <summary>When the delivery was opened.</summary>
+        CreatedAt,
+
+        /// <summary>Whether the window has passed.</summary>
+        Overdue,
+    }
+
+    /// <summary>
+    /// What the dispatcher has narrowed the fetched page by (FR-20, FR-101). A plain settable class
+    /// rather than a record: every field is two-way bound to an input, and resetting is a new
+    /// instance.
+    /// </summary>
+    internal sealed class DeliveryFilter
+    {
+        /// <summary>Text the driver's name must carry.</summary>
+        public string? Driver { get; set; }
+
+        /// <summary>Text the client's name must carry.</summary>
+        public string? Client { get; set; }
+
+        /// <summary>Text the pickup cell must carry.</summary>
+        public string? Pickup { get; set; }
+
+        /// <summary>Text the dropoff cell must carry.</summary>
+        public string? Dropoff { get; set; }
+
+        /// <summary>Text the package description must carry.</summary>
+        public string? PackageDetails { get; set; }
+
+        /// <summary>Text the notes must carry.</summary>
+        public string? DeliveryNotes { get; set; }
+
+        /// <summary>The only status to show, or null for every status.</summary>
+        public DeliveryStatus? Status { get; set; }
+
+        /// <summary>The earliest creation date to show, or null.</summary>
+        public DateOnly? CreatedFrom { get; set; }
+
+        /// <summary>The latest creation date to show, or null.</summary>
+        public DateOnly? CreatedTo { get; set; }
+
+        /// <summary>True to show only the deliveries whose window has passed (FR-19).</summary>
+        public bool OverdueOnly { get; set; }
+    }
+
+    /// <summary>
+    /// What the dialog is editing. A screen-local shape rather than a command: a command's update
+    /// fields are <c>Optional&lt;T&gt;</c>, and two-way binding needs somewhere plain to write.
+    /// </summary>
+    private sealed class DeliveryForm
+    {
+        /// <summary>The delivery being edited, or null while creating one.</summary>
+        public int? Id { get; set; }
+
+        public MapLocation? Pickup { get; set; }
+
+        public MapLocation? Dropoff { get; set; }
+
+        public string? PackageDetails { get; set; }
+
+        public decimal PackageWeightKg { get; set; }
+
+        public string? DeliveryNotes { get; set; }
+
+        public DateTimeOffset? WindowEarliestAt { get; set; }
+
+        public DateTimeOffset? WindowLatestAt { get; set; }
+
+        public int? DriverId { get; set; }
+
+        public int? ClientId { get; set; }
+    }
+}

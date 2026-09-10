@@ -17,4 +17,14 @@
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
   </ItemGroup>
 
+  <!--
+    AD-23's merge is internal on purpose - nothing outside this layer turns a partial payload into
+    a whole one - and it is also the single most regression-prone rule in an update command:
+    absent means unchanged, present-null means clear. The unit suite is where that is cheapest to
+    assert, so it is the one assembly allowed to see it.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="DriveTrack.Application.Tests" />
+  </ItemGroup>
+
 </Project>

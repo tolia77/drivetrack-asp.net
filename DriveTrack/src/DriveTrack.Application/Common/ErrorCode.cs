@@ -64,6 +64,23 @@ public enum ErrorCode
     /// <summary>Another vehicle already carries this licence plate. 409 (FR-41).</summary>
     FLEET_LICENSE_PLATE_IN_USE,
 
+    /// <summary>
+    /// A delivery named a driver no row holds. 404 (FR-29). Distinct from
+    /// <see cref="COMMON_NOT_FOUND"/>: the delivery being addressed exists, and the missing row is
+    /// one the payload named — a caller can act on that by choosing another driver.
+    /// </summary>
+    DELIVERY_DRIVER_NOT_FOUND,
+
+    /// <summary>A delivery named a client no row holds. 404 (FR-29).</summary>
+    DELIVERY_CLIENT_NOT_FOUND,
+
+    /// <summary>
+    /// The delivery would be left assigned to a driver whose vehicle cannot carry it. 409 (FR-103).
+    /// Raised from either side of the invariant: assigning a driver or changing a weight here, and
+    /// changing a driver's vehicle over in the fleet.
+    /// </summary>
+    DELIVERY_EXCEEDS_VEHICLE_CAPACITY,
+
     /// <summary>PostgreSQL SQLSTATE 23505, translated in Infrastructure. 409 (AD-8).</summary>
     PERSISTENCE_UNIQUE_VIOLATION,
 

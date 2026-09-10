@@ -131,12 +131,13 @@ public class NavigationTests
         Assert.DoesNotContain(".bi-house-door-fill-nav-menu {", stylesheet, StringComparison.Ordinal);
 
         // Every link and action carries an icon beside its text (NFR-24): the brand mark, home,
-        // profile, the two fleet screens (4.1), the two administration rosters (7.1), sign-out,
-        // sign-in and register - ten in all. The count moves with the destination table on purpose:
-        // a destination rendered without a glyph is markup with nothing behind it, which is the
-        // defect this whole test guards, so adding a link has to be a deliberate edit to this line
-        // rather than an empty box nobody notices.
-        Assert.Equal(10, SharedMarkup.Occurrences(menu, "<Icon Name="));
+        // profile, the two fleet screens (4.1), the dispatch board and the own-deliveries screen
+        // (5.1), the two administration rosters (7.1), sign-out, sign-in and register - twelve in
+        // all. The count moves with the destination table on purpose: a destination rendered
+        // without a glyph is markup with nothing behind it, which is the defect this whole test
+        // guards, so adding a link has to be a deliberate edit to this line rather than an empty
+        // box nobody notices.
+        Assert.Equal(12, SharedMarkup.Occurrences(menu, "<Icon Name="));
     }
 
     [Fact]
@@ -184,6 +185,16 @@ public class NavigationTests
 
         Assert.Equal(runsDispatch, links.Contains("drivers"));
         Assert.Equal(runsDispatch, links.Contains("vehicles"));
+
+        // Story 5.1's two destinations, and the distinction between them: the dispatch board shows
+        // every delivery in the system and belongs to the roles that run dispatch, while the
+        // own-deliveries screen shows what the caller's own scope narrows to and belongs to the two
+        // roles that are a party to a delivery. The two sets are complements here rather than
+        // nested, and that is deliberate: a dispatcher's scope narrows nothing, so the screen would
+        // show them the whole board under a heading saying "mine" - which is why it refuses them,
+        // and why offering them the link would be offering a link that can only refuse.
+        Assert.Equal(runsDispatch, links.Contains("deliveries"));
+        Assert.Equal(!runsDispatch, links.Contains("my-deliveries"));
 
         // And the account action that belongs to a caller who has a session.
         Assert.Contains("action=\"/sign-out\"", html, StringComparison.Ordinal);
@@ -237,6 +248,8 @@ public class NavigationTests
         Assert.DoesNotContain("profile", links);
         Assert.DoesNotContain("drivers", links);
         Assert.DoesNotContain("vehicles", links);
+        Assert.DoesNotContain("deliveries", links);
+        Assert.DoesNotContain("my-deliveries", links);
         Assert.DoesNotContain("/sign-out", html, StringComparison.Ordinal);
     }
 

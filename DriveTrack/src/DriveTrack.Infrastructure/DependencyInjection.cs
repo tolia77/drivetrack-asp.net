@@ -1,6 +1,7 @@
 using System.Globalization;
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Application.Authorization;
+using DriveTrack.Application.Deliveries;
 using DriveTrack.Application.Drivers;
 using DriveTrack.Application.Users;
 using DriveTrack.Application.Vehicles;
@@ -191,5 +192,10 @@ public static class DependencyInjection
         // capability that lives in Application is still registered here.
         services.AddScoped<IVehicleService, VehicleService>();
         services.AddScoped<IDriverService, DriverService>();
+
+        // The product's central record (FR-14 to FR-27). Scoped like the rest: it reads the caller
+        // of the request or circuit it is serving, and it takes the clock registered above so
+        // FR-19's overdue rule is a function of an injected TimeProvider rather than of the machine.
+        services.AddScoped<IDeliveryService, DeliveryService>();
     }
 }

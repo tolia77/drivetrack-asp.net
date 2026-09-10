@@ -24,6 +24,15 @@ public enum NavDestination
 
     /// <summary>The dispatcher roster (FR-49).</summary>
     Dispatchers,
+
+    /// <summary>The dispatch board: every delivery, offered to a dispatcher or an admin (FR-18).</summary>
+    Deliveries,
+
+    /// <summary>
+    /// The caller's own deliveries (FR-25). A personal destination, like the profile: it shows
+    /// whatever the caller's own scope narrows to rather than a roster somebody administers.
+    /// </summary>
+    MyDeliveries,
 }
 
 /// <summary>
@@ -49,6 +58,22 @@ internal static class NavDestinations
         new HashSet<NavDestination> { NavDestination.Home, NavDestination.Profile };
 
     /// <summary>
+    /// The personal destinations plus the caller's own deliveries, for the two roles that are a
+    /// party to one (FR-25, FR-27): a driver sees what they carry, a client sees what they
+    /// requested.
+    /// <para>
+    /// Not in <see cref="Personal"/>, and the distinction is the whole point of this table. A
+    /// dispatcher and an admin are party to no delivery, so their scope narrows nothing and the
+    /// screen would show them the whole board under a heading that says "mine" - which is why
+    /// <c>MyDeliveries.razor</c> carries <c>[Authorize(Roles = "Driver,Client")]</c> and would send
+    /// them to /access-denied. Offering a link that can only ever refuse is worse than not
+    /// offering it: this table decides what is worth showing, and that is not.
+    /// </para>
+    /// </summary>
+    private static readonly IReadOnlySet<NavDestination> Assigned =
+        new HashSet<NavDestination>(Personal) { NavDestination.MyDeliveries };
+
+    /// <summary>
     /// The personal destinations plus the fleet, for the two roles that run dispatch. FR-12 still
     /// holds: this decides what is worth showing, and <c>IAccessGuard</c> decides who may do it.
     /// <para>
@@ -57,8 +82,15 @@ internal static class NavDestinations
     /// drift this table exists to prevent.
     /// </para>
     /// </summary>
-    private static readonly IReadOnlySet<NavDestination> Fleet =
-        new HashSet<NavDestination>(Personal) { NavDestination.Drivers, NavDestination.Vehicles };
+    private static readonly IReadOnlySet<NavDestination> Fleet = new HashSet<NavDestination>(Personal)
+    {
+        NavDestination.Drivers,
+        NavDestination.Vehicles,
+
+        // FR-18's dispatch board sits in this tier rather than the personal one: it shows every
+        // delivery in the system, which is a thing to run rather than a thing to own.
+        NavDestination.Deliveries,
+    };
 
     /// <summary>
     /// What a dispatcher is offered: the fleet, plus FR-48's client roster, which they open to
@@ -91,8 +123,8 @@ internal static class NavDestinations
     {
         UserRole.Admin => Administrator,
         UserRole.Dispatcher => Dispatcher,
-        UserRole.Driver => Personal,
-        UserRole.Client => Personal,
+        UserRole.Driver => Assigned,
+        UserRole.Client => Assigned,
 
         // Total, like LandingRoute: a fifth role added without a navigation decision fails loudly
         // here rather than silently rendering a menu with nothing in it.
