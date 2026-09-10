@@ -21,7 +21,6 @@ namespace DriveTrack.Integration.Tests.Design;
 /// the other half of why it cannot be asserted from source.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class ThemeDeliveryTests(PostgresFixture postgres)
 {
     private static readonly Regex StylesheetHref = new(

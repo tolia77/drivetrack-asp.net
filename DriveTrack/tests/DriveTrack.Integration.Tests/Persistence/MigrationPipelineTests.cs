@@ -12,7 +12,6 @@ namespace DriveTrack.Integration.Tests.Persistence;
 /// is a no-op, and an unreachable database fails loudly instead of pretending the schema is
 /// there.
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class MigrationPipelineTests(PostgresFixture postgres)
 {
     /// <summary>A port nothing listens on, used to prove the migrator does not swallow failures.</summary>

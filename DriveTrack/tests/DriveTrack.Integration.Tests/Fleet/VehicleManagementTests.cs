@@ -21,7 +21,6 @@ namespace DriveTrack.Integration.Tests.Fleet;
 /// "refused".
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class VehicleManagementTests(PostgresFixture postgres)
 {
     [Fact]

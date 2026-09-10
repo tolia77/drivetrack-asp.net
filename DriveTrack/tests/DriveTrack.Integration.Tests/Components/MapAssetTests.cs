@@ -120,7 +120,6 @@ public class MapAssetTests
 /// <c>ThemeDeliveryTests</c> exists to close for the compiled theme.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class MapAssetDeliveryTests(PostgresFixture postgres)
 {
     [Theory]

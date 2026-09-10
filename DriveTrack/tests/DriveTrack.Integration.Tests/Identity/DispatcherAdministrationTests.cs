@@ -20,7 +20,6 @@ namespace DriveTrack.Integration.Tests.Identity;
 /// what <c>Optional&lt;T&gt;</c> exists for.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class DispatcherAdministrationTests(PostgresFixture postgres)
 {
     [Fact]

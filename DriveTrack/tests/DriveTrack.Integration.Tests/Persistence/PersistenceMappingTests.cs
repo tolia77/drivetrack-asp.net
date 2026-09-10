@@ -9,7 +9,6 @@ namespace DriveTrack.Integration.Tests.Persistence;
 /// AD-13, AD-21 and AD-22 fix, read back out of <c>information_schema</c> and out of the raw
 /// column values rather than out of the model that produced them.
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class PersistenceMappingTests(PostgresFixture postgres)
 {
     /// <summary>Every table the domain model is supposed to produce, in plural snake_case.</summary>

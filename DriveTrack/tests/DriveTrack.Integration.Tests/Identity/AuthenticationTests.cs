@@ -30,7 +30,6 @@ namespace DriveTrack.Integration.Tests.Identity;
 /// the decision.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class AuthenticationTests(PostgresFixture postgres)
 {
     private const string Password = "Passw0rd-Test";

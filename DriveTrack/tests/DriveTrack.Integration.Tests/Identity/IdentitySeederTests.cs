@@ -14,7 +14,6 @@ namespace DriveTrack.Integration.Tests.Identity;
 /// failure only appears on a restart, which is the run nobody does while developing.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class IdentitySeederTests(PostgresFixture postgres)
 {
     [Fact]

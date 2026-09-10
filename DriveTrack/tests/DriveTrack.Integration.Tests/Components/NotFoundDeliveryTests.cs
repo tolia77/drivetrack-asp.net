@@ -14,7 +14,6 @@ namespace DriveTrack.Integration.Tests.Components;
 /// exactly what the baseline shipped and exactly what no source scan notices.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class NotFoundDeliveryTests(PostgresFixture postgres)
 {
     [Fact]

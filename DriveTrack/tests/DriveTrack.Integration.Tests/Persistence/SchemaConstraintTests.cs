@@ -19,7 +19,6 @@ namespace DriveTrack.Integration.Tests.Persistence;
 /// by a second request running the same check at the same moment; a constraint is not.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class SchemaConstraintTests(PostgresFixture postgres)
 {
     private const string UniqueViolation = "23505";

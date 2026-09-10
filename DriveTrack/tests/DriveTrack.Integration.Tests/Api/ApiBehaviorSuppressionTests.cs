@@ -18,7 +18,6 @@ namespace DriveTrack.Integration.Tests.Api;
 /// response body and nothing else. A direct assertion on the flag says which line to fix.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class ApiBehaviorSuppressionTests(PostgresFixture postgres)
 {
     [Fact]

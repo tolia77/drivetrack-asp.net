@@ -20,7 +20,6 @@ namespace DriveTrack.Integration.Tests.Localization;
 /// selected by a header nobody decided to honour.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class LocalizationTests(PostgresFixture postgres)
 {
     private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");

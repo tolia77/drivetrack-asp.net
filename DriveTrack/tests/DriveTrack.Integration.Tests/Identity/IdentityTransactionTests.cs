@@ -17,7 +17,6 @@ namespace DriveTrack.Integration.Tests.Identity;
 /// so disposing the scope without committing leaves nothing behind.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class IdentityTransactionTests(PostgresFixture postgres)
 {
     private const string Password = "Passw0rd-Test";

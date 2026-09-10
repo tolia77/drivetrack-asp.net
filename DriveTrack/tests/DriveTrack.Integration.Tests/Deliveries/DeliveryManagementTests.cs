@@ -21,7 +21,6 @@ namespace DriveTrack.Integration.Tests.Deliveries;
 /// claims, and the second is the one the requirements make.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class DeliveryManagementTests(PostgresFixture postgres)
 {
     // =====================================================================================

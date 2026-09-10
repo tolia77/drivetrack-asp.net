@@ -17,7 +17,6 @@ namespace DriveTrack.Integration.Tests.Persistence;
 /// not a missing <c>if</c>, so what has to be asserted is what the database does unaided.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class DeleteBehaviourTests(PostgresFixture postgres)
 {
     [Fact]

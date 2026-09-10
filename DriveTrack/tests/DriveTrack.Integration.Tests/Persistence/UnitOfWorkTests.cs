@@ -14,7 +14,6 @@ namespace DriveTrack.Integration.Tests.Persistence;
 /// operation does not finish. The scope is the only thing standing between a multi-step write
 /// and a half-applied one, so it is asserted against a real database rather than a fake.
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class UnitOfWorkTests(PostgresFixture postgres)
 {
     [Fact]

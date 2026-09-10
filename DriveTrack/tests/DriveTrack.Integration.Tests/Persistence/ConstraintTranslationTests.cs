@@ -20,7 +20,6 @@ namespace DriveTrack.Integration.Tests.Persistence;
 /// failure carrying a contract code.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class ConstraintTranslationTests(PostgresFixture postgres)
 {
     /// <summary>The only file under <c>src/</c> permitted to name <c>PostgresException</c>.</summary>

@@ -19,7 +19,6 @@ namespace DriveTrack.Integration.Tests.Identity;
 /// can assert from C#.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class ClientAdministrationTests(PostgresFixture postgres)
 {
     [Fact]

@@ -14,7 +14,6 @@ namespace DriveTrack.Integration.Tests.Persistence;
 /// still letting the one removal DR-9 declares run.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class TimelineAppendOnlyTests(PostgresFixture postgres)
 {
     private const string CheckViolation = "23514";

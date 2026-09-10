@@ -17,7 +17,6 @@ namespace DriveTrack.Integration.Tests.Fleet;
 /// what the database holds afterwards.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class DriverManagementTests(PostgresFixture postgres)
 {
     [Fact]

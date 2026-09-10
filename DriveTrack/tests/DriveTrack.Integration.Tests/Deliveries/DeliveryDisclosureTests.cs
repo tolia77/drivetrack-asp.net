@@ -19,7 +19,6 @@ namespace DriveTrack.Integration.Tests.Deliveries;
 /// searched for names that must not be in it.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class DeliveryDisclosureTests(PostgresFixture postgres)
 {
     [Fact]

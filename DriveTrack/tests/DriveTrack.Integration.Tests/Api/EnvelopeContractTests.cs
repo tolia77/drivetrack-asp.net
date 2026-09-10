@@ -16,7 +16,6 @@ namespace DriveTrack.Integration.Tests.Api;
 /// only kind that survives eight more epics of new controllers.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class EnvelopeContractTests(PostgresFixture postgres)
 {
     [Fact]

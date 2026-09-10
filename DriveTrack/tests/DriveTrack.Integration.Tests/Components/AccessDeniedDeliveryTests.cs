@@ -14,7 +14,6 @@ namespace DriveTrack.Integration.Tests.Components;
 /// page is refused for the same reason the caller was sent here, and the redirect loops.
 /// </para>
 /// </summary>
-[Collection(nameof(PostgresCollection))]
 public class AccessDeniedDeliveryTests(PostgresFixture postgres)
 {
     [Fact]
