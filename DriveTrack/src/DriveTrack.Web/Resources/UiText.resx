@@ -361,4 +361,115 @@
   <data name="ListTruncated" xml:space="preserve">
     <value>Показано лише першу сторінку: у парку може бути більше автомобілів, ніж вміщує цей список.</value>
   </data>
+  <!-- Story 5.1: the dispatch board, the own-deliveries screen and their navigation entries. -->
+  <data name="NavDeliveries" xml:space="preserve">
+    <value>Доставки</value>
+  </data>
+  <data name="NavMyDeliveries" xml:space="preserve">
+    <value>Мої доставки</value>
+  </data>
+  <data name="DeliveriesTitle" xml:space="preserve">
+    <value>Доставки</value>
+  </data>
+  <data name="MyDeliveriesTitle" xml:space="preserve">
+    <value>Мої доставки</value>
+  </data>
+  <data name="DeliveriesEmpty" xml:space="preserve">
+    <value>Ще немає жодної доставки.</value>
+  </data>
+  <data name="MyDeliveriesEmpty" xml:space="preserve">
+    <value>Вам ще не призначено жодної доставки.</value>
+  </data>
+  <data name="DeliveriesTruncated" xml:space="preserve">
+    <value>Показано лише першу сторінку: доставок може бути більше, ніж вміщує цей список.</value>
+  </data>
+  <data name="DeliveryForm" xml:space="preserve">
+    <value>Картка доставки</value>
+  </data>
+  <data name="Driver" xml:space="preserve">
+    <value>Водій</value>
+  </data>
+  <data name="Client" xml:space="preserve">
+    <value>Замовник</value>
+  </data>
+  <data name="NoDriver" xml:space="preserve">
+    <value>Без водія</value>
+  </data>
+  <data name="NoClient" xml:space="preserve">
+    <value>Без замовника</value>
+  </data>
+  <data name="Pickup" xml:space="preserve">
+    <value>Місце забирання</value>
+  </data>
+  <data name="Dropoff" xml:space="preserve">
+    <value>Місце доставляння</value>
+  </data>
+  <data name="PackageDetails" xml:space="preserve">
+    <value>Опис вантажу</value>
+  </data>
+  <data name="PackageWeightKg" xml:space="preserve">
+    <value>Вага вантажу, кг</value>
+  </data>
+  <data name="DeliveryNotes" xml:space="preserve">
+    <value>Примітки</value>
+  </data>
+  <data name="WindowEarliestAt" xml:space="preserve">
+    <value>Прибути не раніше</value>
+  </data>
+  <data name="WindowLatestAt" xml:space="preserve">
+    <value>Прибути не пізніше</value>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>Стан</value>
+  </data>
+  <!-- FR-30's four statuses. Labels only: the stored and transmitted value is the member name
+       (AD-21), and these never travel anywhere but a screen. -->
+  <data name="StatusPending" xml:space="preserve">
+    <value>Очікує</value>
+  </data>
+  <data name="StatusInTransit" xml:space="preserve">
+    <value>У дорозі</value>
+  </data>
+  <data name="StatusDelivered" xml:space="preserve">
+    <value>Доставлено</value>
+  </data>
+  <data name="StatusFailed" xml:space="preserve">
+    <value>Не вручено</value>
+  </data>
+  <data name="CreatedAt" xml:space="preserve">
+    <value>Створено</value>
+  </data>
+  <data name="CreatedFrom" xml:space="preserve">
+    <value>Створено від</value>
+  </data>
+  <data name="CreatedTo" xml:space="preserve">
+    <value>Створено до</value>
+  </data>
+  <!-- FR-19: derived from the window and the current time, never stored as a status. -->
+  <data name="Overdue" xml:space="preserve">
+    <value>Прострочено</value>
+  </data>
+  <data name="OverdueOnly" xml:space="preserve">
+    <value>Лише прострочені</value>
+  </data>
+  <data name="FilterAll" xml:space="preserve">
+    <value>Усі</value>
+  </data>
+  <data name="ResetFilters" xml:space="preserve">
+    <value>Скинути фільтри</value>
+  </data>
+  <data name="LocationTitle" xml:space="preserve">
+    <value>Розташування на мапі</value>
+  </data>
+  <data name="DeleteDeliveryTitle" xml:space="preserve">
+    <value>Видалити доставку?</value>
+  </data>
+  <data name="DeleteDeliveryMessage" xml:space="preserve">
+    <value>Доставку буде видалено разом з її історією, підтвердженням вручення та відгуком. Дію не можна скасувати.</value>
+  </data>
+  <!-- FR-103's second figure: the envelope carries one message per code, so the capacity the
+       dispatcher is about to exceed is shown beside the weight instead. -->
+  <data name="VehicleCapacityHint" xml:space="preserve">
+    <value>Вантажопідйомність автомобіля обраного водія, кг:</value>
+  </data>
 </root>

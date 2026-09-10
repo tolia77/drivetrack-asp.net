@@ -185,9 +185,106 @@ public class AccessGuardTests
         Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
     }
 
+    // =====================================================================================
+    // RequireScope (story 5.1)
+    //
+    // AD-3's scope predicate, tested here for the reason the other two members are: an endpoint
+    // test would assert the pipeline as much as the rule, and this rule is what stops a driver
+    // reading somebody else's deliveries.
+    // =====================================================================================
+
+    [Fact]
+    public void An_anonymous_caller_asking_for_a_scope_is_unauthenticated_not_forbidden()
+    {
+        // 401, not 403, exactly as the other two members answer it: an expired cookie on a live
+        // circuit is a caller with no credentials left, and FR-13 branches on this single code.
+        var guard = new AccessGuard(new StubCurrentUser());
+
+        var failure = Assert.Throws<ForbiddenException>(() => _ = guard.RequireScope());
+
+        Assert.Equal(ErrorCode.AUTH_UNAUTHENTICATED, failure.Code);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Dispatcher)]
+    public void A_caller_who_runs_dispatch_is_unrestricted(UserRole role)
+    {
+        // AD-4 for the admin, and FR-18 for the dispatcher: the delivery board exists for them, so
+        // the predicate narrows nothing and the repository sees no WHERE.
+        var guard = new AccessGuard(new StubCurrentUser(Target, role));
+
+        var scope = guard.RequireScope();
+
+        Assert.Null(scope.DriverId);
+        Assert.Null(scope.ClientId);
+    }
+
+    [Fact]
+    public void A_driver_is_narrowed_to_their_own_driver_row_and_to_nothing_else()
+    {
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        var scope = guard.RequireScope();
+
+        Assert.Equal(new DriverId(4), scope.DriverId);
+
+        // The other half, and the half a single-field assertion would miss: a driver's scope must
+        // not also carry a client id, or the repository would add a second WHERE and answer an
+        // empty page for every driver.
+        Assert.Null(scope.ClientId);
+    }
+
+    [Fact]
+    public void A_client_is_narrowed_to_their_own_client_row_and_to_nothing_else()
+    {
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Client, clientId: new ClientId(9)));
+
+        var scope = guard.RequireScope();
+
+        Assert.Equal(new ClientId(9), scope.ClientId);
+        Assert.Null(scope.DriverId);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Driver)]
+    [InlineData(UserRole.Client)]
+    public void A_caller_whose_row_id_is_missing_is_forbidden_rather_than_widened(UserRole role)
+    {
+        // The failure worth pinning, because the plausible-looking alternative is a disclosure: a
+        // driver whose claims carry no driver row id cannot be narrowed, and the only other answer
+        // available - unrestricted - would hand them every delivery in the system on the strength
+        // of a missing claim.
+        var guard = new AccessGuard(new StubCurrentUser(Target, role));
+
+        var failure = Assert.Throws<ForbiddenException>(() => _ = guard.RequireScope());
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
+    }
+
+    [Fact]
+    public void A_driver_holding_a_client_id_is_still_scoped_by_their_driver_row()
+    {
+        // AD-4 gives an account one role, so this state should not arise - but the two claims are
+        // separate, and a guard that read whichever it found first would scope a driver by a
+        // client id and show them the wrong rows. The role decides which claim is the scope.
+        var guard = new AccessGuard(new StubCurrentUser(
+            Target,
+            UserRole.Driver,
+            driverId: new DriverId(4),
+            clientId: new ClientId(9)));
+
+        var scope = guard.RequireScope();
+
+        Assert.Equal(new DriverId(4), scope.DriverId);
+        Assert.Null(scope.ClientId);
+    }
+
     /// <summary>
     /// A caller with no adapter behind it. The guard depends on the port, not on a
-    /// <c>ClaimsPrincipal</c>, which is what makes these five tests possible without a host.
+    /// <c>ClaimsPrincipal</c>, which is what makes these tests possible without a host.
     /// </summary>
     private sealed class StubCurrentUser : ICurrentUser
     {

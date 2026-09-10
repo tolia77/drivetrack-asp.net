@@ -71,4 +71,7 @@ public enum IconName
 
     /// <summary>The vehicle fleet (FR-40).</summary>
     Vehicles,
+
+    /// <summary>Deliveries: the parcel that is the product's central record (FR-18, FR-25).</summary>
+    Deliveries,
 }

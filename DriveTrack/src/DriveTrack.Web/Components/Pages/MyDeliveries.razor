@@ -1,0 +1,163 @@
+@page "/my-deliveries"
+@* FR-25, FR-27, FR-96: what a driver is carrying, and what a client asked for.
+
+   Read-only by construction rather than by omission. There is no create action, no edit dialog and
+   no delete prompt, because neither role has an operation on a delivery in this story - a driver's
+   status change is story 5.3's single write path, and a client's request is epic 8's.
+
+   The rows are AssignedDeliverySummary, which has no driver and no client field at all. That is
+   what makes FR-27 and FR-96 structural: a counterparty's name cannot reach this page through a
+   mapping mistake, because there is nowhere on the type to put one (AD-17).
+
+   The Roles argument routes a wrong role to /access-denied (FR-79). It is a convenience, not the
+   decision: IAccessGuard.RequireScope inside IDeliveryService is what narrows the rows, and it runs
+   whether or not this screen was ever rendered. *@
+@attribute [Authorize(Roles = "Driver,Client")]
+@* Named for what it answers rather than for the capability: a member called `Deliveries` here would
+   shadow the dispatch screen's own component type in this namespace. *@
+@inject IDeliveryService Mine
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+@implements IDisposable
+
+<PageTitle>@Localizer["MyDeliveriesTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.Deliveries" />@Localizer["MyDeliveriesTitle"]
+</h1>
+
+@if (IsTruncated)
+{
+    <div class="alert alert-warning" role="status">@Localizer["DeliveriesTruncated"]</div>
+}
+
+<DtDataTable TItem="AssignedDeliverySummary"
+             Items="_deliveries"
+             IsLoading="_loading"
+             EmptyText="@Localizer["MyDeliveriesEmpty"]">
+    <HeaderTemplate>
+        <th scope="col">@Localizer["Pickup"]</th>
+        <th scope="col">@Localizer["Dropoff"]</th>
+        <th scope="col">@Localizer["PackageDetails"]</th>
+        <th scope="col">@Localizer["PackageWeightKg"]</th>
+        <th scope="col">@Localizer["DeliveryNotes"]</th>
+        <th scope="col">@Localizer["WindowLatestAt"]</th>
+        <th scope="col">@Localizer["Status"]</th>
+        <th scope="col">@Localizer["Overdue"]</th>
+    </HeaderTemplate>
+    <RowTemplate Context="delivery">
+        @* FR-94: the address when one has been resolved, the coordinates when none has. Nothing on
+           this screen resolves one - that is story 5.2's port - and an empty cell would be the
+           whole location missing rather than only its name. *@
+        <td>@Describe(delivery.Pickup)</td>
+        <td>@Describe(delivery.Dropoff)</td>
+        <td>@delivery.PackageDetails</td>
+        <td>@delivery.PackageWeightKg</td>
+        <td>@delivery.DeliveryNotes</td>
+        <td>@Window(delivery)</td>
+        <td>
+            @* Independent @@if blocks, one literal localizer key apiece: a label composed at run
+               time is a key the closed-catalogue test cannot see, and an `else` at markup level
+               reads to NFR-14's scan as a rendered English word. *@
+            @if (delivery.Status == DeliveryStatus.Pending)
+            {
+                <span>@Localizer["StatusPending"]</span>
+            }
+            @if (delivery.Status == DeliveryStatus.InTransit)
+            {
+                <span>@Localizer["StatusInTransit"]</span>
+            }
+            @if (delivery.Status == DeliveryStatus.Delivered)
+            {
+                <span>@Localizer["StatusDelivered"]</span>
+            }
+            @if (delivery.Status == DeliveryStatus.Failed)
+            {
+                <span>@Localizer["StatusFailed"]</span>
+            }
+        </td>
+        <td>
+            @if (delivery.IsOverdue)
+            {
+                <span class="badge text-bg-danger">@Localizer["Overdue"]</span>
+            }
+        </td>
+    </RowTemplate>
+</DtDataTable>
+
+@code {
+    // The screen's own lifetime. A driver who navigates away mid-load leaves a query running
+    // against a pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private IReadOnlyList<AssignedDeliverySummary> _deliveries = [];
+    private bool _loading = true;
+
+    /// <summary>
+    /// True when the page came back full. The query returns no total (PRD section 8 excludes one),
+    /// so "there may be more" is the honest claim rather than a count.
+    /// </summary>
+    private bool IsTruncated => _deliveries.Count >= ListDeliveriesQueryValidator.MaximumLimit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen calls a service. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        await LoadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        StateHasChanged();
+
+        try
+        {
+            // The caller says nothing about whose rows it wants: the narrowing comes from the
+            // guard's scope and reaches the SQL, so the first page really is the first page of
+            // this caller's deliveries rather than the first page of everyone's, filtered.
+            _deliveries = await Mine.ListMineAsync(
+                new ListDeliveriesQuery(0, ListDeliveriesQueryValidator.MaximumLimit),
+                _cancellation.Token);
+        }
+        finally
+        {
+            // In a finally so a refused or failed read leaves the table in its empty state rather
+            // than spinning forever, which reads to a user as a hung screen.
+            _loading = false;
+        }
+    }
+
+    /// <summary>The location as the cell shows it, shared with the dispatch board (FR-94).</summary>
+    private static string Describe(LocationView location) => LocationText.Describe(location);
+
+    /// <summary>
+    /// The latest acceptable arrival in local time, or nothing when the delivery carries no window.
+    /// Routed through a method rather than formatted in markup: NFR-14's scan strips a Razor
+    /// expression only up to its first closing bracket.
+    /// </summary>
+    /// <remarks>
+    /// Local is the server's configured zone, as it is on the dispatch board: the shell renders
+    /// interactively on the server, so <c>ToLocalTime</c> resolves against the host.
+    /// </remarks>
+    private static string Window(AssignedDeliverySummary delivery) =>
+        delivery.WindowLatestAt is { } latest
+            ? latest.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)
+            : string.Empty;
+}

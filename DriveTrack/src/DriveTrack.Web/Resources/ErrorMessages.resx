@@ -114,4 +114,13 @@
   <data name="FLEET_LICENSE_PLATE_IN_USE" xml:space="preserve">
     <value>Автомобіль із таким номерним знаком уже є у парку.</value>
   </data>
+  <data name="DELIVERY_DRIVER_NOT_FOUND" xml:space="preserve">
+    <value>Такого водія не існує. Оберіть іншого водія.</value>
+  </data>
+  <data name="DELIVERY_CLIENT_NOT_FOUND" xml:space="preserve">
+    <value>Такого замовника не існує. Оберіть іншого замовника.</value>
+  </data>
+  <data name="DELIVERY_EXCEEDS_VEHICLE_CAPACITY" xml:space="preserve">
+    <value>Вага вантажу перевищує вантажопідйомність автомобіля водія.</value>
+  </data>
 </root>

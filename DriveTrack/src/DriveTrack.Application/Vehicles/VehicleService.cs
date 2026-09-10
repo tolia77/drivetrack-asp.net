@@ -2,6 +2,7 @@ using System.Globalization;
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Application.Authorization;
 using DriveTrack.Application.Common;
+using DriveTrack.Application.Deliveries;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Domain.Vehicles;
 using FluentValidation;
@@ -140,6 +141,23 @@ public sealed class VehicleService(
         var plate = NormalizePlate(merged.LicensePlate.Value!);
 
         await RefuseDuplicatePlateAsync(unitOfWork, plate, keeping: vehicle.Id, cancellationToken);
+
+        // FR-103's third mover, and the one that is easiest to miss: the invariant is usually
+        // broken by changing the delivery or by handing the driver another vehicle, but lowering
+        // the capacity of the vehicle they already hold reaches the same forbidden state without
+        // either row being touched. The rule is the Deliveries capability's (AD-24), so this asks
+        // rather than restates it, and it runs inside this scope so a refusal rolls the whole edit
+        // back. Only when the figure actually changed: re-submitting an unchanged form is the
+        // ordinary case, and a query per save would be a cost for nothing.
+        if (merged.CapacityKg.Value != vehicle.CapacityKg
+            && await unitOfWork.Vehicles.FindHolderAsync(vehicle.Id, cancellationToken) is { } holder)
+        {
+            await DeliveryCapacity.EnsureDriverStillFitsAsync(
+                unitOfWork,
+                holder,
+                merged.CapacityKg.Value,
+                cancellationToken);
+        }
 
         vehicle.Model = merged.Model.Value!.Trim();
         vehicle.LicensePlate = plate;

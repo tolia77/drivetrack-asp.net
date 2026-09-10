@@ -259,17 +259,24 @@ public class AdministrationScreenTests
     }
 
     [Fact]
-    public void The_guard_still_has_exactly_the_two_decisions_the_system_makes()
+    public void The_guard_still_has_exactly_the_decisions_the_system_makes()
     {
         // NFR-6, and the readability half of the acceptance criterion: a reviewer asking "who may do
-        // what" has two methods to read, not a scattering of attributes.
+        // what" has these methods to read, not a scattering of attributes.
+        //
+        // The list is a pin rather than a limit, and story 5.1 moves it deliberately. AD-3 promised
+        // a scope predicate and IAccessGuard's own documentation said it would arrive "with the
+        // first capability that has a caller for it"; deliveries are that caller, because a driver
+        // seeing only their own rows is an authorization decision and a repository Where written
+        // inside a service would be a second place authorization lived. Adding a fourth member has
+        // to be an edit to this line for the same reason adding the third was.
         var members = typeof(IAccessGuard)
             .GetMethods()
             .Select(method => method.Name)
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["RequireRole", "RequireSelf"], members);
+        Assert.Equal(["RequireRole", "RequireScope", "RequireSelf"], members);
     }
 
     private static string WithoutComments(string source) =>

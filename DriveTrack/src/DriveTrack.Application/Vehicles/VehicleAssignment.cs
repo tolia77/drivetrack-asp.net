@@ -1,5 +1,6 @@
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Application.Common;
+using DriveTrack.Application.Deliveries;
 using DriveTrack.Domain.Drivers;
 
 namespace DriveTrack.Application.Vehicles;
@@ -36,6 +37,10 @@ internal static class VehicleAssignment
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="NotFoundException">No vehicle has that id.</exception>
     /// <exception cref="ConflictException">Another driver already holds that vehicle (FR-44).</exception>
+    /// <exception cref="DomainRuleException">
+    /// An active delivery already assigned to this driver is heavier than the vehicle they are
+    /// about to hold (FR-103). The refusal is the Deliveries capability's, asked for here.
+    /// </exception>
     public static async Task ApplyAsync(
         IUnitOfWork unitOfWork,
         Driver driver,
@@ -47,6 +52,9 @@ internal static class VehicleAssignment
 
         if (vehicleId is null)
         {
+            // FR-38's clear, and the arm FR-103 deliberately does not police: a driver holding no
+            // vehicle takes no capacity check, so unassignment returns before the check below
+            // rather than being refused for a delivery the driver is still carrying.
             driver.VehicleId = null;
 
             // The navigation as well as the key: the driver was loaded with its vehicle, and
@@ -77,6 +85,17 @@ internal static class VehicleAssignment
                     + " is already held by driver "
                     + existing.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".");
         }
+
+        // FR-103's fleet-side arm. The invariant is the Deliveries capability's - it is about
+        // deliveries, and AD-24 keeps a rule with the data it is about - so this asks rather than
+        // restates it: a second copy of "does the load still fit" here would be a second rule the
+        // first time either was edited. It runs inside the caller's scope, so a refusal rolls the
+        // whole driver update back rather than leaving a reassignment half-applied.
+        await DeliveryCapacity.EnsureDriverStillFitsAsync(
+            unitOfWork,
+            driver.Id,
+            vehicle.CapacityKg,
+            cancellationToken);
 
         driver.VehicleId = vehicle.Id;
         driver.Vehicle = vehicle;

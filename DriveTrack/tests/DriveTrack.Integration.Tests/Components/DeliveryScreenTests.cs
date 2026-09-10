@@ -1,0 +1,825 @@
+using System.Text.RegularExpressions;
+using DriveTrack.Application.Authorization;
+using DriveTrack.Application.Common;
+using DriveTrack.Application.Deliveries;
+using DriveTrack.Application.Drivers;
+using DriveTrack.Application.Users;
+using DriveTrack.Application.Vehicles;
+using DriveTrack.Domain.Deliveries;
+using DriveTrack.Domain.Identity;
+using DriveTrack.Integration.Tests.Support;
+using Microsoft.Extensions.DependencyInjection;
+using DeliveryColumn = DriveTrack.Web.Components.Pages.Deliveries.DeliveryColumn;
+using DeliveryFilter = DriveTrack.Web.Components.Pages.Deliveries.DeliveryFilter;
+
+namespace DriveTrack.Integration.Tests.Components;
+
+/// <summary>
+/// What the two delivery screens actually render, with the capabilities stubbed.
+/// <para>
+/// A source scan cannot make these claims. "The dispatch board offers a create action and the
+/// own-deliveries screen does not" and "a location with no address shows its coordinates" are
+/// properties of the output, and the files contain all the same words whether they hold or not.
+/// </para>
+/// <para>
+/// Rendering is static — <see cref="ComponentRenderer"/> never reaches <c>OnAfterRenderAsync</c> and
+/// dispatches no events — so the sort and filter rules cannot be driven through the markup. Both
+/// are therefore lifted out of the component as <c>internal static</c> members and asserted
+/// directly, which is what makes them regressions rather than comments.
+/// </para>
+/// </summary>
+public class DeliveryScreenTests
+{
+    private static readonly DateTimeOffset Noon = new(2026, 9, 7, 12, 0, 0, TimeSpan.Zero);
+
+    private static readonly Regex HeaderCell = new(
+        @"<th\b[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    private static readonly Regex Label = new(
+        @"<label\b[^>]*>(?<body>.*?)</label>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    // =====================================================================================
+    // What each screen renders
+    // =====================================================================================
+
+    [Fact]
+    public async Task The_dispatch_board_renders_its_rows_through_the_shared_table()
+    {
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        // FR-82: the shared table, not a second one built beside it.
+        Assert.Contains("dt-table-scroll", html, StringComparison.Ordinal);
+        Assert.Contains("table-striped", html, StringComparison.Ordinal);
+
+        // <h1> rather than <h2>: `FocusOnNavigate Selector="h1"` in Routes.razor looks for one, and
+        // on a page without it a keyboard user keeps the focus the previous screen had.
+        Assert.Contains("<h1", html, StringComparison.Ordinal);
+
+        // Both parties named, which costs a second read the mapping has to make (Delivery has no
+        // navigation to either), and the unassigned row saying so rather than rendering an empty
+        // cell.
+        Assert.Contains("Шевченко", html, StringComparison.Ordinal);
+        Assert.Contains("Петренко", html, StringComparison.Ordinal);
+        Assert.Contains("Без водія", html, StringComparison.Ordinal);
+        Assert.Contains("Без замовника", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_location_with_no_resolved_address_shows_its_coordinates()
+    {
+        // FR-94, and the reason this story can ship before the geocoder does: every location it
+        // stores has a null address, so a screen that rendered the address alone would show a
+        // column of empty cells and nothing would say why.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        Assert.Contains("50.4501; 30.5234", html, StringComparison.Ordinal);
+
+        // And the other arm: once story 5.2 fills the cache, the address is what is shown.
+        Assert.Contains("Львів, площа Ринок", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_dispatch_board_offers_a_create_action_and_the_own_deliveries_screen_does_not()
+    {
+        // The distinction the two screens exist to make. Neither a driver nor a client has any
+        // operation on a delivery in this story - a status change is 5.3's single write path, and a
+        // client's request is epic 8's - so an action offered there could only ever be refused.
+        var dispatch = await RenderDeliveriesAsync(UserRole.Dispatcher);
+        var mine = await RenderMyDeliveriesAsync();
+
+        Assert.Contains("btn btn-success", dispatch, StringComparison.Ordinal);
+        Assert.Contains("Створити", dispatch, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("btn btn-success", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("Створити", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("<dialog", mine, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Only_an_administrator_is_offered_the_deletion_prompt()
+    {
+        // FR-24 reserves deletion to an admin, and IAccessGuard refuses a dispatcher who asks. FR-12
+        // is unchanged by this: the markup hides, the guard decides.
+        var admin = await RenderDeliveriesAsync(UserRole.Admin);
+        var dispatcher = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        Assert.Contains("dt-delivery-delete", admin, StringComparison.Ordinal);
+        Assert.Contains("dt-confirm-accept", admin, StringComparison.Ordinal);
+
+        // NFR-19: the prompt is the native element with the ARIA trio written out.
+        Assert.Contains(@"aria-modal=""true""", admin, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("dt-delivery-delete", dispatcher, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-confirm-accept", dispatcher, StringComparison.Ordinal);
+
+        // The edit action is a dispatcher's as much as an admin's, so hiding the delete must not
+        // have hidden the row's other action with it.
+        Assert.Contains("dt-delivery-edit", dispatcher, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_form_embeds_two_pickers_and_a_location_cell_opens_a_third_map()
+    {
+        // NFR-26 / FR-15 / FR-21: one map component, two jobs. Two pickers are rendered with the
+        // form; the read-only one is built when a cell is clicked, which static rendering cannot
+        // do - so what is asserted here is that the cell is an action rather than a dead label.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        Assert.Equal(2, SharedMarkup.Occurrences(html, @"class=""dt-map"""));
+        Assert.Contains("dt-delivery-pickup", html, StringComparison.Ordinal);
+        Assert.Contains("dt-delivery-dropoff", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_form_shows_the_capacity_the_dispatcher_is_about_to_exceed()
+    {
+        // FR-103 says the rejection names both figures, and NFR-3 gives the envelope one message
+        // per code - so the capacity reaches the dispatcher here, beside the weight input, at the
+        // moment they could exceed it.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        Assert.Contains("Вантажопідйомність автомобіля обраного водія", html, StringComparison.Ordinal);
+        Assert.Contains(@"id=""delivery-weight""", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_capacity_hint_reads_the_vehicle_the_selected_driver_holds()
+    {
+        // The other half of the assertion above, and the half the render cannot make: static
+        // rendering dispatches no events, so the form has no driver selected and the hint is a dash
+        // in that test whatever the lookup does. Keying the lookup on the wrong id, or dropping the
+        // fleet fetch that feeds it, would leave the hint a dash for every driver and change
+        // nothing above - so the number is checked here instead.
+        var drivers = new[]
+        {
+            new DriverSummary(
+                new DriverId(1),
+                new UserId(10),
+                "Тарас",
+                "Шевченко",
+                "taras@drivetrack.test",
+                "ВІ123456",
+                5,
+                "Рено Мастер",
+                "АА1234ВВ"),
+            new DriverSummary(
+                new DriverId(2),
+                new UserId(11),
+                "Іван",
+                "Коваль",
+                "ivan@drivetrack.test",
+                "ВІ654321",
+                VehicleId: null,
+                VehicleModel: null,
+                VehicleLicensePlate: null),
+        };
+
+        var vehicles = new[]
+        {
+            new VehicleSummary(5, "Рено Мастер", "АА1234ВВ", 1200m, 42_000, new DateOnly(2026, 12, 1)),
+        };
+
+        // The driver holding vehicle 5 shows that vehicle's capacity, not another's and not a dash.
+        Assert.Equal(1200m, Web.Components.Pages.Deliveries.CapacityOf(drivers, vehicles, driverId: 1));
+
+        // FR-38 makes a driver without a vehicle legal, and FR-103 leaves them unchecked: there is
+        // no figure to show, which is the one case the dash legitimately means.
+        Assert.Null(Web.Components.Pages.Deliveries.CapacityOf(drivers, vehicles, driverId: 2));
+
+        // No driver named yet, and a driver the page never fetched: neither invents a capacity.
+        Assert.Null(Web.Components.Pages.Deliveries.CapacityOf(drivers, vehicles, driverId: null));
+        Assert.Null(Web.Components.Pages.Deliveries.CapacityOf(drivers, vehicles, driverId: 99));
+
+        // The driver holds a vehicle that fell outside the page of fleet rows the form fetched.
+        Assert.Null(Web.Components.Pages.Deliveries.CapacityOf(drivers, [], driverId: 1));
+    }
+
+    [Fact]
+    public async Task The_dispatch_board_offers_every_filter_and_a_single_reset()
+    {
+        // FR-20 and FR-101: a filter per column, a creation-date range, and one action that clears
+        // all of them. A per-field clear would leave a dispatcher hunting for the box still
+        // narrowing the list.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        foreach (var id in new[]
+                 {
+                     "delivery-filter-driver",
+                     "delivery-filter-client",
+                     "delivery-filter-pickup",
+                     "delivery-filter-dropoff",
+                     "delivery-filter-details",
+                     "delivery-filter-notes",
+                     "delivery-filter-status",
+                     "delivery-filter-created-from",
+                     "delivery-filter-created-to",
+                     "delivery-filter-overdue",
+                 })
+        {
+            Assert.Contains($@"id=""{id}""", html, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("Скинути фільтри", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Each_column_heading_is_a_sort_control()
+    {
+        // DtDataTable renders whatever rows it is given and sorts nothing, so the control belongs
+        // to the consumer - and a heading that was only a label would leave FR-20 unimplemented
+        // while the table looked complete.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        var sortable = HeaderCell.Matches(html)
+            .Count(cell => cell.Groups["body"].Value.Contains("<button", StringComparison.Ordinal));
+
+        // Nine sortable columns and the actions column, which is not one.
+        Assert.Equal(9, sortable);
+
+        // And the reordering is perceivable: without aria-sort the rows rearrange silently, and a
+        // screen-reader user is given no way to tell which column did it. The board opens ordered
+        // by the creation date, so exactly one heading claims a direction and the rest claim none.
+        Assert.Equal(1, SharedMarkup.Occurrences(html, @"aria-sort=""ascending"""));
+        Assert.Equal(8, SharedMarkup.Occurrences(html, @"aria-sort=""none"""));
+    }
+
+    [Fact]
+    public void Each_heading_sorts_the_column_it_is_labelled_with()
+    {
+        // The join the two halves above leave open. Counting the buttons proves every column has a
+        // control and driving Sort directly proves every column has an ordering, but neither can
+        // tell whether the control on the "Driver" heading is wired to the driver column - swap two
+        // SortHandler arguments and the screen sorts by the wrong thing while both stay green.
+        //
+        // Read from source rather than from the render, because the wiring is what is under test:
+        // the rendered markup carries no trace of which column a click would sort by.
+        var page = SharedMarkup.ReadComponent("Pages", "Deliveries.razor");
+
+        var expected = new Dictionary<DeliveryColumn, string>
+        {
+            [DeliveryColumn.Driver] = "Driver",
+            [DeliveryColumn.Client] = "Client",
+            [DeliveryColumn.Pickup] = "Pickup",
+            [DeliveryColumn.Dropoff] = "Dropoff",
+            [DeliveryColumn.PackageDetails] = "PackageDetails",
+            [DeliveryColumn.DeliveryNotes] = "DeliveryNotes",
+            [DeliveryColumn.Status] = "Status",
+            [DeliveryColumn.CreatedAt] = "CreatedAt",
+            [DeliveryColumn.Overdue] = "Overdue",
+        };
+
+        // Every member, so a column added to the enum without a heading is caught here rather than
+        // shipping as a sort nobody can reach.
+        Assert.Equal(Enum.GetValues<DeliveryColumn>().Length, expected.Count);
+
+        var wired = new Dictionary<DeliveryColumn, string>();
+
+        foreach (Match cell in HeaderCell.Matches(page))
+        {
+            var body = cell.Groups["body"].Value;
+
+            var column = Regex.Match(
+                body,
+                @"SortHandler\(DeliveryColumn\.(?<name>[A-Za-z]+)\)",
+                RegexOptions.None,
+                TimeSpan.FromSeconds(5));
+
+            if (!column.Success)
+            {
+                continue;
+            }
+
+            var key = Regex.Match(
+                body,
+                @"Localizer\[""(?<key>[^""]+)""\]",
+                RegexOptions.None,
+                TimeSpan.FromSeconds(5));
+
+            Assert.True(key.Success, $"The '{column.Groups["name"].Value}' heading renders no label.");
+
+            wired[Enum.Parse<DeliveryColumn>(column.Groups["name"].Value)] = key.Groups["key"].Value;
+        }
+
+        Assert.Equal(expected, wired);
+    }
+
+    [Fact]
+    public async Task The_own_deliveries_screen_names_no_counterparty_and_says_so_when_empty()
+    {
+        // FR-27 and FR-96 at the component tier. The type this screen renders has no party field at
+        // all, so there is nothing to leak - and the empty state says what is empty rather than
+        // rendering the blank rectangle the baseline shipped (FR-84).
+        var html = await RenderMyDeliveriesAsync();
+
+        Assert.DoesNotContain("Шевченко", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Петренко", html, StringComparison.Ordinal);
+        Assert.Contains("Вам ще не призначено жодної доставки.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_own_deliveries_screen_still_renders_its_rows_and_marks_an_overdue_one()
+    {
+        var html = await RenderMyDeliveriesAsync(StubDeliveryService.Assigned);
+
+        Assert.Contains("dt-table-scroll", html, StringComparison.Ordinal);
+        Assert.Contains("Одна палета", html, StringComparison.Ordinal);
+        Assert.Contains("Прострочено", html, StringComparison.Ordinal);
+        Assert.Contains("У дорозі", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Every_column_heading_and_field_label_is_Ukrainian(bool dispatch)
+    {
+        // NFR-14, asserted on the rendered chrome rather than on the source: a key that resolved to
+        // its own name would read as Latin here and nowhere else. The data cells are excluded on
+        // purpose - a coordinate is digits and punctuation by nature.
+        var html = dispatch
+            ? await RenderDeliveriesAsync(UserRole.Dispatcher)
+            : await RenderMyDeliveriesAsync();
+
+        var texts = HeaderCell.Matches(html)
+            .Concat(Label.Matches(html))
+            .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+            .Where(text => text.Length > 0)
+            .ToArray();
+
+        Assert.NotEmpty(texts);
+
+        var offenders = texts
+            .Where(text => !SharedMarkup.IsUkrainian(text) || SharedMarkup.HasLatinWord(text))
+            .ToArray();
+
+        Assert.Empty(offenders);
+    }
+
+    [Theory]
+    [InlineData("Deliveries.razor", "Dispatcher,Admin")]
+    [InlineData("MyDeliveries.razor", "Driver,Client")]
+    public void Each_screen_is_reserved_to_the_roles_that_have_a_use_for_it(string fileName, string roles)
+    {
+        // The attribute is what routes a wrong role to /access-denied instead of into an error
+        // boundary (FR-79). It is a convenience and not the decision - IAccessGuard settles that,
+        // and the API suites assert it - but nothing else pins the attribute, and its absence is
+        // invisible in a diff.
+        var page = SharedMarkup.ReadComponent("Pages", fileName);
+
+        Assert.Contains(
+            $"@attribute [Authorize(Roles = \"{roles}\")]",
+            page,
+            StringComparison.Ordinal);
+    }
+
+    // =====================================================================================
+    // The two pure functions behind the dispatch board
+    // =====================================================================================
+
+    [Fact]
+    public void A_blank_filter_narrows_nothing()
+    {
+        // An empty filter panel is not a filter. Without this, a `Contains(value, "")` that
+        // answered false would hide every row on first paint.
+        Assert.True(Web.Components.Pages.Deliveries.Matches(Row(), new DeliveryFilter()));
+    }
+
+    [Theory]
+    [InlineData("шевченко", true)]
+    [InlineData("ШЕВЧЕНКО", true)]
+    [InlineData("  Шевченко  ", true)]
+    [InlineData("Франко", false)]
+    public void The_driver_filter_matches_the_name_whatever_case_it_is_typed_in(string needle, bool expected)
+    {
+        Assert.Equal(
+            expected,
+            Web.Components.Pages.Deliveries.Matches(Row(), new DeliveryFilter { Driver = needle }));
+    }
+
+    [Fact]
+    public void A_row_with_no_driver_is_narrowed_away_by_a_driver_filter()
+    {
+        // The case a `?? string.Empty` in the wrong place would get backwards: an unassigned
+        // delivery matches nothing a dispatcher could type into the driver box.
+        var unassigned = Row(assigned: false);
+
+        Assert.False(Web.Components.Pages.Deliveries.Matches(
+            unassigned,
+            new DeliveryFilter { Driver = "Шевченко" }));
+
+        Assert.True(Web.Components.Pages.Deliveries.Matches(unassigned, new DeliveryFilter()));
+    }
+
+    [Fact]
+    public void The_location_filters_run_over_what_the_cell_shows()
+    {
+        // Which is the address when one is resolved and the coordinates when none is - so a
+        // dispatcher can find a delivery by whatever the table is actually showing them.
+        Assert.True(Web.Components.Pages.Deliveries.Matches(
+            Row(),
+            new DeliveryFilter { Pickup = "50.4501" }));
+
+        Assert.True(Web.Components.Pages.Deliveries.Matches(
+            Row(),
+            new DeliveryFilter { Dropoff = "площа Ринок" }));
+    }
+
+    [Fact]
+    public void Every_filter_narrows_at_once_rather_than_in_turn()
+    {
+        // The conjunction, which a per-column implementation would get wrong by taking the last box
+        // typed into rather than all of them.
+        Assert.False(Web.Components.Pages.Deliveries.Matches(
+            Row(),
+            new DeliveryFilter { Driver = "Шевченко", PackageDetails = "Холодильник" }));
+    }
+
+    [Theory]
+    [InlineData(DeliveryStatus.Pending, true)]
+    [InlineData(DeliveryStatus.Delivered, false)]
+    public void The_status_filter_shows_one_status_and_a_null_shows_them_all(
+        DeliveryStatus status,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            Web.Components.Pages.Deliveries.Matches(Row(), new DeliveryFilter { Status = status }));
+
+        Assert.True(Web.Components.Pages.Deliveries.Matches(
+            Row(),
+            new DeliveryFilter { Status = null }));
+    }
+
+    [Theory]
+    // The row was created on the seventh, and the range is inclusive at both ends.
+    [InlineData(7, 7, true)]
+    [InlineData(1, 30, true)]
+    [InlineData(8, 30, false)]
+    [InlineData(1, 6, false)]
+    public void The_creation_range_is_inclusive_at_both_ends(int fromDay, int toDay, bool expected)
+    {
+        var filter = new DeliveryFilter
+        {
+            CreatedFrom = new DateOnly(2026, 9, fromDay),
+            CreatedTo = new DateOnly(2026, 9, toDay),
+        };
+
+        Assert.Equal(expected, Web.Components.Pages.Deliveries.Matches(Row(created: Local(2026, 9, 7)), filter));
+    }
+
+    [Fact]
+    public void The_overdue_filter_keeps_only_the_rows_whose_window_has_passed()
+    {
+        Assert.False(Web.Components.Pages.Deliveries.Matches(
+            Row(overdue: false),
+            new DeliveryFilter { OverdueOnly = true }));
+
+        Assert.True(Web.Components.Pages.Deliveries.Matches(
+            Row(overdue: true),
+            new DeliveryFilter { OverdueOnly = true }));
+    }
+
+    [Fact]
+    public void Resetting_is_a_new_filter_so_every_box_clears_at_once()
+    {
+        // FR-101, asserted on the shape rather than on the action: a fresh filter narrows nothing,
+        // which is what the reset button produces.
+        var narrowed = new DeliveryFilter { Driver = "Шевченко", OverdueOnly = true };
+
+        Assert.False(Web.Components.Pages.Deliveries.Matches(Row(overdue: false), narrowed));
+        Assert.True(Web.Components.Pages.Deliveries.Matches(Row(overdue: false), new DeliveryFilter()));
+    }
+
+    [Fact]
+    public void A_second_click_on_a_heading_reverses_the_order_it_produced()
+    {
+        // The acceptance criterion, asserted where it actually lives: sorting is a function of the
+        // rows already fetched, so "no second request is issued" is a property of a pure method
+        // rather than a claim about the network.
+        var rows = new[]
+        {
+            Row(id: 1, details: "Б"),
+            Row(id: 2, details: "А"),
+            Row(id: 3, details: "В"),
+        };
+
+        var ascending = Web.Components.Pages.Deliveries.Sort(
+            rows, DeliveryColumn.PackageDetails, descending: false);
+
+        var descending = Web.Components.Pages.Deliveries.Sort(
+            rows, DeliveryColumn.PackageDetails, descending: true);
+
+        Assert.Equal(new[] { 2, 1, 3 }, ascending.Select(row => row.Id).ToArray());
+        Assert.Equal(new[] { 3, 1, 2 }, descending.Select(row => row.Id).ToArray());
+    }
+
+    [Fact]
+    public void Sorting_leaves_the_rows_it_was_given_untouched()
+    {
+        // Pure, so the screen can re-sort on every render without the fetched page drifting.
+        var rows = new[] { Row(id: 2, details: "Б"), Row(id: 1, details: "А") };
+
+        Web.Components.Pages.Deliveries.Sort(rows, DeliveryColumn.PackageDetails, descending: false);
+
+        Assert.Equal(new[] { 2, 1 }, rows.Select(row => row.Id).ToArray());
+    }
+
+    [Fact]
+    public void Rows_that_compare_equal_keep_a_stable_order()
+    {
+        // Without the tie-break every render could hand the dispatcher a different order for the
+        // same data, which reads as the table refreshing under them.
+        var rows = new[] { Row(id: 3, details: "А"), Row(id: 1, details: "А"), Row(id: 2, details: "А") };
+
+        Assert.Equal(
+            new[] { 1, 2, 3 },
+            Web.Components.Pages.Deliveries
+                .Sort(rows, DeliveryColumn.PackageDetails, descending: false)
+                .Select(row => row.Id)
+                .ToArray());
+    }
+
+    [Fact]
+    public void The_status_column_sorts_by_the_lifecycle_rather_than_by_its_label()
+    {
+        // Alphabetically "Доставлено" precedes "Очікує", which would put a finished delivery above
+        // a waiting one for no reason a dispatcher could name.
+        var rows = new[]
+        {
+            Row(id: 1, status: DeliveryStatus.Delivered),
+            Row(id: 2, status: DeliveryStatus.Pending),
+            Row(id: 3, status: DeliveryStatus.InTransit),
+        };
+
+        Assert.Equal(
+            new[] { DeliveryStatus.Pending, DeliveryStatus.InTransit, DeliveryStatus.Delivered },
+            Web.Components.Pages.Deliveries
+                .Sort(rows, DeliveryColumn.Status, descending: false)
+                .Select(row => row.Status)
+                .ToArray());
+    }
+
+    [Fact]
+    public void Every_column_the_headings_offer_has_an_ordering()
+    {
+        // The switch is total over the enum, and a column added without an ordering throws rather
+        // than quietly rendering the rows in whatever order they arrived. Walked rather than listed
+        // as theory data, so a column added later is covered without anyone remembering to add a
+        // row here - and because the enum is internal, which a public theory parameter cannot be.
+        //
+        // Rows with a null driver and null notes are included on purpose: those are the arms a bare
+        // key selector throws on.
+        var rows = new[] { Row(id: 1), Row(id: 2, assigned: false, notes: null) };
+        var columns = Enum.GetValues<DeliveryColumn>();
+
+        Assert.NotEmpty(columns);
+
+        foreach (var column in columns)
+        {
+            Assert.Equal(2, Web.Components.Pages.Deliveries.Sort(rows, column, descending: false).Count);
+        }
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Rendering
+    // -------------------------------------------------------------------------------------
+
+    private static Task<string> RenderDeliveriesAsync(UserRole role) =>
+        ComponentRenderer.RenderAsync<Web.Components.Pages.Deliveries>(
+            parameters: null,
+            services =>
+            {
+                services.AddSingleton<ICurrentUser>(new StubCaller(role));
+                services.AddSingleton<IDeliveryService>(new StubDeliveryService());
+                services.AddSingleton<IDriverService>(new StubDriverService());
+                services.AddSingleton<IVehicleService>(new StubVehicleService());
+                services.AddSingleton<IClientAdministrationService>(new StubClientRoster());
+            });
+
+    private static Task<string> RenderMyDeliveriesAsync(
+        IReadOnlyList<AssignedDeliverySummary>? rows = null) =>
+        ComponentRenderer.RenderAsync<Web.Components.Pages.MyDeliveries>(
+            parameters: null,
+            services =>
+            {
+                services.AddSingleton<ICurrentUser>(new StubCaller(UserRole.Driver));
+                services.AddSingleton<IDeliveryService>(new StubDeliveryService(rows ?? []));
+            });
+
+    private static DateTimeOffset Local(int year, int month, int day) =>
+        new DateTimeOffset(new DateTime(year, month, day, 12, 0, 0, DateTimeKind.Local)).ToUniversalTime();
+
+    /// <summary>One dispatch row, with every field a filter or an ordering reads.</summary>
+    private static DeliverySummary Row(
+        int id = 1,
+        bool assigned = true,
+        string details = "Одна палета",
+        string? notes = "Подзвонити",
+        DeliveryStatus status = DeliveryStatus.Pending,
+        DateTimeOffset? created = null,
+        bool overdue = false) =>
+        new(
+            id,
+            assigned ? new DeliveryParty(1, "Тарас Шевченко") : null,
+            new DeliveryParty(2, "Олена Петренко"),
+            new LocationView(new MapLocation(50.4501, 30.5234), null),
+            new LocationView(new MapLocation(49.8397, 24.0297), "Львів, площа Ринок"),
+            details,
+            12.5m,
+            notes,
+            null,
+            null,
+            status,
+            created ?? Noon,
+            overdue);
+
+    /// <summary>A signed-in caller of a chosen role.</summary>
+    private sealed class StubCaller(UserRole role) : ICurrentUser
+    {
+        public bool IsAuthenticated => true;
+
+        public UserId UserId => new(1);
+
+        public UserRole Role => role;
+
+        public DriverId? DriverId => role == UserRole.Driver ? new DriverId(1) : null;
+
+        public ClientId? ClientId => role == UserRole.Client ? new ClientId(2) : null;
+    }
+
+    /// <summary>
+    /// Three deliveries for the dispatch board: one with both parties, one with neither, and one
+    /// that is overdue. Writes are not exercised — static rendering dispatches no events — so they
+    /// answer rather than record.
+    /// </summary>
+    private sealed class StubDeliveryService(IReadOnlyList<AssignedDeliverySummary>? assigned = null)
+        : IDeliveryService
+    {
+        /// <summary>What the own-deliveries screen renders when it has rows.</summary>
+        internal static readonly AssignedDeliverySummary[] Assigned =
+        [
+            new(
+                1,
+                new LocationView(new MapLocation(50.4501, 30.5234), null),
+                new LocationView(new MapLocation(49.8397, 24.0297), "Львів, площа Ринок"),
+                "Одна палета",
+                12.5m,
+                null,
+                null,
+                Noon,
+                DeliveryStatus.InTransit,
+                Noon,
+                true),
+        ];
+
+        private static readonly DeliverySummary[] Board =
+        [
+            new(
+                1,
+                new DeliveryParty(1, "Тарас Шевченко"),
+                new DeliveryParty(2, "Олена Петренко"),
+                new LocationView(new MapLocation(50.4501, 30.5234), null),
+                new LocationView(new MapLocation(49.8397, 24.0297), "Львів, площа Ринок"),
+                "Одна палета",
+                12.5m,
+                "Подзвонити",
+                null,
+                Noon,
+                DeliveryStatus.Pending,
+                Noon,
+                true),
+            new(
+                2,
+                null,
+                null,
+                new LocationView(new MapLocation(50.4501, 30.5234), null),
+                new LocationView(new MapLocation(49.8397, 24.0297), null),
+                "Дві коробки",
+                4m,
+                null,
+                null,
+                null,
+                DeliveryStatus.Delivered,
+                Noon,
+                false),
+        ];
+
+        public Task<IReadOnlyList<DeliverySummary>> ListAsync(
+            ListDeliveriesQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<DeliverySummary>>(Board);
+
+        public Task<IReadOnlyList<AssignedDeliverySummary>> ListMineAsync(
+            ListDeliveriesQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(assigned ?? []);
+
+        public Task<DeliverySummary> GetAsync(int id, CancellationToken cancellationToken) =>
+            Task.FromResult(Board[0]);
+
+        public Task<DeliverySummary> CreateAsync(
+            CreateDeliveryCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Board[0]);
+
+        public Task<DeliverySummary> UpdateAsync(
+            int id,
+            UpdateDeliveryCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Board[0]);
+
+        public Task DeleteAsync(int id, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    /// <summary>One driver, holding the vehicle the capacity hint reads.</summary>
+    private sealed class StubDriverService : IDriverService
+    {
+        private static readonly DriverSummary Driver = new(
+            new DriverId(1),
+            new UserId(10),
+            "Тарас",
+            "Шевченко",
+            "taras@drivetrack.test",
+            "ВІ123456",
+            5,
+            "Рено Мастер",
+            "АА1234ВВ");
+
+        public Task<IReadOnlyList<DriverSummary>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<DriverSummary>>([Driver]);
+
+        public Task<DriverSummary> GetAsync(DriverId id, CancellationToken cancellationToken) =>
+            Task.FromResult(Driver);
+
+        public Task<DriverSummary> CreateAsync(
+            CreateDriverCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Driver);
+
+        public Task<DriverSummary> UpdateAsync(
+            DriverId id,
+            UpdateDriverCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Driver);
+
+        public Task DeleteAsync(DriverId id, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class StubVehicleService : IVehicleService
+    {
+        private static readonly VehicleSummary Held =
+            new(5, "Рено Мастер", "АА1234ВВ", 1200m, 42_000, new DateOnly(2026, 12, 1));
+
+        public Task<IReadOnlyList<VehicleSummary>> ListAsync(
+            ListVehiclesQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<VehicleSummary>>([Held]);
+
+        public Task<IReadOnlyList<VehicleSummary>> ListUnassignedAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<VehicleSummary>>([]);
+
+        public Task<VehicleSummary> GetAsync(int id, CancellationToken cancellationToken) =>
+            Task.FromResult(Held);
+
+        public Task<VehicleSummary> CreateAsync(
+            CreateVehicleCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Held);
+
+        public Task<VehicleSummary> UpdateAsync(
+            int id,
+            UpdateVehicleCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Held);
+
+        public Task DeleteAsync(int id, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class StubClientRoster : IClientAdministrationService
+    {
+        private static readonly ClientAccount Client = new(
+            new UserId(11),
+            new ClientId(2),
+            "Олена",
+            "Петренко",
+            "olena@drivetrack.test",
+            "+380441234567");
+
+        public Task<IReadOnlyList<ClientAccount>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ClientAccount>>([Client]);
+
+        public Task<ClientAccount> GetAsync(UserId userId, CancellationToken cancellationToken) =>
+            Task.FromResult(Client);
+
+        public Task<ClientAccount> UpdateAsync(
+            UserId userId,
+            UpdateClientCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Client);
+
+        public Task DeleteAsync(UserId userId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+}

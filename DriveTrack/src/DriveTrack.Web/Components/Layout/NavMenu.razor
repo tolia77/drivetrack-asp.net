@@ -70,6 +70,24 @@
             </div>
         }
 
+        @if (destinations.Contains(NavDestination.Deliveries))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="deliveries">
+                    <Icon Name="IconName.Deliveries" />@Localizer["NavDeliveries"]
+                </NavLink>
+            </div>
+        }
+
+        @if (destinations.Contains(NavDestination.MyDeliveries))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="my-deliveries">
+                    <Icon Name="IconName.Deliveries" />@Localizer["NavMyDeliveries"]
+                </NavLink>
+            </div>
+        }
+
         @if (destinations.Contains(NavDestination.Clients))
         {
             <div class="nav-item px-3">
