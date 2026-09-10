@@ -81,6 +81,13 @@ public enum ErrorCode
     /// </summary>
     DELIVERY_EXCEEDS_VEHICLE_CAPACITY,
 
+    /// <summary>
+    /// The delivery's current status does not lead to the one that was asked for. 409 (FR-32),
+    /// never 422: the payload named a status the system has, and it is the row's state that refuses
+    /// it, so the caller's next move is to look at where the delivery actually is (AD-10).
+    /// </summary>
+    DELIVERY_INVALID_STATUS_TRANSITION,
+
     /// <summary>PostgreSQL SQLSTATE 23505, translated in Infrastructure. 409 (AD-8).</summary>
     PERSISTENCE_UNIQUE_VIOLATION,
 

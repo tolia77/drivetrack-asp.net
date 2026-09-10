@@ -1,4 +1,6 @@
 using System.Net;
+using System.Text.Json;
+using DriveTrack.Domain.Deliveries;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Integration.Tests.Fleet;
 using DriveTrack.Integration.Tests.Support;
@@ -80,10 +82,20 @@ internal static class DeliveryApi
     /// client row id back off the roster — the id a delivery refers to them by, which the account
     /// payload does not carry.
     /// </summary>
+    /// <param name="client">The API client.</param>
+    /// <param name="dispatcherToken">A dispatch token, used only to read the roster back.</param>
+    /// <param name="cancellationToken">The test's token.</param>
+    /// <param name="firstName">
+    /// An alternative given name. Supplied by the test that registers the longest names
+    /// registration accepts, to reach the width of the timeline's actor snapshot.
+    /// </param>
+    /// <param name="lastName">An alternative family name, for the same reason.</param>
     public static async Task<ClientCaller> ClientAsync(
         HttpClient client,
         string dispatcherToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? firstName = null,
+        string? lastName = null)
     {
         var email = FleetApi.UniqueEmail();
 
@@ -94,8 +106,8 @@ internal static class DeliveryApi
                    token: null,
                    new
                    {
-                       firstName = "Олена",
-                       lastName = "Петренко",
+                       firstName = firstName ?? "Олена",
+                       lastName = lastName ?? "Петренко",
                        email,
                        phoneNumber = "+380441234567",
                        password = FleetApi.Password,
@@ -180,6 +192,92 @@ internal static class DeliveryApi
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         return (await FleetApi.DataAsync(response, cancellationToken)).GetProperty("id").GetInt32();
+    }
+
+    /// <summary>
+    /// Asks for a status change (FR-32). The response is handed back rather than asserted, because
+    /// half this story's matrix is about which refusal a caller gets.
+    /// </summary>
+    public static Task<HttpResponseMessage> ChangeStatusAsync(
+        HttpClient client,
+        string? token,
+        int deliveryId,
+        DeliveryStatus status,
+        CancellationToken cancellationToken,
+        string? note = null) =>
+        FleetApi.SendAsync(
+            client,
+            HttpMethod.Post,
+            $"/api/deliveries/{deliveryId}/status",
+            token,
+
+            // AD-21 puts the member name on the wire, so the payload says what the enum says.
+            new { status = status.ToString(), note },
+            cancellationToken);
+
+    /// <summary>Appends a standalone note (FR-107).</summary>
+    public static Task<HttpResponseMessage> AddNoteAsync(
+        HttpClient client,
+        string? token,
+        int deliveryId,
+        string? note,
+        CancellationToken cancellationToken) =>
+        FleetApi.SendAsync(
+            client,
+            HttpMethod.Post,
+            $"/api/deliveries/{deliveryId}/timeline",
+            token,
+            new { note },
+            cancellationToken);
+
+    /// <summary>Reads a delivery's history (FR-108).</summary>
+    public static Task<HttpResponseMessage> TimelineAsync(
+        HttpClient client,
+        string? token,
+        int deliveryId,
+        CancellationToken cancellationToken) =>
+        FleetApi.SendAsync(
+            client,
+            HttpMethod.Get,
+            $"/api/deliveries/{deliveryId}/timeline",
+            token,
+            body: null,
+            cancellationToken);
+
+    /// <summary>The entries of a timeline read that must have succeeded, in the order they arrived.</summary>
+    public static async Task<JsonElement[]> EntriesAsync(
+        HttpClient client,
+        string token,
+        int deliveryId,
+        CancellationToken cancellationToken)
+    {
+        using var response = await TimelineAsync(client, token, deliveryId, cancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        return [.. (await FleetApi.DataAsync(response, cancellationToken)).EnumerateArray()];
+    }
+
+    /// <summary>The status a delivery currently holds, read back through the dispatch endpoint.</summary>
+    public static async Task<string?> StatusAsync(
+        HttpClient client,
+        string dispatcherToken,
+        int deliveryId,
+        CancellationToken cancellationToken)
+    {
+        using var response = await FleetApi.SendAsync(
+            client,
+            HttpMethod.Get,
+            $"/api/deliveries/{deliveryId}",
+            dispatcherToken,
+            body: null,
+            cancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        return (await FleetApi.DataAsync(response, cancellationToken))
+            .GetProperty("status")
+            .GetString();
     }
 
     /// <summary>A dispatcher's bearer token, which every arrangement above needs first.</summary>

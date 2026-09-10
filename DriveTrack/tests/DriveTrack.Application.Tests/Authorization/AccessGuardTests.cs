@@ -282,6 +282,108 @@ public class AccessGuardTests
         Assert.Null(scope.ClientId);
     }
 
+    // =====================================================================================
+    // RequireAssignedDriver (story 5.3)
+    //
+    // FR-26 and FR-34 as one predicate: the driver carrying the parcel, or dispatch, and nobody
+    // else. It gets the same table the other three members have, for the same reason - this is the
+    // rule that stands between a driver and somebody else's delivery.
+    // =====================================================================================
+
+    [Fact]
+    public void An_anonymous_caller_asking_about_an_assignment_is_unauthenticated_not_forbidden()
+    {
+        // 401, not 403, exactly as the other three members answer it: FR-13's session-expiry flow
+        // branches on this single code, and an expired cookie on a live circuit arrives here too.
+        var guard = new AccessGuard(new StubCurrentUser());
+
+        var failure = Assert.Throws<ForbiddenException>(
+            () => guard.RequireAssignedDriver(new DriverId(4)));
+
+        Assert.Equal(ErrorCode.AUTH_UNAUTHENTICATED, failure.Code);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Dispatcher)]
+    public void Dispatch_may_advance_any_delivery_including_an_unassigned_one(UserRole role)
+    {
+        // AD-4 for the admin and FR-34 for the dispatcher: the lifecycle is dispatch's as much as
+        // the board is. An unassigned parcel is included deliberately - a delivery with no driver
+        // still has to be movable by the people who dispatch it.
+        var guard = new AccessGuard(new StubCurrentUser(Target, role));
+
+        guard.RequireAssignedDriver(new DriverId(4));
+        guard.RequireAssignedDriver(null);
+    }
+
+    [Fact]
+    public void The_assigned_driver_may_advance_their_own_delivery()
+    {
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        guard.RequireAssignedDriver(new DriverId(4));
+    }
+
+    [Fact]
+    public void A_driver_may_not_advance_another_drivers_delivery()
+    {
+        // FR-26. The failure worth pinning, because the plausible-looking mistake - comparing the
+        // caller's user id against the delivery's driver id - would compare two different row
+        // spaces and pass for whichever driver happened to share a number with a user.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        var failure = Assert.Throws<ForbiddenException>(
+            () => guard.RequireAssignedDriver(new DriverId(5)));
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
+    }
+
+    [Fact]
+    public void A_driver_may_not_advance_an_unassigned_delivery()
+    {
+        // A null assignment must not read as "anyone's". It is also the shape a delivery that does
+        // not exist arrives in - the service guards on the null row before answering 404 - so this
+        // is what keeps a driver from probing for delivery ids.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        var failure = Assert.Throws<ForbiddenException>(() => guard.RequireAssignedDriver(null));
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
+    }
+
+    [Fact]
+    public void A_driver_carrying_no_driver_row_id_is_refused_rather_than_widened()
+    {
+        // The same disclosure risk RequireScope refuses: a driver whose claims carry no driver row
+        // id cannot be matched against any assignment, and the only other answer available - pass -
+        // would hand them every delivery's lifecycle on the strength of a missing claim.
+        var guard = new AccessGuard(new StubCurrentUser(Target, UserRole.Driver));
+
+        var failure = Assert.Throws<ForbiddenException>(
+            () => guard.RequireAssignedDriver(new DriverId(4)));
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
+    }
+
+    [Fact]
+    public void A_client_may_never_advance_a_delivery_even_their_own()
+    {
+        // FR-90, and the reason this member exists at all: a client's scope admits their own
+        // delivery, so RequireScope would let them change its status. The two questions are
+        // different, and only one of them is "may this caller move the parcel".
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Client, clientId: new ClientId(9)));
+
+        var failure = Assert.Throws<ForbiddenException>(
+            () => guard.RequireAssignedDriver(new DriverId(4)));
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
+    }
+
     /// <summary>
     /// A caller with no adapter behind it. The guard depends on the port, not on a
     /// <c>ClaimsPrincipal</c>, which is what makes these tests possible without a host.

@@ -157,7 +157,7 @@ public class TimelineAppendOnlyTests(PostgresFixture postgres)
         // The point of the snapshot: the entry still says who did it, which is what a restrict
         // would have protected at the cost of making the user undeletable forever.
         Assert.Equal("Test Person", survivor.ActorDisplayName);
-        Assert.Equal("dispatcher", survivor.ActorRole);
+        Assert.Equal(UserRole.Dispatcher, survivor.ActorRole);
         Assert.Equal(DeliveryStatus.InTransit, survivor.NewStatus);
     }
 

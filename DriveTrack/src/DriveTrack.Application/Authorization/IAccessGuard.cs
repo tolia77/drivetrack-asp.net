@@ -15,12 +15,15 @@ namespace DriveTrack.Application.Authorization;
 /// passed check.
 /// </para>
 /// <para>
-/// Three members, and no more (NFR-6). <c>RequireSelf</c> answers "is this the caller's own row";
-/// <c>RequireRole</c> answers "is this caller one of these people"; <c>RequireScope</c> answers
-/// "which rows of a collection may this caller be shown". The third arrived with story 5.1, the
-/// first capability that has a caller for it, exactly as the role member arrived with the fleet.
-/// AD-4's "admin satisfies every check" lives inside the implementation, once, so every member
-/// inherits it and none restates it.
+/// One member per question, and no more (NFR-6). <c>RequireSelf</c> answers "is this the caller's
+/// own row"; <c>RequireRole</c> answers "is this caller one of these people"; <c>RequireScope</c>
+/// answers "which rows of a collection may this caller be shown"; <c>RequireAssignedDriver</c>
+/// answers "is this the driver carrying this parcel, or dispatch". Each arrived with the first
+/// capability that had a caller for it — the scope with story 5.1, the assignment with 5.3 — and
+/// none is a rewording of another: none of the first three can express "the assigned driver, or
+/// dispatch, but never the client whose delivery it is", and writing that as a role test inside a
+/// service would be a second place authorization lived. AD-4's "admin satisfies every check" lives
+/// inside the implementation, once, so every member inherits it and none restates it.
 /// </para>
 /// </summary>
 public interface IAccessGuard
@@ -76,4 +79,30 @@ public interface IAccessGuard
     /// disclose the whole collection.
     /// </exception>
     AccessScope RequireScope();
+
+    /// <summary>
+    /// Requires that the caller is the driver a delivery is assigned to, or runs dispatch (FR-26,
+    /// FR-34).
+    /// <para>
+    /// The one predicate behind AD-10's single write path. A delivery's status may be advanced by
+    /// the driver carrying it and by the people who dispatch it, and by nobody else — a client may
+    /// never change the status of their own delivery (FR-90), which is exactly why
+    /// <see cref="RequireScope"/> cannot express this: a client's scope admits their own row.
+    /// </para>
+    /// <para>
+    /// An unassigned delivery has no driver, so no driver passes: a null
+    /// <paramref name="assignedDriverId"/> never equals a caller's driver row id, and answering
+    /// otherwise would let any driver advance a parcel nobody is carrying.
+    /// </para>
+    /// </summary>
+    /// <param name="assignedDriverId">
+    /// The driver the delivery is assigned to, or null when it is unassigned — or when there is no
+    /// delivery at all, which is why the caller may pass this before answering 404: a driver who may
+    /// not act on the row is refused before learning whether it exists.
+    /// </param>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401), or is a driver who is not the
+    /// assigned one, or holds a role with no part in the lifecycle (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    void RequireAssignedDriver(DriverId? assignedDriverId);
 }

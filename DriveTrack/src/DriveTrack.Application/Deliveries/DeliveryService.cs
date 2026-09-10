@@ -34,10 +34,13 @@ namespace DriveTrack.Application.Deliveries;
 public sealed class DeliveryService(
     IUnitOfWorkFactory unitOfWorkFactory,
     IAccessGuard accessGuard,
+    ICurrentUser currentUser,
     TimeProvider timeProvider,
     IValidator<ListDeliveriesQuery> listValidator,
     IValidator<CreateDeliveryCommand> createValidator,
-    IValidator<UpdateDeliveryCommand> updateValidator) : IDeliveryService
+    IValidator<UpdateDeliveryCommand> updateValidator,
+    IValidator<ChangeDeliveryStatusCommand> statusValidator,
+    IValidator<AddDeliveryNoteCommand> noteValidator) : IDeliveryService
 {
     /// <inheritdoc />
     public async Task<IReadOnlyList<DeliverySummary>> ListAsync(
@@ -163,8 +166,9 @@ public sealed class DeliveryService(
             WindowEarliestAt = Utc(command.WindowEarliestAt),
             WindowLatestAt = Utc(command.WindowLatestAt),
 
-            // FR-30: a delivery is only ever born Pending, which is why the command has no status.
-            Status = DeliveryStatus.Pending,
+            // No Status here, and its absence is the point: FR-30's "a delivery is only ever born
+            // Pending" is the entity's own initializer now, and the setter is private, so this path
+            // could not say otherwise even if a command grew a status field (AD-10, AD-25).
 
             // AD-13: the injected clock, at offset zero. DateTimeOffset.UtcNow here would fail
             // PersistenceContractTests and, more to the point, make FR-19's overdue rule untestable.
@@ -269,6 +273,202 @@ public sealed class DeliveryService(
 
         await unitOfWork.CommitAsync(cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<TimelineEntryView> ChangeStatusAsync(
+        int id,
+        ChangeDeliveryStatusCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        await using var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken);
+
+        // AD-3: load, then guard, because this decision is about the row - specifically about which
+        // driver it names. Tracked, unlike the two read paths below: this one writes.
+        var delivery = await unitOfWork.Deliveries.GetByIdAsync(id, cancellationToken);
+
+        // One guard call covering every role (AD-2, FR-34), inline in this method's own body so the
+        // coverage gate can see it. It runs on a null row deliberately: a driver asking about a
+        // delivery that does not exist is refused before being told it does not exist.
+        accessGuard.RequireAssignedDriver(delivery?.DriverId);
+
+        if (delivery is null)
+        {
+            throw NotFound(id);
+        }
+
+        await ValidatorExtensions.ValidateAndThrowAsync(statusValidator, command, cancellationToken);
+
+        // Epic 6's precondition on the Delivered transition (FR-120) attaches here, before the
+        // move: proof exists, or the command itself carries an explanatory note. One site, and it
+        // must not be role-branched when it lands.
+        var previous = delivery.Status;
+
+        // The validator has proved a status was named and that it is one the enum declares; the
+        // nullable annotation exists because the wire can omit it and the command has to carry that
+        // absence as far as the refusal.
+        var requested = command.Status!.Value;
+
+        if (!delivery.TryChangeStatus(requested))
+        {
+            // FR-32: the message names the status the delivery is in and the one that was asked
+            // for, so a caller can see which half of their assumption was wrong. AD-10 makes this a
+            // domain-rule failure and therefore a 409, never a 422.
+            throw new DomainRuleException(
+                ErrorCode.DELIVERY_INVALID_STATUS_TRANSITION,
+                "A delivery in status " + previous + " cannot move to " + requested + ".");
+        }
+
+        var entry = new TimelineEntry(
+            delivery.Id,
+            currentUser.UserId,
+            await ActorNameAsync(unitOfWork, cancellationToken),
+            currentUser.Role,
+            previous,
+            requested,
+
+            // FR-106: the same entry carries both the change and whatever was said about it.
+            Blank(command.Note),
+            timeProvider.GetUtcNow());
+
+        // AD-27: staged, not saved - so the status row and its record land in the one transaction
+        // this scope commits, and a refusal above leaves neither.
+        unitOfWork.TimelineEntries.Add(entry);
+
+        await unitOfWork.CommitAsync(cancellationToken);
+
+        // Story 5.2's client email attaches here, after the commit and outside the transaction
+        // (AD-12, FR-28). A send that fails is recorded as a notification attempt and never fails
+        // the status write, which is why it cannot be moved above this line.
+        return View(entry);
+    }
+
+    /// <inheritdoc />
+    public async Task<TimelineEntryView> AddNoteAsync(
+        int id,
+        AddDeliveryNoteCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        // FR-107's audience is "anyone who can view the delivery", which is what the scope answers.
+        // A fifth guard member would be a second way of saying AD-3.
+        var scope = accessGuard.RequireScope();
+
+        await ValidatorExtensions.ValidateAndThrowAsync(noteValidator, command, cancellationToken);
+
+        await using var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken);
+
+        // Narrowed in the query, so a client asking about another client's delivery gets the same
+        // answer as one asking about a delivery that never existed.
+        if (await unitOfWork.Deliveries.FindVisibleAsync(id, scope, cancellationToken) is null)
+        {
+            throw NotFound(id);
+        }
+
+        var entry = new TimelineEntry(
+            id,
+            currentUser.UserId,
+            await ActorNameAsync(unitOfWork, cancellationToken),
+            currentUser.Role,
+
+            // Both null: FR-107's entry records that something was said, not that something moved.
+            previousStatus: null,
+            newStatus: null,
+            command.Note!.Trim(),
+            timeProvider.GetUtcNow());
+
+        unitOfWork.TimelineEntries.Add(entry);
+
+        await unitOfWork.CommitAsync(cancellationToken);
+
+        return View(entry);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TimelineEntryView>> ListTimelineAsync(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var scope = accessGuard.RequireScope();
+
+        await using var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken);
+
+        if (await unitOfWork.Deliveries.FindVisibleAsync(id, scope, cancellationToken) is null)
+        {
+            throw NotFound(id);
+        }
+
+        var entries = await unitOfWork.TimelineEntries.ListForDeliveryAsync(id, cancellationToken);
+
+        // The mapping step AD-17 puts the disclosure decision in. Nothing was written, so the scope
+        // is disposed without a commit, as on every read path here.
+        return [.. entries.Select(View)];
+    }
+
+    /// <summary>
+    /// The acting user's display name for the snapshot AD-20 asks for.
+    /// <para>
+    /// Read from the account because <see cref="ICurrentUser"/> carries identities and a role and
+    /// no name — deliberately, since a name in a token is a name that goes stale. Snapshotting it
+    /// onto the entry is what makes the history readable after the account is deleted.
+    /// </para>
+    /// </summary>
+    /// <remarks>
+    /// A missing account is reachable and is refused rather than papered over. A bearer token
+    /// carries no revocation, so an administrator who deletes a dispatcher leaves that dispatcher's
+    /// token working until it expires; their next write would insert an entry whose
+    /// <c>actor_user_id</c> names no row, which is SQLSTATE 23503 — a foreign-key violation the
+    /// constraint translator deliberately passes through, so it would leave as a 500. It is
+    /// <c>AUTH_UNAUTHENTICATED</c> rather than <c>AUTH_FORBIDDEN</c> because the account behind the
+    /// credentials is gone: the caller's next move is to sign in again, and FR-13's session-expiry
+    /// flow branches on exactly this code.
+    /// </remarks>
+    /// <exception cref="ForbiddenException">The account the token names no longer exists.</exception>
+    private async Task<string> ActorNameAsync(
+        IUnitOfWork unitOfWork,
+        CancellationToken cancellationToken)
+    {
+        var account = await unitOfWork.Users.GetByIdAsync(currentUser.UserId, cancellationToken)
+            ?? throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The account behind these credentials no longer exists, so the actor of a timeline "
+                    + "entry cannot be recorded.");
+
+        var name = DisplayName(account);
+
+        // Fitted to the column rather than refused. A first and a last name are bounded at a hundred
+        // characters each, so a legal account can produce a hundred and one characters more than the
+        // snapshot holds; the alternative is SQLSTATE 22001 at commit, which the constraint
+        // translator passes through and which would leave a legal status change as a 500. The
+        // snapshot is a display name, and a display name that has been cut is still readable
+        // history - a failed write is not.
+        return name.Length <= TimelineEntry.ActorDisplayNameMaximumLength
+            ? name
+            : name[..TimelineEntry.ActorDisplayNameMaximumLength];
+    }
+
+    /// <summary>
+    /// AD-17's final step: the entry as this caller may read it.
+    /// <para>
+    /// Dispatch sees who acted; a driver and a client see only what role they held. That is FR-27
+    /// and FR-96 reaching the timeline — a client must not learn the assigned driver's name through
+    /// the history any more than through the delivery — and it is decided here, against the current
+    /// user, rather than in a component that has no way to know who is looking.
+    /// </para>
+    /// </summary>
+    private TimelineEntryView View(TimelineEntry entry) =>
+        new(
+            entry.Id,
+            currentUser.Role is UserRole.Admin or UserRole.Dispatcher
+                ? entry.ActorDisplayName
+                : null,
+            entry.ActorRole,
+            entry.PreviousStatus,
+            entry.NewStatus,
+            entry.Note,
+            entry.OccurredAt);
 
     /// <summary>
     /// The driver a command named, as a typed id, or null when it named none.

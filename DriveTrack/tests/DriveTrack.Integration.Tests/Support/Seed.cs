@@ -108,14 +108,22 @@ internal static class Seed
     }
 
     /// <summary>A valid, unsaved delivery.</summary>
+    /// <remarks>
+    /// A non-<c>Pending</c> <paramref name="status"/> is reached by walking the lifecycle rather
+    /// than by assigning the property, which has no public setter: <c>TryChangeStatus</c> is the
+    /// only mutator (AD-10), so a seeded row is one the production write path could actually have
+    /// produced. A helper that could fabricate an unreachable state would seed tests with rows the
+    /// system cannot hold.
+    /// </remarks>
     public static Delivery NewDelivery(
         ClientId? clientId = null,
         DriverId? driverId = null,
         decimal packageWeightKg = 12.5m,
         DateTimeOffset? windowEarliestAt = null,
         DateTimeOffset? windowLatestAt = null,
-        DeliveryStatus status = DeliveryStatus.Pending) =>
-        new()
+        DeliveryStatus status = DeliveryStatus.Pending)
+    {
+        var delivery = new Delivery
         {
             ClientId = clientId,
             DriverId = driverId,
@@ -126,9 +134,66 @@ internal static class Seed
             DeliveryNotes = null,
             WindowEarliestAt = windowEarliestAt,
             WindowLatestAt = windowLatestAt,
-            Status = status,
             CreatedAt = Instant,
         };
+
+        Advance(delivery, status);
+
+        return delivery;
+    }
+
+    /// <summary>
+    /// Walks a delivery to <paramref name="target"/> through the entity's own mutator. Every status
+    /// is two moves or fewer from <c>Pending</c>, which is why this needs no search.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The walk did not arrive, which means the lifecycle changed shape and this helper has to be
+    /// re-read rather than quietly seeding the wrong status.
+    /// </exception>
+    public static void Advance(Delivery delivery, DeliveryStatus target)
+    {
+        ArgumentNullException.ThrowIfNull(delivery);
+
+        if (delivery.Status == target)
+        {
+            return;
+        }
+
+        var from = delivery.Status;
+
+        // Decided before anything moves. TryChangeStatus reports failure rather than throwing, so a
+        // walk that acted first and checked afterwards would leave a half-advanced entity behind -
+        // a Failed row asked for Pending would arrive at InTransit and only then complain, and the
+        // caller's `catch` would be holding a delivery in a status nobody asked for.
+        if (!Reaches(from, target))
+        {
+            throw Unreachable(from, target);
+        }
+
+        if (!Delivery.NextStatuses(from).Contains(target)
+            && !delivery.TryChangeStatus(DeliveryStatus.InTransit))
+        {
+            throw Unreachable(from, target);
+        }
+
+        if (!delivery.TryChangeStatus(target))
+        {
+            throw Unreachable(from, target);
+        }
+    }
+
+    /// <summary>
+    /// Whether the lifecycle gets from one status to another in at most the two moves this helper
+    /// makes, asked of <see cref="Delivery.NextStatuses"/> so the answer cannot drift from the rule.
+    /// </summary>
+    private static bool Reaches(DeliveryStatus from, DeliveryStatus target) =>
+        Delivery.NextStatuses(from).Contains(target)
+        || (Delivery.NextStatuses(from).Contains(DeliveryStatus.InTransit)
+            && Delivery.NextStatuses(DeliveryStatus.InTransit).Contains(target));
+
+    private static InvalidOperationException Unreachable(DeliveryStatus from, DeliveryStatus target) =>
+        new("The lifecycle does not reach " + target + " from " + from
+            + " in two moves; Seed.Advance has to be re-read.");
 
     /// <summary>Creates and saves a valid delivery.</summary>
     public static async Task<Delivery> DeliveryAsync(
@@ -157,7 +222,10 @@ internal static class Seed
             deliveryId,
             actorUserId,
             "Test Person",
-            "dispatcher",
+
+            // The enum rather than a free string (AD-21). The column still holds the member name,
+            // so what lands in the database is unchanged.
+            UserRole.Dispatcher,
             previousStatus,
             newStatus,
             note,

@@ -1,9 +1,14 @@
 @page "/my-deliveries"
 @* FR-25, FR-27, FR-96: what a driver is carrying, and what a client asked for.
 
-   Read-only by construction rather than by omission. There is no create action, no edit dialog and
-   no delete prompt, because neither role has an operation on a delivery in this story - a driver's
-   status change is story 5.3's single write path, and a client's request is epic 8's.
+   Neither role opens, edits or deletes a delivery, so there is no create action, no edit dialog and
+   no delete prompt: a client's request is epic 8's, and everything else on this list is dispatch's.
+
+   What both roles do have is the delivery's history. A driver advances the parcel they are carrying
+   (FR-26) and a client adds a note to their own delivery (FR-107), so the row's history action opens
+   the shared timeline panel - with the transition buttons drawn for a driver and withheld from a
+   client (FR-90). Withheld, not decided: IAccessGuard.RequireAssignedDriver refuses a client's
+   status change whether or not this screen ever drew a button (FR-12).
 
    The rows are AssignedDeliverySummary, which has no driver and no client field at all. That is
    what makes FR-27 and FR-96 structural: a counterparty's name cannot reach this page through a
@@ -44,6 +49,7 @@
         <th scope="col">@Localizer["WindowLatestAt"]</th>
         <th scope="col">@Localizer["Status"]</th>
         <th scope="col">@Localizer["Overdue"]</th>
+        <th scope="col">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="delivery">
         @* FR-94: the address when one has been resolved, the coordinates when none has. Nothing on
@@ -55,35 +61,43 @@
         <td>@delivery.PackageWeightKg</td>
         <td>@delivery.DeliveryNotes</td>
         <td>@Window(delivery)</td>
-        <td>
-            @* Independent @@if blocks, one literal localizer key apiece: a label composed at run
-               time is a key the closed-catalogue test cannot see, and an `else` at markup level
-               reads to NFR-14's scan as a rendered English word. *@
-            @if (delivery.Status == DeliveryStatus.Pending)
-            {
-                <span>@Localizer["StatusPending"]</span>
-            }
-            @if (delivery.Status == DeliveryStatus.InTransit)
-            {
-                <span>@Localizer["StatusInTransit"]</span>
-            }
-            @if (delivery.Status == DeliveryStatus.Delivered)
-            {
-                <span>@Localizer["StatusDelivered"]</span>
-            }
-            @if (delivery.Status == DeliveryStatus.Failed)
-            {
-                <span>@Localizer["StatusFailed"]</span>
-            }
-        </td>
+        @* The same status vocabulary the dispatch board renders. One component instead of a second
+           copy of four localizer keys, which is the copy that goes stale. *@
+        <td><DeliveryStatusLabel Status="delivery.Status" /></td>
         <td>
             @if (delivery.IsOverdue)
             {
                 <span class="badge text-bg-danger">@Localizer["Overdue"]</span>
             }
         </td>
+        <td>
+            @* FR-107 and FR-108 for both roles, FR-26 for the driver: a client reads the history
+               and adds a note, a driver does that and advances the parcel they are carrying. *@
+            <button type="button" class="btn btn-secondary btn-sm dt-delivery-timeline"
+                    @onclick="TimelineHandler(delivery)">
+                <Icon Name="IconName.Timeline" />@Localizer["Timeline"]
+            </button>
+        </td>
     </RowTemplate>
 </DtDataTable>
+
+@* Built only once a row has been chosen, so the screen costs no timeline read until somebody asks
+   for one - and dropped again on close, so each open builds a new panel rather than reusing one
+   holding the status the delivery had when it was last opened. *@
+<DtDialog @ref="_timelineDialog" Title="@Localizer["TimelineTitle"]" OnClosed="CloseTimeline">
+    <ChildContent>
+        @if (_timeline is not null)
+        {
+            @* The flag draws or hides the transition buttons; it authorizes nothing. A client who
+               reached this markup another way is still refused by IAccessGuard, and a driver is
+               still refused on a delivery that is not theirs (FR-12, FR-26). *@
+            <DeliveryTimeline DeliveryId="_timeline.Id"
+                              Status="_timeline.Status"
+                              AllowStatusChange="_offersStatusChange"
+                              OnChanged="LoadAsync" />
+        }
+    </ChildContent>
+</DtDialog>
 
 @code {
     // The screen's own lifetime. A driver who navigates away mid-load leaves a query running
@@ -91,7 +105,30 @@
     private readonly CancellationTokenSource _cancellation = new();
 
     private IReadOnlyList<AssignedDeliverySummary> _deliveries = [];
+
+    /// <summary>The row whose history is open, or null while none is.</summary>
+    private AssignedDeliverySummary? _timeline;
+
+    private DtDialog? _timelineDialog;
     private bool _loading = true;
+
+    /// <summary>Whether this caller is offered the transition buttons.</summary>
+    private bool _offersStatusChange;
+
+    /// <summary>
+    /// Whether a role has any lifecycle action on a delivery of their own. A client never does
+    /// (FR-90), so offering them a button that could only ever be refused would be worse than
+    /// offering none.
+    /// </summary>
+    /// <remarks>
+    /// Internal and static so it can be asserted directly, for the reason the dispatch board lifts
+    /// its filter and sort rules out: static rendering builds no panel until a row is chosen and
+    /// dispatches no event that could choose one, so the flag's effect is unreachable from a render
+    /// test — and inverting it would leave every suite green while a client was handed the buttons
+    /// FR-90 says must not be drawn.
+    /// </remarks>
+    /// <param name="role">The signed-in caller's role.</param>
+    internal static bool OffersStatusChange(UserRole role) => role == UserRole.Driver;
 
     /// <summary>
     /// True when the page came back full. The query returns no total (PRD section 8 excludes one),
@@ -111,8 +148,32 @@
                 "The circuit has no authenticated caller: the session cookie is gone.");
         }
 
+        // Read after the authenticated check: ICurrentUser.Role throws for an anonymous caller, so
+        // asking outside that branch would take the screen down instead of refusing it.
+        _offersStatusChange = OffersStatusChange(Caller.Role);
+
         await LoadAsync();
     }
+
+    /// <summary>The row's history action, bound as a delegate so no lambda has to live in markup.</summary>
+    private Func<Task> TimelineHandler(AssignedDeliverySummary delivery) =>
+        () => ShowTimelineAsync(delivery);
+
+    private async Task ShowTimelineAsync(AssignedDeliverySummary delivery)
+    {
+        _timeline = delivery;
+
+        if (_timelineDialog is not null)
+        {
+            await _timelineDialog.ShowAsync();
+        }
+    }
+
+    /// <summary>
+    /// Forgets which row the history dialog was showing, so the next open builds a new panel rather
+    /// than reusing one holding a stale status and a half-typed note.
+    /// </summary>
+    private void CloseTimeline() => _timeline = null;
 
     /// <inheritdoc />
     public void Dispose()

@@ -18,6 +18,30 @@ internal sealed class EfDeliveryRepository(AppDbContext context) : IDeliveryRepo
         context.Deliveries.FirstOrDefaultAsync(delivery => delivery.Id == id, cancellationToken);
 
     /// <inheritdoc />
+    public Task<Delivery?> FindVisibleAsync(
+        int id,
+        AccessScope scope,
+        CancellationToken cancellationToken)
+    {
+        var rows = context.Deliveries.AsNoTracking().Where(delivery => delivery.Id == id);
+
+        // The same narrowing ListAsync applies, on a single row: a driver asking about a delivery
+        // that is not theirs gets no row rather than a row they then have to be refused, so the
+        // answer is 404 and nothing about the delivery's existence is disclosed.
+        if (scope.DriverId is { } driverId)
+        {
+            rows = rows.Where(delivery => delivery.DriverId == driverId);
+        }
+
+        if (scope.ClientId is { } clientId)
+        {
+            rows = rows.Where(delivery => delivery.ClientId == clientId);
+        }
+
+        return rows.FirstOrDefaultAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<Delivery>> ListAsync(
         AccessScope scope,
         int offset,

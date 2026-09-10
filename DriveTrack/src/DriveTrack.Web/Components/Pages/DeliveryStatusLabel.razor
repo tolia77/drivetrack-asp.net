@@ -1,0 +1,35 @@
+@* FR-30's four statuses, named once.
+
+   Before this component the same four keys were written out on the dispatch board, on the
+   own-deliveries screen and would have been again on every timeline entry - three copies of one
+   vocabulary, and the kind of duplication where the third copy is the one that goes stale.
+
+   Independent @@if blocks rather than a switch expression or an if/else chain: an `else` at markup
+   level reads to NFR-14's source scan as a rendered English word, and a key composed at run time
+   ("Status" + Status) is a key the closed-catalogue test cannot see. The four literal localizer
+   lookups below are what make those four keys reachable. *@
+@inject IStringLocalizer<UiText> Localizer
+
+@if (Status == DeliveryStatus.Pending)
+{
+    <span>@Localizer["StatusPending"]</span>
+}
+@if (Status == DeliveryStatus.InTransit)
+{
+    <span>@Localizer["StatusInTransit"]</span>
+}
+@if (Status == DeliveryStatus.Delivered)
+{
+    <span>@Localizer["StatusDelivered"]</span>
+}
+@if (Status == DeliveryStatus.Failed)
+{
+    <span>@Localizer["StatusFailed"]</span>
+}
+
+@code {
+    /// <summary>The status to label. A closed enum, so a typo is a build error.</summary>
+    [Parameter]
+    [EditorRequired]
+    public DeliveryStatus Status { get; set; }
+}

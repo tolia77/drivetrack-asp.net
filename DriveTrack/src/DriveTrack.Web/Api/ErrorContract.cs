@@ -63,6 +63,12 @@ internal static class ErrorContract
         // next move is to change one of the two figures.
         ErrorCode.DELIVERY_EXCEEDS_VEHICLE_CAPACITY => StatusCodes.Status409Conflict,
 
+        // FR-32, and AD-10's "never a validation error" written as a status: the request named a
+        // status that exists and a delivery that exists, and what refused it is where that delivery
+        // currently is. A 422 here would mean the payload was malformed, and a caller acting on
+        // that would keep re-sending a correct request with different spelling.
+        ErrorCode.DELIVERY_INVALID_STATUS_TRANSITION => StatusCodes.Status409Conflict,
+
         // AD-8 splits the two constraint kinds where AD-7 folds them together, and AD-8 is the more
         // specific rule: a unique violation is a genuine conflict with another row, a check
         // violation is a value the caller should not have sent. That split is what keeps NFR-2

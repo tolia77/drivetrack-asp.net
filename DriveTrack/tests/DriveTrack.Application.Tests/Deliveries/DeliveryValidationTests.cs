@@ -315,6 +315,104 @@ public class DeliveryValidationTests
     }
 
     // =====================================================================================
+    // Timeline notes (story 5.3)
+    //
+    // FR-106 puts a note on a status change and FR-107 makes one an entry in its own right, so the
+    // same text has two commands with deliberately different rules: optional on the change, required
+    // on the standalone note. Both bound by the column.
+    // =====================================================================================
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t\n")]
+    public void A_standalone_note_with_nothing_in_it_is_refused_naming_the_field(string? note)
+    {
+        // FR-107 asks for a note, and an entry holding a single space is a line that renders as
+        // blank and reads as a correction nobody wrote. The field name is what lets the form attach
+        // the refusal to the box that produced it (NFR-4).
+        Assert.Contains(nameof(AddDeliveryNoteCommand.Note), NoteFailures(note));
+    }
+
+    [Fact]
+    public void A_note_the_length_of_the_column_is_accepted_and_one_character_more_is_not()
+    {
+        // The boundary in both directions. A one-sided assertion passes for a validator that
+        // refuses every note, and for one that refuses none.
+        Assert.Empty(NoteFailures(new string('я', 1000)));
+        Assert.Contains(nameof(AddDeliveryNoteCommand.Note), NoteFailures(new string('я', 1001)));
+    }
+
+    [Fact]
+    public void A_note_is_measured_the_way_it_is_stored()
+    {
+        // The service writes the trimmed text, so a note that fits once trimmed must not be refused
+        // for whitespace that never reaches the column. Both commands ask the same question through
+        // the same method, so both are asserted.
+        var padded = "  " + new string('я', 1000) + "  ";
+
+        Assert.Empty(NoteFailures(padded));
+        Assert.Empty(StatusFailures(new ChangeDeliveryStatusCommand(DeliveryStatus.InTransit, padded)));
+    }
+
+    [Fact]
+    public void A_status_change_that_names_no_status_is_refused_naming_the_field()
+    {
+        // The property is nullable so an omitted field arrives as absent rather than binding to the
+        // enum's first member: without this rule, "you forgot to say where" would be answered with a
+        // 409 about a Pending-to-Pending transition the caller never asked for.
+        Assert.Contains(
+            nameof(ChangeDeliveryStatusCommand.Status),
+            StatusFailures(new ChangeDeliveryStatusCommand(null, null)));
+    }
+
+    [Fact]
+    public void A_status_the_enum_does_not_declare_is_refused_naming_the_field()
+    {
+        // The JSON reader is configured to accept integers for an enum, so an undefined member
+        // deserializes cleanly and reaches the validator. Refused here, as a 422 about the payload,
+        // rather than falling through to the lifecycle and being reported as a 409 about the row.
+        Assert.Contains(
+            nameof(ChangeDeliveryStatusCommand.Status),
+            StatusFailures(new ChangeDeliveryStatusCommand((DeliveryStatus)42, null)));
+    }
+
+    [Fact]
+    public void A_status_change_needs_no_note_at_all()
+    {
+        // FR-106 makes the note optional on a change: a status advances of its own accord, and
+        // demanding a sentence for every one would put "ok" in a thousand rows.
+        Assert.Empty(StatusFailures(new ChangeDeliveryStatusCommand(DeliveryStatus.InTransit, null)));
+        Assert.Empty(StatusFailures(new ChangeDeliveryStatusCommand(DeliveryStatus.InTransit, "   ")));
+    }
+
+    [Fact]
+    public void A_status_change_carrying_an_over_long_note_is_refused_naming_the_field()
+    {
+        Assert.Empty(StatusFailures(
+            new ChangeDeliveryStatusCommand(DeliveryStatus.Failed, new string('я', 1000))));
+
+        Assert.Contains(
+            nameof(ChangeDeliveryStatusCommand.Note),
+            StatusFailures(new ChangeDeliveryStatusCommand(DeliveryStatus.Failed, new string('я', 1001))));
+    }
+
+    [Theory]
+    [InlineData(DeliveryStatus.Pending)]
+    [InlineData(DeliveryStatus.InTransit)]
+    [InlineData(DeliveryStatus.Delivered)]
+    [InlineData(DeliveryStatus.Failed)]
+    public void The_validator_judges_no_transition(DeliveryStatus status)
+    {
+        // AD-10 keeps the transition table in one place, and this is the other half of that claim:
+        // asking for Delivered out of nowhere is a valid command that the lifecycle then refuses
+        // with a 409 (FR-32). A rule here would report it as a 422 and be the second copy of the
+        // table besides.
+        Assert.Empty(StatusFailures(new ChangeDeliveryStatusCommand(status, null)));
+    }
+
+    // =====================================================================================
     // Paging
     // =====================================================================================
 
@@ -391,7 +489,9 @@ public class DeliveryValidationTests
             DeliveryNotes = "Подзвонити",
             WindowEarliestAt = earliest,
             WindowLatestAt = latest,
-            Status = DeliveryStatus.Pending,
+
+            // No Status: it has no public setter, and a new delivery is Pending by the entity's own
+            // initializer (AD-10). That is the state this merge fixture wants anyway.
             CreatedAt = Noon,
         };
 
@@ -399,6 +499,26 @@ public class DeliveryValidationTests
     private static string[] Failures(CreateDeliveryCommand command) =>
     [
         .. new CreateDeliveryCommandValidator()
+            .Validate(command)
+            .Errors
+            .Select(failure => failure.PropertyName)
+            .Distinct(StringComparer.Ordinal),
+    ];
+
+    /// <inheritdoc cref="Failures" />
+    private static string[] NoteFailures(string? note) =>
+    [
+        .. new AddDeliveryNoteCommandValidator()
+            .Validate(new AddDeliveryNoteCommand(note))
+            .Errors
+            .Select(failure => failure.PropertyName)
+            .Distinct(StringComparer.Ordinal),
+    ];
+
+    /// <inheritdoc cref="Failures" />
+    private static string[] StatusFailures(ChangeDeliveryStatusCommand command) =>
+    [
+        .. new ChangeDeliveryStatusCommandValidator()
             .Validate(command)
             .Errors
             .Select(failure => failure.PropertyName)

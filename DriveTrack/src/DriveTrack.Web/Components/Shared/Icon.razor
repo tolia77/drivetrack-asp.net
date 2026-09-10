@@ -116,6 +116,17 @@
         <path d="M1.25 5.85 7.25 8.85v5.9l-6-3Z" />
         <path d="M8.75 14.75v-5.9l6-3v5.9Z" />
     }
+    @* A vertical run of dots with a line beside each: entries stacked in order, which is what the
+       timeline is. Distinct at 16px from the parcel above it, which is a solid block. *@
+    @if (Name == IconName.Timeline)
+    {
+        <path d="M3.25 3.75a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+        <path d="M3.25 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+        <path d="M3.25 15.25a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+        <path d="M6.5 1.5h8.25V3H6.5Z" />
+        <path d="M6.5 7.25h8.25v1.5H6.5Z" />
+        <path d="M6.5 13h8.25v1.5H6.5Z" />
+    }
 </svg>
 
 @code {
