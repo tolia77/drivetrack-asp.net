@@ -17,6 +17,13 @@
       *handler* is an adapter concern and stays in DriveTrack.Web; this is the issuing half.
     -->
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.15.0" />
+    <!--
+      AD-26: the object-store adapter. S3 is the protocol Garage speaks, and this is the only
+      project permitted to name an S3 type - IAssetStore is what Application sees.
+      Pinned at 4.0.103.1: the 4.0.7.x line drags in an AWSSDK.Core with a known advisory, which
+      `dotnet build -warnaserror` reports as NU1901 and refuses.
+    -->
+    <PackageReference Include="AWSSDK.S3" Version="4.0.103.1" />
   </ItemGroup>
 
 </Project>

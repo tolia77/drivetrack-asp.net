@@ -86,13 +86,18 @@ public class MapAssetTests
     }
 
     [Theory]
-    [InlineData("DtDialog.razor", "Components/Shared/DtDialog.razor.js")]
-    [InlineData("DtMap.razor", "Components/Shared/DtMap.razor.js")]
+    [InlineData("Shared/DtDialog.razor", "Components/Shared/DtDialog.razor.js")]
+    [InlineData("Shared/DtMap.razor", "Components/Shared/DtMap.razor.js")]
+    // Story 6.1's two. The signature pad is a shared component like the two above it; the capture
+    // panel is a screen, which is why the component argument is a path under Components/ rather
+    // than a bare file name - a collocated module is not a privilege of Components/Shared/.
+    [InlineData("Shared/DtSignaturePad.razor", "Components/Shared/DtSignaturePad.razor.js")]
+    [InlineData("Pages/ProofCapture.razor", "Components/Pages/ProofCapture.razor.js")]
     public void The_component_imports_the_module_at_the_path_that_is_served(string component, string served)
     {
         // The served route above and the string the component hands to import() have to be the
         // same path. They are written in two files and nothing else compares them.
-        var source = SharedMarkup.ReadShared(component);
+        var source = SharedMarkup.ReadComponent(component.Split('/'));
 
         Assert.Contains($"private const string ModulePath = \"./{served}\";", source, StringComparison.Ordinal);
     }
@@ -132,6 +137,12 @@ public class MapAssetDeliveryTests(PostgresFixture postgres)
     // and every map is dead on arrival with the rest of this class still green.
     [InlineData("Components/Shared/DtDialog.razor.js")]
     [InlineData("Components/Shared/DtMap.razor.js")]
+    // Story 6.1's two, for the same reason and with a sharper consequence: a signature pad that
+    // cannot import its module is a canvas nobody can draw on, and a capture panel that cannot
+    // import its own reads no coordinates - so FR-119's capture becomes impossible, silently, with
+    // every other test in the solution still green.
+    [InlineData("Components/Shared/DtSignaturePad.razor.js")]
+    [InlineData("Components/Pages/ProofCapture.razor.js")]
     public async Task The_vendored_asset_is_served(string path)
     {
         var cancellationToken = TestContext.Current.CancellationToken;

@@ -83,4 +83,10 @@ public enum IconName
 
     /// <summary>The log of outbound notification attempts (FR-28).</summary>
     Notifications,
+
+    /// <summary>Capturing the hand-over: the action that takes the photographs (FR-119).</summary>
+    Camera,
+
+    /// <summary>A captured proof of delivery, as something to read rather than to take (FR-122).</summary>
+    Proof,
 }

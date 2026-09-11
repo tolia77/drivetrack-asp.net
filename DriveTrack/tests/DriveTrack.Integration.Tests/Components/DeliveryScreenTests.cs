@@ -111,8 +111,13 @@ public class DeliveryScreenTests
 
         // And the count, because the three named checks above only rule out the three dialogs that
         // exist today: a fourth, added for some later capability, would slip past every one of them.
-        // The timeline is the one operation this screen has, so it is the one dialog it may carry.
-        Assert.Equal(1, SharedMarkup.Occurrences(mine, "<dialog"));
+        //
+        // Three, and each is an operation this screen genuinely has. The timeline is story 5.3's;
+        // story 6.1 added the capture a driver performs at the door (FR-119) and the proof either
+        // role may read afterwards (FR-122). The number is pinned rather than relaxed for the reason
+        // it was pinned at one: it is the only assertion that notices a dispatch-only dialog
+        // arriving here by a paste.
+        Assert.Equal(3, SharedMarkup.Occurrences(mine, "<dialog"));
     }
 
     [Fact]
@@ -131,6 +136,33 @@ public class DeliveryScreenTests
         // The stub's entry would render its actor's name if the panel had been built.
         Assert.DoesNotContain("dt-timeline-list", dispatch, StringComparison.Ordinal);
         Assert.DoesNotContain("dt-timeline-list", mine, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Both_screens_offer_the_proof_and_only_the_driver_is_offered_the_capture()
+    {
+        // FR-122 reaches every role that can see a delivery, so the read action is on both screens;
+        // FR-119's capture happens at a door, so it is the driver's alone and appears on neither the
+        // dispatch board nor a client's list. Without this, deleting either button leaves the whole
+        // suite green - the dialog count next door is about the own-deliveries screen and counts
+        // dialogs, not the actions that open them.
+        var dispatch = await RenderDeliveriesAsync(UserRole.Dispatcher);
+        var driver = await RenderMyDeliveriesAsync(StubDeliveryService.Assigned);
+        var customer = await RenderMyDeliveriesAsync(StubDeliveryService.Assigned, UserRole.Client);
+
+        Assert.Contains("dt-proof-open", dispatch, StringComparison.Ordinal);
+        Assert.Contains("dt-proof-open", driver, StringComparison.Ordinal);
+        Assert.Contains("dt-proof-open", customer, StringComparison.Ordinal);
+
+        Assert.Contains("dt-proof-capture", driver, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-proof-capture", dispatch, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-proof-capture", customer, StringComparison.Ordinal);
+
+        // And neither panel is built until a row is chosen, as the timeline's is not: a component
+        // per row would issue a proof read per row on first paint.
+        Assert.DoesNotContain("dt-proof-facts", dispatch, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-proof-facts", driver, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-proof-form", driver, StringComparison.Ordinal);
     }
 
     [Fact]

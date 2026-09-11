@@ -29,7 +29,9 @@ namespace DriveTrack.Web.Api;
 [ApiController]
 [Route("api/deliveries")]
 [Authorize]
-public sealed class DeliveriesController(IDeliveryService deliveries) : ControllerBase
+public sealed class DeliveriesController(
+    IDeliveryService deliveries,
+    IProofOfDeliveryService proofs) : ControllerBase
 {
     /// <summary>One page of every delivery (FR-18). Defaults to the first hundred.</summary>
     /// <remarks>
@@ -121,4 +123,38 @@ public sealed class DeliveriesController(IDeliveryService deliveries) : Controll
         int id,
         CancellationToken cancellationToken) =>
         deliveries.ListTimelineAsync(id, cancellationToken);
+
+    /// <summary>
+    /// Records the hand-over (FR-119): recipient, capture point, one signature and at least one
+    /// photograph, as <c>multipart/form-data</c>.
+    /// </summary>
+    /// <remarks>
+    /// The two limits are sized from <c>ProofAssetRules</c> rather than typed, and that is the
+    /// point of the rules living in Application: a body cap chosen independently of the validator's
+    /// per-asset cap would refuse a legal photograph with a framework 413 carrying no contract code
+    /// at all, which is a refusal no client can act on and no localized catalogue has a message for.
+    /// <para>
+    /// Still no <c>Roles</c> argument, for the reason the rest of this controller has none: "the
+    /// assigned driver, or dispatch" is not a role list, and the guard inside the capability states
+    /// it precisely.
+    /// </para>
+    /// </remarks>
+    [HttpPost("{id:int}/proof")]
+    [RequestSizeLimit(ProofAssetRules.MaximumRequestBytes)]
+    [RequestFormLimits(
+        MultipartBodyLengthLimit = ProofAssetRules.MaximumRequestBytes,
+        ValueCountLimit = ProofAssetRules.MaximumPhotos + 8)]
+    public Task<ProofOfDeliveryView> CaptureProofAsync(
+        int id,
+        [FromForm] ProofCaptureForm form,
+        CancellationToken cancellationToken) =>
+        proofs.CaptureAsync(id, form.ToCommand(), cancellationToken);
+
+    /// <summary>
+    /// A delivery's proof (FR-122). The capturer's name is present for an administrator or a
+    /// dispatcher and absent for everyone else — decided in the capability, not here (AD-17).
+    /// </summary>
+    [HttpGet("{id:int}/proof")]
+    public Task<ProofOfDeliveryView> GetProofAsync(int id, CancellationToken cancellationToken) =>
+        proofs.GetAsync(id, cancellationToken);
 }

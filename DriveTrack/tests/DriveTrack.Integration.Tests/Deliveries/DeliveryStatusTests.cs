@@ -179,6 +179,42 @@ public class DeliveryStatusTests(PostgresFixture postgres)
         Assert.Equal(before.Length, after.Length);
     }
 
+    [Fact]
+    public async Task An_illegal_move_to_Delivered_is_refused_by_the_lifecycle_and_not_by_FR120()
+    {
+        // The one request both 409s have an opinion about: a Pending delivery asked for Delivered
+        // with no note and no proof. Which code wins is a decision, and it is pinned here because
+        // both answers look plausible from the outside and only one of them is useful.
+        //
+        // DELIVERY_PROOF_REQUIRED would tell the caller to photograph a parcel nobody has collected
+        // yet, and a caller who obliged would be refused a second time - by FR-32, for the reason
+        // that applied from the start. So the lifecycle answers first, and FR-120 only ever speaks
+        // about a move the delivery could actually make.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var factory = await FleetApi.CreateAsync(postgres.ConnectionString, cancellationToken);
+        using var client = factory.CreateClient();
+
+        var dispatcher = await DeliveryApi.DispatcherAsync(factory, client, cancellationToken);
+
+        var deliveryId = await DeliveryApi.PostAsync(
+            client, dispatcher, DeliveryApi.NewDelivery(), cancellationToken);
+
+        using (var refused = await DeliveryApi.ChangeStatusAsync(
+                   client, dispatcher, deliveryId, DeliveryStatus.Delivered, cancellationToken))
+        {
+            await FleetApi.AssertFailureAsync(
+                refused,
+                HttpStatusCode.Conflict,
+                ErrorCode.DELIVERY_INVALID_STATUS_TRANSITION,
+                cancellationToken);
+        }
+
+        // And nothing moved, which is the other half of every refusal on this path.
+        Assert.Equal(
+            nameof(DeliveryStatus.Pending),
+            await DeliveryApi.StatusAsync(client, dispatcher, deliveryId, cancellationToken));
+    }
+
     [Theory]
     // A body that names no status at all. Without a rule the property would bind to the enum's
     // first member and the caller would be told "Pending cannot move to Pending" - a 409 about a
@@ -927,7 +963,16 @@ public class DeliveryStatusTests(PostgresFixture postgres)
         CancellationToken cancellationToken)
     {
         using var response = await DeliveryApi.ChangeStatusAsync(
-            client, dispatcherToken, deliveryId, status, cancellationToken);
+            client,
+            dispatcherToken,
+            deliveryId,
+            status,
+            cancellationToken,
+
+            // FR-120: Delivered is refused without a proof or a note, and an arrangement walking a
+            // delivery to a status has no proof to offer. The note is the other arm of the same
+            // precondition, and it is what dispatch uses when there is nothing to photograph.
+            note: status == DeliveryStatus.Delivered ? "Передано отримувачу" : null);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

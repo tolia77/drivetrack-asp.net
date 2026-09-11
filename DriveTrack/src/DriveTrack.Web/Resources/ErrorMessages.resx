@@ -129,4 +129,22 @@
   <data name="DELIVERY_INVALID_STATUS_TRANSITION" xml:space="preserve">
     <value>Такий перехід стану доставки неможливий з її поточного стану.</value>
   </data>
+  <!-- FR-120. The sentence names both ways out, because the caller who meets this refusal is
+       standing at a door with a phone and needs to know which of the two to do next. -->
+  <data name="DELIVERY_PROOF_REQUIRED" xml:space="preserve">
+    <value>Щоб позначити доставку як завершену, зафіксуйте підтвердження вручення або додайте примітку з поясненням.</value>
+  </data>
+  <data name="DELIVERY_PROOF_ALREADY_CAPTURED" xml:space="preserve">
+    <value>Підтвердження вручення для цієї доставки вже зафіксовано і не змінюється.</value>
+  </data>
+  <!-- NFR-28. The formats are described rather than listed by name: every one of their names is a
+       run of Latin letters, and NFR-14 keeps those off a screen. The file picker on the capture
+       screen already restricts what can be chosen, so this sentence is the answer to a caller who
+       went around it. -->
+  <data name="DELIVERY_PROOF_ASSET_TYPE_NOT_ALLOWED" xml:space="preserve">
+    <value>Цей файл не є зображенням дозволеного формату.</value>
+  </data>
+  <data name="DELIVERY_PROOF_ASSET_TOO_LARGE" xml:space="preserve">
+    <value>Кожне зображення має бути не порожнім і не більшим за 5 МіБ.</value>
+  </data>
 </root>

@@ -1,0 +1,64 @@
+/*
+    NFR-29: every palette value here resolves to a `--dt-*` token. The image sizing figures are
+    geometry - `width`, `max-width`, `height` - and NFR-29's scan deliberately does not read them.
+*/
+
+.dt-proof-facts {
+    display: grid;
+    /* Label then value on a phone, side by side once there is room for both. */
+    grid-template-columns: auto 1fr;
+    gap: var(--dt-space-2) var(--dt-space-4);
+    margin: 0 0 var(--dt-space-4);
+}
+
+.dt-proof-facts dt {
+    color: var(--dt-text-muted);
+    font-size: var(--dt-font-size-sm);
+    font-weight: var(--dt-font-weight-regular);
+}
+
+.dt-proof-facts dd {
+    margin: 0;
+    font-weight: var(--dt-font-weight-medium);
+}
+
+.dt-proof-place {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-2);
+    margin-bottom: var(--dt-space-4);
+}
+
+/*
+    A wrapping row rather than a grid with a fixed column count: a proof carries a signature and
+    between one and five photographs, and a fixed grid would leave three empty cells on the common
+    case.
+*/
+.dt-proof-assets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dt-space-3);
+}
+
+.dt-proof-asset {
+    margin: 0;
+}
+
+.dt-proof-image {
+    /*
+        Bounded rather than natural: a phone photograph is several thousand pixels wide, and one
+        rendered at its own size would push the dialog off the screen.
+    */
+    max-width: 12rem;
+    height: auto;
+    border: var(--dt-border-width) solid var(--dt-border-subtle);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-surface-muted);
+}
+
+.dt-proof-empty {
+    margin: 0;
+    padding: var(--dt-space-5);
+    color: var(--dt-text-muted);
+    text-align: center;
+}

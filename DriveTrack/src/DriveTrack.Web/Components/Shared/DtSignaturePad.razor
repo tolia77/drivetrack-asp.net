@@ -1,0 +1,96 @@
+@inject IJSRuntime JS
+@inject IStringLocalizer<UiText> Localizer
+@implements IAsyncDisposable
+
+@* FR-119: the recipient signs on the device, and the drawing becomes one of the proof's assets.
+
+   A <canvas> the module draws into, for the reason DtMap's container is an empty <div>: the pixels
+   are outside Blazor's diff, so anything the renderer wrote here would be wiped on the first stroke.
+   The element is sized in CSS and its backing store is sized by the module at first render, because
+   a canvas whose attribute size and CSS size disagree draws a signature that does not follow the
+   finger.
+
+   Every JS call happens in OnAfterRenderAsync or later, so static rendering never reaches IJSRuntime
+   and this component renders on the server's first pass exactly as it does in a render test. *@
+
+<div class="dt-signature">
+    <canvas @ref="_element" class="dt-signature-canvas" role="img"
+            aria-label="@Localizer["SignatureLabel"]"></canvas>
+
+    <button type="button" class="btn btn-secondary btn-sm dt-signature-clear" @onclick="ClearAsync">
+        <Icon Name="IconName.Close" />@Localizer["SignatureClear"]
+    </button>
+</div>
+
+@code {
+    private const string ModulePath = "./Components/Shared/DtSignaturePad.razor.js";
+
+    private ElementReference _element;
+    private IJSObjectReference? _module;
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // Imported at first render rather than at initialisation: the element the module attaches
+        // its pointer listeners to does not exist until the markup above has been written.
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+
+        await _module.InvokeVoidAsync("attach", _element);
+    }
+
+    /// <summary>
+    /// The drawing as base64-encoded PNG, or null when nothing has been drawn.
+    /// </summary>
+    /// <remarks>
+    /// Base64 rather than a stream, because this is the one place the bytes exist in a browser and
+    /// the only way back from one is a string. The screen decodes it once and hands the capability a
+    /// <c>MemoryStream</c>, so nothing below the component ever sees an encoding.
+    /// <para>
+    /// Null for an untouched pad is what lets the screen refuse before a round trip; the validator
+    /// refuses the same absence afterwards, which is the decision that actually counts.
+    /// </para>
+    /// </remarks>
+    public async Task<string?> ReadPngBase64Async()
+    {
+        if (_module is null)
+        {
+            return null;
+        }
+
+        return await _module.InvokeAsync<string?>("read", _element);
+    }
+
+    /// <summary>Wipes the pad, so a mis-drawn signature is redrawn rather than submitted.</summary>
+    public async Task ClearAsync()
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("clear", _element);
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("detach", _element);
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit went away before the component did. There is no browser left to tidy, and
+            // throwing here would replace a disconnect with an unhandled error.
+        }
+    }
+}

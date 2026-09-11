@@ -22,7 +22,12 @@ internal static class DeliveryApi
     /// <summary>A driver, signed in, with the vehicle they hold.</summary>
     /// <param name="DriverId">The driver row's id, which a delivery refers to them by.</param>
     /// <param name="Token">A bearer token for the driver's own account.</param>
-    internal sealed record DriverCaller(int DriverId, string Token);
+    /// <param name="Email">
+    /// The address on their account. Carried because a bearer token is not the only credential the
+    /// product issues: the proof-asset route accepts a session cookie too, and the only way to get
+    /// one is to sign this driver in through the form that writes it.
+    /// </param>
+    internal sealed record DriverCaller(int DriverId, string Token, string Email);
 
     /// <summary>A client, signed in.</summary>
     /// <param name="ClientId">The client row's id, which a delivery refers to them by.</param>
@@ -79,7 +84,7 @@ internal static class DeliveryApi
 
         var token = await FleetApi.SignInAsync(client, email, FleetApi.Password, cancellationToken);
 
-        return new DriverCaller(driverId, token);
+        return new DriverCaller(driverId, token, email);
     }
 
     /// <summary>

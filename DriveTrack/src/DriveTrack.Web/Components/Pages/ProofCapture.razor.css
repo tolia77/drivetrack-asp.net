@@ -1,0 +1,25 @@
+/*
+    NFR-29: every colour, spacing figure and radius here resolves to a `--dt-*` token. The figures
+    that are geometry - `display`, `flex-direction`, `flex-wrap`, `justify-content` - name no palette
+    value and are outside the scan, as they are in the timeline's stylesheet.
+*/
+
+.dt-proof-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-4);
+}
+
+/* The sentences that explain a control rather than label it: quieter than the label above them. */
+.dt-proof-hint {
+    margin: var(--dt-space-1) 0 0;
+    color: var(--dt-text-muted);
+    font-size: var(--dt-font-size-sm);
+}
+
+.dt-proof-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--dt-space-2);
+}

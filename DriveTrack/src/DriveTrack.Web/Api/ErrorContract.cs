@@ -69,6 +69,21 @@ internal static class ErrorContract
         // that would keep re-sending a correct request with different spelling.
         ErrorCode.DELIVERY_INVALID_STATUS_TRANSITION => StatusCodes.Status409Conflict,
 
+        // FR-120 and FR-123, and 409 for the same reason FR-32's refusal is one: the request was
+        // well formed and what refused it is the state of the delivery - it has no proof and no
+        // note, or it already has a proof and a proof is never replaced. A 422 would tell a driver
+        // to re-spell a payload that was correct.
+        ErrorCode.DELIVERY_PROOF_REQUIRED => StatusCodes.Status409Conflict,
+        ErrorCode.DELIVERY_PROOF_ALREADY_CAPTURED => StatusCodes.Status409Conflict,
+
+        // NFR-28, and 422 because these two really are about the content of the request: the file
+        // is the wrong sort of file, or it is too big. Both travel as field keys inside
+        // COMMON_VALIDATION_FAILED, so the status the validator's own code carries is the one that
+        // reaches the caller - these arms exist because AD-7's map is total, and because a future
+        // path that threw one of them directly must not answer 500.
+        ErrorCode.DELIVERY_PROOF_ASSET_TYPE_NOT_ALLOWED => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_PROOF_ASSET_TOO_LARGE => StatusCodes.Status422UnprocessableEntity,
+
         // AD-8 splits the two constraint kinds where AD-7 folds them together, and AD-8 is the more
         // specific rule: a unique violation is a genuine conflict with another row, a check
         // violation is a value the caller should not have sent. That split is what keeps NFR-2

@@ -186,7 +186,16 @@ public class NotificationLogTests(PostgresFixture postgres)
         CancellationToken cancellationToken)
     {
         using var response = await DeliveryApi.ChangeStatusAsync(
-            client, token, deliveryId, status, cancellationToken);
+            client,
+            token,
+            deliveryId,
+            status,
+            cancellationToken,
+
+            // FR-120: Delivered needs a proof or a note, and this suite is about what the notice
+            // records rather than about how a delivery is closed. The note is the arm that needs no
+            // object store.
+            note: status == DeliveryStatus.Delivered ? "Передано отримувачу" : null);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
