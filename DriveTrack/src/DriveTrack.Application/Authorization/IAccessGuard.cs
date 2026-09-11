@@ -18,12 +18,22 @@ namespace DriveTrack.Application.Authorization;
 /// One member per question, and no more (NFR-6). <c>RequireSelf</c> answers "is this the caller's
 /// own row"; <c>RequireRole</c> answers "is this caller one of these people"; <c>RequireScope</c>
 /// answers "which rows of a collection may this caller be shown"; <c>RequireAssignedDriver</c>
-/// answers "is this the driver carrying this parcel, or dispatch". Each arrived with the first
-/// capability that had a caller for it — the scope with story 5.1, the assignment with 5.3 — and
-/// none is a rewording of another: none of the first three can express "the assigned driver, or
-/// dispatch, but never the client whose delivery it is", and writing that as a role test inside a
-/// service would be a second place authorization lived. AD-4's "admin satisfies every check" lives
-/// inside the implementation, once, so every member inherits it and none restates it.
+/// answers "is this the driver carrying this parcel, or dispatch"; <c>RequireChatParticipant</c>
+/// answers "may this caller work in this driver's conversation, or see the list of them". Each
+/// arrived with the first capability that had a caller for it — the scope with story 5.1, the
+/// assignment with 5.3, the conversation with 8.1 — and none is a rewording of another: none of the
+/// first three can express "the assigned driver, or dispatch, but never the client whose delivery
+/// it is", and writing that as a role test inside a service would be a second place authorization
+/// lived.
+/// </para>
+/// <para>
+/// AD-4's "admin satisfies every check" lives inside the implementation, once, so every member
+/// inherits it and none restates it — with exactly one exception, recorded here because it is the
+/// kind of asymmetry a reader will otherwise take for a bug.
+/// <see cref="RequireChatParticipant"/> refuses an administrator. The PRD decides it as product
+/// ("admins moderate rather than dispatch"), and a fifth member is what lets the exception be
+/// written once, in one body, instead of as a role test scattered through a capability. Every other
+/// member still grants the override.
 /// </para>
 /// </summary>
 public interface IAccessGuard
@@ -105,4 +115,39 @@ public interface IAccessGuard
     /// assigned one, or holds a role with no part in the lifecycle (<c>AUTH_FORBIDDEN</c>, 403).
     /// </exception>
     void RequireAssignedDriver(DriverId? assignedDriverId);
+
+    /// <summary>
+    /// Requires that the caller is a participant in a driver's conversation — or, when
+    /// <paramref name="thread"/> is null, that they are the kind of caller who has a roster of
+    /// conversations at all (FR-68 to FR-76, AD-15).
+    /// <para>
+    /// A dispatcher passes for every thread and for the roster; a driver passes for exactly the
+    /// thread keyed on their own driver row and for nothing else. <b>A client and an administrator
+    /// pass nothing.</b> That is the one place AD-4's override deliberately stops: the PRD records
+    /// admin lockout from chat as a product decision — "admins moderate rather than dispatch" — and
+    /// not as an omission, so the admin arm is absent from the implementation on purpose.
+    /// </para>
+    /// <para>
+    /// The two questions share one member because they share one rule. The comparison is
+    /// <c>DriverId?</c> against <c>DriverId?</c>: a null thread never equals a driver's row id, so
+    /// the roster stays dispatcher-only without a second test, and a driver whose claims carry no
+    /// driver row id compares unequal to every thread and is refused rather than widened.
+    /// </para>
+    /// <para>
+    /// <see cref="RequireRole"/> cannot express it, because <c>RequireRole(Dispatcher)</c> reads as
+    /// "a dispatcher or an admin" by design. <see cref="RequireSelf"/> cannot either, because the
+    /// thread key is a driver row id rather than a user id, and a dispatcher who owns no thread
+    /// must still pass.
+    /// </para>
+    /// </summary>
+    /// <param name="thread">
+    /// The driver row the conversation is keyed on, or null to ask about the roster of
+    /// conversations rather than about one of them.
+    /// </param>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401), or is a driver asking about a
+    /// conversation that is not theirs, or holds a role with no part in chat at all — a client or
+    /// an administrator (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    void RequireChatParticipant(DriverId? thread);
 }

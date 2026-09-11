@@ -1,0 +1,397 @@
+@page "/chat"
+@attribute [Authorize]
+@inject ICurrentUser Caller
+@inject IJSRuntime JS
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IAsyncDisposable
+
+@* FR-68 to FR-76: the one chat screen, for both of its participants.
+
+   A driver sees their own conversation and no picker - they have exactly one thread and no reason
+   to choose between them. A dispatcher sees the roster of drivers beside the conversation they
+   picked. A client or an administrator sees neither: chat has two participants by product decision,
+   and an admin is deliberately not one of them.
+
+   FR-12, and it is the part worth repeating: what is rendered here is a convenience. IAccessGuard
+   inside IChatService is what refuses a caller, and it runs whether or not this screen offered them
+   anything - which is why [Authorize] carries no role and there is no <AuthorizeView> below.
+
+   Every branch below is a call into ChatViews. The decisions are there rather than here because a
+   statically rendered component dispatches no events: a rule written inside an @onclick handler or
+   behind a live socket is a rule no test in this solution can reach (DW-17, DW-18).
+
+   The connection lives in the browser, not in the circuit. A server-side HubConnection would carry
+   no session cookie and would need a token the application minted for itself; the browser already
+   holds drivetrack.session, and the hub sits outside /api, so it connects with nothing added.
+
+   Independent @if blocks and one literal localizer key per string, for the reasons the other
+   screens state: an `else` at markup level reads to NFR-14's scan as a rendered English word, and a
+   key composed at run time is a key the closed-catalogue test cannot see. *@
+
+<PageTitle>@Localizer["ChatTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.Chat" />@Localizer["ChatTitle"]
+</h1>
+
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+@if (!_isParticipant)
+{
+    <p class="dt-chat-empty" role="status">
+        <Icon Name="IconName.Forbidden" />@Localizer["ChatNotParticipant"]
+    </p>
+}
+
+@if (_isParticipant)
+{
+    <div class="dt-chat">
+        @if (_showsRoster)
+        {
+            <nav class="dt-chat-roster" aria-label="@Localizer["ChatThreads"]">
+                @foreach (var summary in _threads)
+                {
+                    <button type="button" class="btn btn-secondary dt-chat-thread" @onclick="Open(summary)">
+                        <Icon Name="IconName.Chat" />@summary.DriverName
+                    </button>
+                }
+            </nav>
+        }
+
+        <section class="dt-chat-thread-panel">
+            @* The header names who the caller is talking to, which is a different person on each
+               side of the same conversation. *@
+            <h2 class="dt-chat-header">
+                @if (ChatViews.NamesTheDispatchDesk(_role))
+                {
+                    <span>@Localizer["ChatDispatchDesk"]</span>
+                }
+                @if (ChatViews.NamesTheSelectedDriver(_role, _thread is not null))
+                {
+                    <span>@SelectedDriverName</span>
+                }
+                @if (ChatViews.AsksForAThread(_role, _thread is not null))
+                {
+                    <span>@Localizer["ChatThreads"]</span>
+                }
+            </h2>
+
+            @if (ChatViews.AsksForAThread(_role, _thread is not null))
+            {
+                <p class="dt-chat-empty" role="status">@Localizer["ChatSelectThread"]</p>
+            }
+
+            @if (_thread is not null)
+            {
+                @* aria-live, because a message that arrives while the caller is reading something
+                   else is announced rather than silently appended. *@
+                <ol id="@_listId"
+                    class="dt-chat-messages"
+                    aria-live="polite"
+                    aria-label="@Localizer["ChatConversation"]">
+                    @foreach (var message in _thread.Messages)
+                    {
+                        <ChatLine Message="message" ViewerUserId="_callerUserId" />
+                    }
+                </ol>
+
+                @if (_thread.Messages.Count == 0)
+                {
+                    <p class="dt-chat-empty" role="status">@Localizer["ChatNoMessages"]</p>
+                }
+
+                <div class="dt-chat-composer">
+                    <input class="form-control dt-chat-input"
+                           @bind="_draft"
+                           @bind:event="oninput"
+                           placeholder="@Localizer["ChatMessagePlaceholder"]"
+                           aria-label="@Localizer["ChatMessagePlaceholder"]" />
+                    @* Disabled while a send is in flight: a double-click must not persist two rows,
+                       and there is no dedupe anywhere downstream to undo one that did. *@
+                    <button type="button"
+                            class="btn btn-primary dt-chat-send"
+                            disabled="@_sending"
+                            @onclick="SendAsync">
+                        <Icon Name="IconName.Send" />@Localizer["ChatSend"]
+                    </button>
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The path the collocated module is served from — the plain path rather than a fingerprinted
+    /// one, for the reason DtDialog gives: `Assets[...]` resolves a hashed href for a declarative
+    /// script tag, and `import()` from C# can only name this.
+    /// </summary>
+    private const string ModulePath = "./Components/Pages/Chat.razor.js";
+
+    /// <summary>
+    /// Generated, because the module scrolls the list by element id and two screens on one circuit
+    /// must not answer to the same one.
+    /// </summary>
+    private readonly string _listId = $"dt-chat-messages-{Guid.NewGuid():N}";
+
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _handle;
+    private DotNetObjectReference<Chat>? _self;
+
+    private IReadOnlyList<ChatThreadSummaryView> _threads = [];
+    private ChatThreadView? _thread;
+    private IReadOnlyList<string> _failures = [];
+    private string? _draft;
+    private bool _sending;
+
+    private UserRole _role;
+    private bool _isParticipant;
+    private bool _showsRoster;
+    private int _callerUserId;
+
+    /// <summary>
+    /// The name the header shows a dispatcher. A property rather than <c>@_thread!.DriverName</c> in
+    /// the markup: the null-forgiving operator is not part of the Razor expression grammar NFR-14's
+    /// scan parses, so everything after it reads to that scan as rendered English.
+    /// </summary>
+    private string SelectedDriverName => _thread?.DriverName ?? string.Empty;
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen reads the caller. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        // Read once, after the authenticated check: ICurrentUser.Role throws for an anonymous
+        // caller, so asking outside that branch would take the screen down instead of refusing it.
+        _role = Caller.Role;
+        _isParticipant = ChatViews.IsParticipant(_role);
+        _showsRoster = ChatViews.ShowsRoster(_role);
+        _callerUserId = Caller.UserId.Value;
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Not on every render, and not for a caller with no conversation to open: a client who
+        // lands here is shown the refusal and never opens a socket.
+        if (!firstRender || !_isParticipant)
+        {
+            return;
+        }
+
+        _self = DotNetObjectReference.Create(this);
+
+        try
+        {
+            // The import is inside the guard, not before it. A module that fails to load throws the
+            // same JSException the calls below do, and an unhandled one out of OnAfterRenderAsync
+            // tears down the circuit - which is the failure this catch exists to prevent.
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+
+            _handle = await _module.InvokeAsync<IJSObjectReference>("connect", _self);
+
+            if (_showsRoster)
+            {
+                _threads = await _module.InvokeAsync<ChatThreadSummaryView[]>("listThreads", _handle);
+            }
+
+            // FR-69: a driver's own conversation is the screen. Nothing to pick, so nothing to pick
+            // from.
+            if (!_showsRoster && Caller.DriverId is { } own)
+            {
+                await OpenAsync(own.Value);
+            }
+        }
+        catch (JSException failure)
+        {
+            _failures = [KeyOf(failure)];
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>Called by the module when the hub broadcasts a message into a joined thread.</summary>
+    /// <param name="driverId">The conversation the message belongs to.</param>
+    /// <param name="message">The row the server stored.</param>
+    [JSInvokable]
+    public async Task ReceiveMessageAsync(int driverId, ChatMessageView message)
+    {
+        // A dispatcher who has switched conversations may still be in the old group for an instant,
+        // so the conversation on screen is what decides whether this line belongs to it.
+        if (_thread is null || _thread.DriverId != driverId)
+        {
+            return;
+        }
+
+        // By id, because a reconnect replays the whole rejoined conversation through here to
+        // recover the lines that were broadcast while the connection was down. Every line already
+        // on screen arrives a second time, and appending it would show the conversation twice.
+        if (_thread.Messages.Any(line => line.Id == message.Id))
+        {
+            return;
+        }
+
+        _thread = _thread with { Messages = [.. _thread.Messages, message] };
+
+        StateHasChanged();
+
+        await ScrollAsync();
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_handle is not null)
+            {
+                if (_module is not null)
+                {
+                    // Stopped explicitly: a circuit that navigated away would otherwise leave a
+                    // socket listening to a conversation nobody is reading.
+                    await _module.InvokeVoidAsync("disconnect", _handle);
+                }
+
+                await _handle.DisposeAsync();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit went away before the component did; there is no browser left to tidy.
+        }
+
+        _self?.Dispose();
+    }
+
+    /// <summary>
+    /// The handler for a roster entry, built in C# rather than written as a lambda in the attribute:
+    /// a `=&gt;` there closes the tag as far as NFR-14's markup scan is concerned, and everything
+    /// after it is read as rendered English.
+    /// </summary>
+    private Func<Task> Open(ChatThreadSummaryView summary) => () => OpenAsync(summary.DriverId);
+
+    private async Task OpenAsync(int driverId)
+    {
+        if (_module is null || _handle is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // Left before the new one is joined, so a dispatcher reading one driver's conversation
+            // does not keep receiving another's in the background. Inside the guard, because a
+            // JSException escaping here would tear down the circuit.
+            if (_thread is not null && _thread.DriverId != driverId)
+            {
+                await _module.InvokeVoidAsync("leaveThread", _handle, _thread.DriverId);
+            }
+
+            _thread = await _module.InvokeAsync<ChatThreadView>("joinThread", _handle, driverId);
+        }
+        catch (JSException failure)
+        {
+            // Cleared, not left as it was. The old conversation has already been left, so keeping
+            // it on screen would render a conversation this connection no longer receives - and
+            // SendAsync would go on posting into it.
+            _thread = null;
+            _failures = [KeyOf(failure)];
+
+            StateHasChanged();
+
+            return;
+        }
+
+        _failures = [];
+
+        StateHasChanged();
+
+        await ScrollAsync();
+    }
+
+    private async Task SendAsync()
+    {
+        if (_module is null || _handle is null || _thread is null || _sending)
+        {
+            return;
+        }
+
+        // Set before the await and cleared in the finally: the button is disabled from the moment
+        // the first click is handled until the server has answered, so a second click has nothing
+        // to act on. There is no dedupe downstream, so two rows would simply be two messages.
+        _sending = true;
+
+        try
+        {
+            await _module.InvokeVoidAsync("send", _handle, _thread.DriverId, _draft);
+        }
+        catch (JSException failure)
+        {
+            // The draft stays in the box: a message the server refused for being too long is a
+            // message the sender is being asked to shorten, not one to make them retype.
+            _failures = [KeyOf(failure)];
+
+            return;
+        }
+        finally
+        {
+            _sending = false;
+        }
+
+        _failures = [];
+
+        // FR-73: no optimistic echo. The box is cleared because the server accepted the message;
+        // the line itself appears when the broadcast arrives, so what is on screen is what is in
+        // the database.
+        _draft = null;
+    }
+
+    private async Task ScrollAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("scrollToNewest", _listId);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Nothing to scroll: the browser is gone.
+        }
+    }
+
+    /// <summary>
+    /// The resource key behind a refusal that arrived over the hub.
+    /// <para>
+    /// A <c>HubException</c>'s message crosses the wire verbatim, and the hub puts exactly one of
+    /// AD-8's keys in it; the JavaScript client wraps that in its own sentence on the way back. So
+    /// the key is looked for rather than parsed out, and anything unrecognised is the unexpected
+    /// failure it is rather than a raw string put in front of a user (NFR-3).
+    /// </para>
+    /// </summary>
+    private static string KeyOf(JSException failure) =>
+        Enum.GetValues<ErrorCode>()
+            .Select(code => code.ToString())
+            .FirstOrDefault(name => failure.Message.Contains(name, StringComparison.Ordinal))
+        ?? nameof(ErrorCode.COMMON_UNEXPECTED_ERROR);
+}

@@ -341,6 +341,15 @@ public class AdministrationScreenTests
         // express - a client's scope admits their own delivery, so RequireScope would let them
         // change its status, and a role test inside the service would be authorization living
         // somewhere else again.
+        //
+        // Story 8.1 adds RequireChatParticipant, and the argument for it is the strongest of the
+        // three: it is the one question in the system whose answer contradicts AD-4. The PRD locks
+        // administrators out of chat as a product decision, so RequireRole(Dispatcher) - which
+        // reads as "a dispatcher or an admin" by design - is not merely awkward here but wrong, and
+        // RequireSelf cannot express it either because the thread key is a driver row id and a
+        // dispatcher who owns no conversation must still pass. One member with a nullable argument
+        // also answers "may this caller see the roster at all", because a null thread never equals
+        // a driver's row id - two questions, one rule, one place to read it.
         var members = typeof(IAccessGuard)
             .GetMethods()
             .Select(method => method.Name)
@@ -348,7 +357,13 @@ public class AdministrationScreenTests
             .ToArray();
 
         Assert.Equal(
-            ["RequireAssignedDriver", "RequireRole", "RequireScope", "RequireSelf"],
+            [
+                "RequireAssignedDriver",
+                "RequireChatParticipant",
+                "RequireRole",
+                "RequireScope",
+                "RequireSelf",
+            ],
             members);
     }
 

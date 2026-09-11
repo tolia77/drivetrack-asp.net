@@ -88,6 +88,25 @@ public class NavigationTests
             NavDestinations.For(role).Contains(NavDestination.Notifications));
     }
 
+    [Theory]
+    [InlineData(UserRole.Admin, false)]
+    [InlineData(UserRole.Dispatcher, true)]
+    [InlineData(UserRole.Driver, true)]
+    [InlineData(UserRole.Client, false)]
+    public void Chat_is_offered_to_its_two_participants_and_to_nobody_else(UserRole role, bool chat)
+    {
+        // Story 8.1's destination, and the row a reader will take for a mistake: the administrator
+        // is the one role above a dispatcher that is offered *less*. The PRD locks admins out of
+        // chat on purpose - "admins moderate rather than dispatch" - and
+        // IAccessGuard.RequireChatParticipant refuses them by rule, so the link could only ever
+        // refuse. A client is refused for the plainer reason that chat has two participants and
+        // they are not one.
+        //
+        // It is also what forces the tier table's shape: the admin set can no longer be built from
+        // the dispatcher's, because for the first time it is not a superset of it.
+        Assert.Equal(chat, NavDestinations.For(role).Contains(NavDestination.Chat));
+    }
+
     [Fact]
     public void An_anonymous_caller_is_offered_the_page_that_allows_them()
     {
@@ -157,11 +176,11 @@ public class NavigationTests
         // Every link and action carries an icon beside its text (NFR-24): the brand mark, home,
         // profile, the two fleet screens (4.1), the dispatch board and the own-deliveries screen
         // (5.1), the two administration rosters (7.1), story 5.2's notification log, sign-out,
-        // sign-in and register - thirteen in all. The count moves with the destination table on
-        // purpose: a destination rendered without a glyph is markup with nothing behind it, which
-        // is the defect this whole test guards, so adding a link has to be a deliberate edit to
-        // this line rather than an empty box nobody notices.
-        Assert.Equal(13, SharedMarkup.Occurrences(menu, "<Icon Name="));
+        // sign-in and register - and story 8.1's chat destination, fourteen in all. The count moves
+        // with the destination table on purpose: a destination rendered without a glyph is markup
+        // with nothing behind it, which is the defect this whole test guards, so adding a link has
+        // to be a deliberate edit to this line rather than an empty box nobody notices.
+        Assert.Equal(14, SharedMarkup.Occurrences(menu, "<Icon Name="));
     }
 
     [Fact]
@@ -238,6 +257,13 @@ public class NavigationTests
             destinations.Contains(NavDestination.Notifications),
             links.Contains("notifications"));
         Assert.Equal(role == UserRole.Admin, links.Contains("notifications"));
+
+        // Story 8.1's destination, rendered rather than only read off the table - and stated as a
+        // literal role test as well, because "what the table says" and "who the product decided
+        // may chat" have to be the same answer: a dispatcher and a driver, never an admin or a
+        // client.
+        Assert.Equal(destinations.Contains(NavDestination.Chat), links.Contains("chat"));
+        Assert.Equal(role is UserRole.Dispatcher or UserRole.Driver, links.Contains("chat"));
     }
 
     [Fact]

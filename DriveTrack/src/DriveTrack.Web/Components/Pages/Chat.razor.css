@@ -1,0 +1,118 @@
+/*
+    FR-69 / NFR-22 / NFR-29: the conversation, and the roster beside it on a desk wide enough for
+    both. Every palette value here is a token; the figures that are not - `flex`, `min-width`,
+    `max-width`, `max-height` and `overflow` - are geometry, which NFR-29's scan deliberately does
+    not read.
+
+    The layout wraps rather than scrolling sideways: on a phone the roster stacks above the
+    conversation instead of pushing it off the edge, which is the difference between a scrollbar on
+    a panel and a scrollbar on the whole screen.
+*/
+
+.dt-chat {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--dt-space-4);
+}
+
+/*
+    The roster. `min-width` is what makes the wrap happen at a useful point: below it the two panels
+    would each be too narrow to read, so they stack instead.
+*/
+.dt-chat-roster {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 14rem;
+    min-width: 14rem;
+    max-width: 20rem;
+    gap: var(--dt-space-2);
+}
+
+.dt-chat-thread-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 3 1 22rem;
+    min-width: 0;
+    gap: var(--dt-space-3);
+    padding: var(--dt-space-4);
+    border: var(--dt-border-width) solid var(--dt-border-subtle);
+    border-radius: var(--dt-radius-lg);
+    background-color: var(--dt-surface-card);
+}
+
+.dt-chat-header {
+    margin: 0;
+    font-size: var(--dt-font-size-lg);
+    font-weight: var(--dt-font-weight-bold);
+    line-height: var(--dt-line-height-heading);
+}
+
+/*
+    The conversation itself scrolls inside its own box. `max-height` rather than a fixed height, so
+    a two-line conversation does not sit in a tall empty rectangle.
+*/
+.dt-chat-messages {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+    overflow-y: auto;
+    max-height: 28rem;
+    margin: 0;
+    padding: 0;
+    gap: var(--dt-space-2);
+}
+
+/*
+    One line. `align-self` is what distinguishes it from an own message below - the surface colour
+    and the border do the rest, and none of the three is the only signal, because colour alone is
+    not a distinction everyone can see.
+*/
+.dt-chat-line {
+    align-self: flex-start;
+    max-width: 85%;
+    padding: var(--dt-space-2) var(--dt-space-3);
+    border: var(--dt-border-width) solid var(--dt-border-subtle);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-surface-muted);
+    color: var(--dt-text-primary);
+}
+
+.dt-chat-line-own {
+    align-self: flex-end;
+    border-color: var(--dt-border-strong);
+    background-color: var(--dt-surface-card);
+}
+
+.dt-chat-sender {
+    font-weight: var(--dt-font-weight-medium);
+}
+
+.dt-chat-time {
+    margin-left: var(--dt-space-2);
+    color: var(--dt-text-muted);
+    font-size: var(--dt-font-size-xs);
+}
+
+/* Wrapped and preserved: a message typed over several lines reads as it was written. */
+.dt-chat-text {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.dt-chat-empty {
+    margin: 0;
+    color: var(--dt-text-muted);
+}
+
+.dt-chat-composer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dt-space-2);
+}
+
+.dt-chat-input {
+    flex: 1 1 12rem;
+    min-width: 0;
+}

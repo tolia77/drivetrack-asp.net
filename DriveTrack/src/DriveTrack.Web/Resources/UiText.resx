@@ -636,4 +636,44 @@
   <data name="SignatureClear" xml:space="preserve">
     <value>Очистити підпис</value>
   </data>
+  <!-- Story 8.1: FR-68 to FR-76. The destination, and the screen behind it. -->
+  <data name="NavChat" xml:space="preserve">
+    <value>Розмови</value>
+  </data>
+  <data name="ChatTitle" xml:space="preserve">
+    <value>Розмови</value>
+  </data>
+  <!-- The roster's own label, and the header a dispatcher sees before they have picked anyone. -->
+  <data name="ChatThreads" xml:space="preserve">
+    <value>Водії</value>
+  </data>
+  <data name="ChatSelectThread" xml:space="preserve">
+    <value>Оберіть водія, щоб побачити розмову.</value>
+  </data>
+  <!-- The other side of a driver's conversation is a desk rather than a person: whichever
+       dispatcher is on duty writes into the same thread. -->
+  <data name="ChatDispatchDesk" xml:space="preserve">
+    <value>Диспетчерська</value>
+  </data>
+  <data name="ChatConversation" xml:space="preserve">
+    <value>Листування</value>
+  </data>
+  <data name="ChatNoMessages" xml:space="preserve">
+    <value>Повідомлень ще немає.</value>
+  </data>
+  <!-- AD-20: the account is gone and the line is not, so the line says who it is not from. -->
+  <data name="ChatUnknownSender" xml:space="preserve">
+    <value>Видалений користувач</value>
+  </data>
+  <data name="ChatMessagePlaceholder" xml:space="preserve">
+    <value>Напишіть повідомлення</value>
+  </data>
+  <data name="ChatSend" xml:space="preserve">
+    <value>Надіслати</value>
+  </data>
+  <!-- A client or an administrator: chat has two participants and neither is one of them, so the
+       sentence says that rather than offering an empty conversation. -->
+  <data name="ChatNotParticipant" xml:space="preserve">
+    <value>Розмови ведуть диспетчери та водії. Ваша роль до них доступу не має.</value>
+  </data>
 </root>

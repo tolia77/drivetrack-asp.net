@@ -10,6 +10,7 @@ using DriveTrack.Infrastructure.Persistence;
 using DriveTrack.Web.Account;
 using DriveTrack.Web.Api;
 using DriveTrack.Web.Components;
+using DriveTrack.Web.Hubs;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -93,6 +94,27 @@ builder.Services.AddControllers(options => options.Filters.Add<EnvelopeResultFil
         // this field empty" differently. Without this factory a PATCH-shaped body cannot.
         options.JsonSerializerOptions.Converters.Add(new OptionalJsonConverterFactory());
     });
+
+// FR-70, FR-75: the chat hub's own transport. AddRazorComponents already brings SignalR in for the Blazor
+// circuit, but the circuit speaks BlazorPack and a browser's HubConnection speaks JSON - so the JSON
+// protocol needs the same converters the REST adapter uses, or AD-22's typed identities leave as
+// {"value":7} and a client reads back an object where a number was meant.
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options =>
+    {
+        // AD-21 and AD-22, exactly as the controllers state them. Written out rather than shared
+        // with AddJsonOptions above because the two serializers are configured through different
+        // option types, and a helper that hid that would hide which surface it had been applied to.
+        options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.PayloadSerializerOptions.Converters.Add(new UserIdJsonConverter());
+        options.PayloadSerializerOptions.Converters.Add(new DriverIdJsonConverter());
+        options.PayloadSerializerOptions.Converters.Add(new ClientIdJsonConverter());
+    });
+
+// AD-22's third caller source. A hub invocation has no HttpContext and no circuit, so the hub hands
+// its principal to this holder and CurrentUser reads it there. Scoped, which is what makes it safe:
+// SignalR creates a scope per hub method invocation, so one holder serves one caller.
+builder.Services.AddScoped<HubCaller>();
 
 // The scheme selector, and the two handlers it forwards to.
 //
@@ -316,6 +338,22 @@ app.MapPost("/sign-out", async (HttpContext context, IAntiforgery antiforgery) =
 
     return Results.Redirect("/");
 });
+
+// FR-70 and FR-75: the chat hub, and the one endpoint this story adds.
+//
+// Outside /api on purpose, for the reason the asset route is: AD-22 makes /api/* bearer-only and a
+// browser holds a cookie rather than a token, so a hub under /api could never be reached from the
+// screen that needs it. Here the path selector sends the browser's handshake to the cookie handler
+// with nothing added, and the hub's own [Authorize] additionally names the bearer scheme so the
+// integration suite can drive it with a token.
+//
+// Outside the envelope branch as well: a hub speaks its own protocol, and ApiEnvelopeMiddleware
+// would wrap negotiate and poll responses in a shape no SignalR client can read. Its failures are
+// still structured, because the two authentication handlers write the envelope themselves.
+//
+// No RequireAuthorization here: the attribute on the hub carries the schemes, and which conversation
+// a caller may reach is IAccessGuard's decision inside IChatService (FR-12, AD-2).
+app.MapHub<ChatHub>("/hubs/chat");
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()

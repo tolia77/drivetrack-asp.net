@@ -1,6 +1,7 @@
 using System.Globalization;
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Application.Authorization;
+using DriveTrack.Application.Chat;
 using DriveTrack.Application.Deliveries;
 using DriveTrack.Application.Drivers;
 using DriveTrack.Application.Notifications;
@@ -213,6 +214,12 @@ public static class DependencyInjection
         // FR-119 to FR-123. Scoped like every other capability - it reads the caller of the request
         // or circuit it is serving - even though the port it calls is a singleton below.
         services.AddScoped<IProofOfDeliveryService, ProofOfDeliveryService>();
+
+        // FR-68 to FR-76. Scoped like every other capability - it reads the caller of the request,
+        // the circuit or the hub invocation it is serving - and registered here because AD-1 makes
+        // Infrastructure the one composition surface, even for a capability that lives in
+        // Application.
+        services.AddScoped<IChatService, ChatService>();
     }
 
     /// <summary>

@@ -89,4 +89,10 @@ public enum IconName
 
     /// <summary>A captured proof of delivery, as something to read rather than to take (FR-122).</summary>
     Proof,
+
+    /// <summary>A driver's conversation, and the destination that opens it (FR-68, FR-69).</summary>
+    Chat,
+
+    /// <summary>Sending the message that has been typed (FR-70).</summary>
+    Send,
 }

@@ -11,6 +11,17 @@
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.14.0" />
     <!-- NFR-1 is an HTTP contract, so it is asserted over HTTP against the real Program.cs. -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.4" />
+    <!--
+      FR-73 to FR-76 live in a hub, and the hub is where chat's authorization is enforced: a test
+      that called ChatHub's methods directly would assert against a class rather than against a
+      caller who had to negotiate, authenticate and be added to a group before hearing anything.
+      NFR-17 names messaging as the feature the original never tested, and this is the client that
+      makes testing it possible.
+
+      Test-only. The server half is the shared framework DriveTrack.Web already targets, and
+      ChatAssetTests pins that the Web project takes no SignalR package of its own.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.4" />
   </ItemGroup>
 
   <!--

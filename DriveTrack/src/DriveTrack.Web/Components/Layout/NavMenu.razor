@@ -106,6 +106,15 @@
             </div>
         }
 
+        @if (destinations.Contains(NavDestination.Chat))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="chat">
+                    <Icon Name="IconName.Chat" />@Localizer["NavChat"]
+                </NavLink>
+            </div>
+        }
+
         @if (destinations.Contains(NavDestination.Notifications))
         {
             <div class="nav-item px-3">
