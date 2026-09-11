@@ -114,6 +114,26 @@ public enum ErrorCode
     /// </summary>
     DELIVERY_PROOF_ASSET_TOO_LARGE,
 
+    /// <summary>
+    /// No driver holds the id a conversation was addressed by, so there is no conversation keyed on
+    /// it. 404 (FR-71). Answered only after the guard has passed: a caller who may not reach the
+    /// thread is refused before learning whether it exists.
+    /// </summary>
+    CHAT_THREAD_NOT_FOUND,
+
+    /// <summary>
+    /// The message body is empty once trimmed. 422 (FR-70), reported as a field key inside
+    /// <c>COMMON_VALIDATION_FAILED</c> so the composer can say which box was wrong.
+    /// </summary>
+    CHAT_MESSAGE_TEXT_REQUIRED,
+
+    /// <summary>
+    /// The message body is longer than the <c>messages.text</c> column holds. 422 (FR-70), reported
+    /// as a field key for the same reason as the refusal above — and stated by the validator so a
+    /// truncation the database would raise arrives as a 422 naming the field rather than a 500.
+    /// </summary>
+    CHAT_MESSAGE_TEXT_TOO_LONG,
+
     /// <summary>PostgreSQL SQLSTATE 23505, translated in Infrastructure. 409 (AD-8).</summary>
     PERSISTENCE_UNIQUE_VIOLATION,
 

@@ -384,6 +384,125 @@ public class AccessGuardTests
         Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
     }
 
+    // =====================================================================================
+    // RequireChatParticipant (story 8.1)
+    //
+    // FR-68 to FR-76 as one predicate with a nullable argument: a value asks "may this caller work
+    // in this driver's conversation", null asks "may they see the list of conversations at all".
+    // The admin case below is the one a reader will assume is a bug, so it is pinned hardest.
+    // =====================================================================================
+
+    [Fact]
+    public void An_anonymous_caller_asking_about_a_conversation_is_unauthenticated_not_forbidden()
+    {
+        // 401, not 403, exactly as the other four members answer it: FR-13's session-expiry flow
+        // branches on this single code, and an expired cookie on a live circuit arrives here too.
+        var guard = new AccessGuard(new StubCurrentUser());
+
+        var failure = Assert.Throws<ForbiddenException>(
+            () => guard.RequireChatParticipant(new DriverId(4)));
+
+        Assert.Equal(ErrorCode.AUTH_UNAUTHENTICATED, failure.Code);
+
+        // And the roster half of the same member, which is a different question and the same answer.
+        Assert.Equal(
+            ErrorCode.AUTH_UNAUTHENTICATED,
+            Assert.Throws<ForbiddenException>(() => guard.RequireChatParticipant(null)).Code);
+    }
+
+    [Fact]
+    public void A_dispatcher_reaches_the_roster_and_every_conversation()
+    {
+        // FR-68 and FR-71: dispatch runs every conversation, so neither argument refuses them.
+        var guard = new AccessGuard(new StubCurrentUser(Target, UserRole.Dispatcher));
+
+        guard.RequireChatParticipant(null);
+        guard.RequireChatParticipant(new DriverId(4));
+        guard.RequireChatParticipant(new DriverId(5));
+    }
+
+    [Fact]
+    public void A_driver_reaches_their_own_conversation_and_no_other()
+    {
+        // FR-69. The failure worth pinning is the same one RequireAssignedDriver pins: the
+        // plausible-looking mistake is comparing the caller's user id against the thread key, which
+        // compares two different row spaces and passes for whichever driver shares a number.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        guard.RequireChatParticipant(new DriverId(4));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireChatParticipant(new DriverId(5))).Code);
+    }
+
+    [Fact]
+    public void A_driver_is_offered_no_roster_of_conversations()
+    {
+        // The null argument never equals a driver's row id, which is what makes one member answer
+        // both questions without a second rule written anywhere.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        var failure = Assert.Throws<ForbiddenException>(() => guard.RequireChatParticipant(null));
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
+    }
+
+    [Fact]
+    public void A_driver_carrying_no_driver_row_id_reaches_no_conversation_at_all()
+    {
+        // The same disclosure risk RequireScope and RequireAssignedDriver refuse: a driver whose
+        // claims carry no driver row id matches no thread, and the only other answer available -
+        // pass - would hand them every conversation on the strength of a missing claim.
+        var guard = new AccessGuard(new StubCurrentUser(Target, UserRole.Driver));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireChatParticipant(new DriverId(4))).Code);
+    }
+
+    [Fact]
+    public void A_client_is_not_a_participant_in_chat()
+    {
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Client, clientId: new ClientId(9)));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireChatParticipant(new DriverId(4))).Code);
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(() => guard.RequireChatParticipant(null)).Code);
+    }
+
+    [Fact]
+    public void An_admin_is_refused_every_conversation_and_the_roster_as_well()
+    {
+        // The case a reader will take for a bug, and the reason this member exists at all. AD-4
+        // makes an administrator satisfy every other check in the system by rule; the PRD locks
+        // them out of chat on purpose - "admins moderate rather than dispatch" - and the original's
+        // defect list records "chat accepts clients and admins" as a fault to fix.
+        //
+        // If this test ever fails because somebody "fixed" the missing Admin arm in AccessGuard,
+        // the fix is to delete the arm again, not to change this line.
+        var guard = new AccessGuard(new StubCurrentUser(Target, UserRole.Admin));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireChatParticipant(new DriverId(4))).Code);
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(() => guard.RequireChatParticipant(null)).Code);
+    }
+
     /// <summary>
     /// A caller with no adapter behind it. The guard depends on the port, not on a
     /// <c>ClaimsPrincipal</c>, which is what makes these tests possible without a host.

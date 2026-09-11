@@ -39,6 +39,13 @@ public enum NavDestination
     /// it carries the address of every client the system has ever written to.
     /// </summary>
     Notifications,
+
+    /// <summary>
+    /// The conversation between the dispatch desk and a driver (FR-68, FR-69). Offered to those two
+    /// roles and to no others — chat has two participants, and neither a client nor an
+    /// administrator is one of them.
+    /// </summary>
+    Chat,
 }
 
 /// <summary>
@@ -80,6 +87,19 @@ internal static class NavDestinations
         new HashSet<NavDestination>(Personal) { NavDestination.MyDeliveries };
 
     /// <summary>
+    /// What a driver is offered: what any party to a delivery is, plus their conversation with the
+    /// dispatch desk (FR-69).
+    /// <para>
+    /// This is where story 8.1 splits a tier that until now served two roles. A driver and a client
+    /// were offered the same destinations, and chat is the first thing only one of them has: the
+    /// PRD gives chat two participants, dispatch and drivers, and a client is not one. Folding it
+    /// into <see cref="Assigned"/> would have offered a client a link that can only refuse.
+    /// </para>
+    /// </summary>
+    private static readonly IReadOnlySet<NavDestination> Driver =
+        new HashSet<NavDestination>(Assigned) { NavDestination.Chat };
+
+    /// <summary>
     /// The personal destinations plus the fleet, for the two roles that run dispatch. FR-12 still
     /// holds: this decides what is worth showing, and <c>IAccessGuard</c> decides who may do it.
     /// <para>
@@ -99,28 +119,46 @@ internal static class NavDestinations
     };
 
     /// <summary>
-    /// What a dispatcher is offered: the fleet, plus FR-48's client roster, which they open to
-    /// attach a client to a delivery. Not the dispatcher roster - administering accounts is
-    /// admin-only work (FR-49).
+    /// What both roles that run dispatch are offered: the fleet, plus FR-48's client roster, which
+    /// they open to attach a client to a delivery. Not the dispatcher roster - administering
+    /// accounts is admin-only work (FR-49).
+    /// <para>
+    /// Named for the work rather than for either role, because story 8.1 is the first story where
+    /// the two diverge: chat belongs to a dispatcher and not to an admin, so the admin tier can no
+    /// longer be built from the dispatcher's.
+    /// </para>
     /// </summary>
-    private static readonly IReadOnlySet<NavDestination> Dispatcher =
+    private static readonly IReadOnlySet<NavDestination> Dispatch =
         new HashSet<NavDestination>(Fleet) { NavDestination.Clients };
 
     /// <summary>
-    /// What an administrator is offered: everything a dispatcher is, plus the roster of
-    /// dispatchers themselves and FR-28's notification log. Built from <see cref="Dispatcher"/> for
-    /// the reason <see cref="Fleet"/> is built from <see cref="Personal"/>: a destination added to
-    /// either tier has to reach this one, and a restated list is how that stops happening.
+    /// What a dispatcher is offered: the dispatch work, plus the conversations they hold with the
+    /// drivers carrying it (FR-68).
+    /// </summary>
+    private static readonly IReadOnlySet<NavDestination> Dispatcher =
+        new HashSet<NavDestination>(Dispatch) { NavDestination.Chat };
+
+    /// <summary>
+    /// What an administrator is offered: the dispatch work, plus the roster of dispatchers
+    /// themselves and FR-28's notification log. Built from <see cref="Dispatch"/> for the reason
+    /// <see cref="Fleet"/> is built from <see cref="Personal"/>: a destination added to that tier
+    /// has to reach this one, and a restated list is how that stops happening.
     /// <para>
-    /// The notification log is admin-only rather than dispatcher-or-admin, which makes it the
-    /// second entry in this tier and the second one to be argued for. It is an operations record of
-    /// what the system sent and to which address, so it discloses every notified client's email in
-    /// one page — and <c>NotificationLogService</c> names <c>RequireRole(UserRole.Admin)</c>
+    /// Built from <see cref="Dispatch"/> rather than from <see cref="Dispatcher"/>, and the
+    /// difference is the whole of story 8.1's navigation change. Chat is the first capability an
+    /// admin is deliberately locked out of — the PRD's "admins moderate rather than dispatch" — and
+    /// <c>IAccessGuard.RequireChatParticipant</c> refuses them by rule, so offering the link would
+    /// be offering one that can only refuse.
+    /// </para>
+    /// <para>
+    /// The notification log is admin-only rather than dispatcher-or-admin. It is an operations
+    /// record of what the system sent and to which address, so it discloses every notified client's
+    /// email in one page — and <c>NotificationLogService</c> names <c>RequireRole(UserRole.Admin)</c>
     /// outright, so offering a dispatcher the link would be offering one that can only refuse.
     /// </para>
     /// </summary>
     private static readonly IReadOnlySet<NavDestination> Administrator =
-        new HashSet<NavDestination>(Dispatcher)
+        new HashSet<NavDestination>(Dispatch)
         {
             NavDestination.Dispatchers,
             NavDestination.Notifications,
@@ -140,7 +178,7 @@ internal static class NavDestinations
     {
         UserRole.Admin => Administrator,
         UserRole.Dispatcher => Dispatcher,
-        UserRole.Driver => Assigned,
+        UserRole.Driver => Driver,
         UserRole.Client => Assigned,
 
         // Total, like LandingRoute: a fifth role added without a navigation decision fails loudly

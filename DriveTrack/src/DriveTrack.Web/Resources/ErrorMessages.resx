@@ -147,4 +147,17 @@
   <data name="DELIVERY_PROOF_ASSET_TOO_LARGE" xml:space="preserve">
     <value>Кожне зображення має бути не порожнім і не більшим за 5 МіБ.</value>
   </data>
+  <!-- FR-71. A conversation is keyed on a driver row, so a driver who is no longer on the fleet
+       takes their conversation with them: the sentence says that rather than "не знайдено". -->
+  <data name="CHAT_THREAD_NOT_FOUND" xml:space="preserve">
+    <value>Такої розмови немає: водія з цим номером не знайдено.</value>
+  </data>
+  <data name="CHAT_MESSAGE_TEXT_REQUIRED" xml:space="preserve">
+    <value>Повідомлення не може бути порожнім.</value>
+  </data>
+  <!-- The figure is the column's, stated so the sender knows how much to cut rather than only that
+       it was too much. -->
+  <data name="CHAT_MESSAGE_TEXT_TOO_LONG" xml:space="preserve">
+    <value>Повідомлення задовге: максимум 2000 символів.</value>
+  </data>
 </root>

@@ -1,0 +1,52 @@
+@inject IStringLocalizer<UiText> Localizer
+
+@* FR-73 and FR-76: one line of a conversation — who wrote it, when, and what it says.
+
+   Its own component rather than a block inside the screen's @foreach, and the reason is testable
+   rendering: the screen's conversation arrives over a live hub connection, so static rendering never
+   reaches a state where a single message exists and nothing in this solution could read one back.
+   Given its message as a parameter, this renders on its own (DW-17, DW-18).
+
+   Independent @if blocks and one literal localizer key per string, for the reason the screens state:
+   an `else` at markup level reads to NFR-14's scan as a rendered English word. *@
+
+<li class="@ChatViews.LineClass(Message!.SenderUserId, ViewerUserId)">
+    @* AD-20: the account is gone and the line is not. *@
+    @if (Message.SenderUserId is null)
+    {
+        <span class="dt-chat-sender">@Localizer["ChatUnknownSender"]</span>
+    }
+    @if (Message.SenderUserId is not null)
+    {
+        <span class="dt-chat-sender">@Message.SenderName</span>
+    }
+    <span class="dt-chat-time">@Time(Message.SentAt)</span>
+    <p class="dt-chat-text">@Message.Text</p>
+</li>
+
+@code {
+    /// <summary>The stored row this line renders.</summary>
+    [Parameter]
+    [EditorRequired]
+    public ChatMessageView? Message { get; set; }
+
+    /// <summary>
+    /// The reading caller's user id, so their own lines can be set apart (FR-73). A plain number
+    /// because that is what crosses the interop boundary; nothing authorizes on it.
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public int ViewerUserId { get; set; }
+
+    /// <summary>
+    /// The instant a line was sent, in the culture the application runs in (NFR-15).
+    /// <para>
+    /// Date and time, the "g" every other screen in this solution renders an instant with. A
+    /// time-only format is the one shape a conversation cannot use: chat keeps its whole history
+    /// (FR-71), so a line written last month renders as a bare clock reading and is read as
+    /// today's.
+    /// </para>
+    /// </summary>
+    private static string Time(DateTimeOffset sentAt) =>
+        sentAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
+}

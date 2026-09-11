@@ -171,4 +171,50 @@ public sealed class AccessGuard(ICurrentUser currentUser) : IAccessGuard
             ErrorCode.AUTH_FORBIDDEN,
             "Role " + currentUser.Role + " has no part in a delivery's status lifecycle.");
     }
+
+    /// <inheritdoc />
+    public void RequireChatParticipant(DriverId? thread)
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            // 401 for the reason every other member answers 401: an expired cookie on a live
+            // circuit is a caller with no credentials left, and FR-13 branches on this one code.
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "An anonymous caller attempted to reach a driver's conversation.");
+        }
+
+        // FR-68 and FR-71: dispatch runs every conversation, so a dispatcher passes for the roster
+        // (a null thread) and for each thread alike.
+        if (currentUser.Role == UserRole.Dispatcher)
+        {
+            return;
+        }
+
+        if (currentUser.Role == UserRole.Driver)
+        {
+            // DriverId? against DriverId?, and both halves have to be present and equal. A null
+            // thread is the roster, which a driver has no use for and is not offered; a driver
+            // whose claims carry no driver row id matches no thread and is refused rather than
+            // widened, exactly as RequireScope refuses them.
+            if (thread is { } requested && currentUser.DriverId == requested)
+            {
+                return;
+            }
+
+            throw new ForbiddenException(
+                ErrorCode.AUTH_FORBIDDEN,
+                "User "
+                    + currentUser.UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + " holds role Driver and is not a participant in that conversation.");
+        }
+
+        // Total over the enum, and the one place AD-4's admin override deliberately does not apply.
+        // A Client lands here because chat has two participants and a client is not one of them; an
+        // Admin lands here because the PRD says so - "admins moderate rather than dispatch" - which
+        // is a product decision rather than a gap, and is why there is no Admin arm above.
+        throw new ForbiddenException(
+            ErrorCode.AUTH_FORBIDDEN,
+            "Role " + currentUser.Role + " is not a participant in chat.");
+    }
 }

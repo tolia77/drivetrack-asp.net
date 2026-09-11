@@ -84,6 +84,19 @@ internal static class ErrorContract
         ErrorCode.DELIVERY_PROOF_ASSET_TYPE_NOT_ALLOWED => StatusCodes.Status422UnprocessableEntity,
         ErrorCode.DELIVERY_PROOF_ASSET_TOO_LARGE => StatusCodes.Status422UnprocessableEntity,
 
+        // FR-71, and 404 for the reason DELIVERY_DRIVER_NOT_FOUND is one: a thread is keyed on a
+        // driver row, so a driver that does not exist is a conversation that does not exist rather
+        // than an empty one. Distinct from COMMON_NOT_FOUND because the missing row is the one the
+        // caller named, and a dispatcher told that can pick another driver.
+        ErrorCode.CHAT_THREAD_NOT_FOUND => StatusCodes.Status404NotFound,
+
+        // FR-70's two refusals on the content of the message. Both travel as field keys inside
+        // COMMON_VALIDATION_FAILED, so the status the validator's own code carries is the one that
+        // reaches a caller - these arms exist because AD-7's map is total, and because a future path
+        // that threw one of them directly must not answer 500.
+        ErrorCode.CHAT_MESSAGE_TEXT_REQUIRED => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.CHAT_MESSAGE_TEXT_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+
         // AD-8 splits the two constraint kinds where AD-7 folds them together, and AD-8 is the more
         // specific rule: a unique violation is a genuine conflict with another row, a check
         // violation is a value the caller should not have sent. That split is what keeps NFR-2
