@@ -535,6 +535,19 @@
   <data name="AddressSearchEmpty" xml:space="preserve">
     <value>За цим запитом нічого не знайдено.</value>
   </data>
+  <!-- FR-89 to FR-91: the client's own request, offered on /my-deliveries and nowhere else. Three
+       keys rather than reusing "Create" and "DeliveryForm": those two label dispatch's board, where
+       the same words mean a delivery opened on somebody else's behalf with a driver already chosen.
+       A client asks for one, which is a different sentence. -->
+  <data name="RequestDeliveryAction" xml:space="preserve">
+    <value>Замовити доставку</value>
+  </data>
+  <data name="RequestDeliveryTitle" xml:space="preserve">
+    <value>Замовлення доставки</value>
+  </data>
+  <data name="RequestDeliverySubmit" xml:space="preserve">
+    <value>Надіслати замовлення</value>
+  </data>
   <!-- FR-28: the log of outbound notification attempts, which is an administrator's screen. -->
   <data name="NavNotifications" xml:space="preserve">
     <value>Сповіщення</value>

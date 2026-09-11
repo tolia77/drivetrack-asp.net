@@ -205,6 +205,42 @@ internal static class DeliveryApi
     }
 
     /// <summary>
+    /// The body of a client's request (FR-89): the two points, a description, a weight and
+    /// optionally a note — and nothing else, because the command carries nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="NewDelivery"/> rather than a flag on it, for the reason the two
+    /// commands are separate types: a helper that could add a <c>driverId</c> to a request body
+    /// would be a helper a test could use to assert the wrong thing passes.
+    /// </remarks>
+    public static object NewRequest(decimal weight = 12.5m, string? notes = null) =>
+        new
+        {
+            pickup = new { latitude = 50.4501, longitude = 30.5234 },
+            dropoff = new { latitude = 49.8397, longitude = 24.0297 },
+            packageDetails = "Одна палета",
+            packageWeightKg = weight,
+            deliveryNotes = notes,
+        };
+
+    /// <summary>
+    /// Asks for a delivery as the caller the token belongs to. The response is handed back rather
+    /// than asserted, because half this story's matrix is about which refusal a caller gets.
+    /// </summary>
+    public static Task<HttpResponseMessage> RequestAsync(
+        HttpClient client,
+        string? token,
+        object body,
+        CancellationToken cancellationToken) =>
+        FleetApi.SendAsync(
+            client,
+            HttpMethod.Post,
+            "/api/deliveries/requests",
+            token,
+            body,
+            cancellationToken);
+
+    /// <summary>
     /// Asks for a status change (FR-32). The response is handed back rather than asserted, because
     /// half this story's matrix is about which refusal a caller gets.
     /// </summary>

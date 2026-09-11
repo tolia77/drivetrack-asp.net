@@ -40,6 +40,7 @@ public sealed class DeliveryService(
     IDeliverySideEffects sideEffects,
     IValidator<ListDeliveriesQuery> listValidator,
     IValidator<CreateDeliveryCommand> createValidator,
+    IValidator<RequestDeliveryCommand> requestValidator,
     IValidator<UpdateDeliveryCommand> updateValidator,
     IValidator<ChangeDeliveryStatusCommand> statusValidator,
     IValidator<AddDeliveryNoteCommand> noteValidator,
@@ -197,6 +198,83 @@ public sealed class DeliveryService(
         // Built from the entity the commit populated - the database assigned its id - rather than
         // re-read: a second read would only ask the database to confirm what this scope wrote.
         return Summary(delivery, parties);
+    }
+
+    /// <inheritdoc />
+    public async Task<AssignedDeliverySummary> RequestAsync(
+        RequestDeliveryCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        // A request loads nothing, so the guard is the first step - and it is the only step that
+        // decides anything, inline in this method's own body so the coverage gate can see it (AD-2).
+        // The answer is the client row this delivery will be attached to, which is why it is read
+        // from the guard rather than from the command: there is no ClientId on the wire to compare
+        // it against, and so no way for a client to ask on somebody else's behalf.
+        //
+        // A null answer is dispatch's and an administrator's - "I compose for someone else" - and
+        // it is refused here rather than turned into an unattached row. Nothing is decided by this
+        // line: the guard has already answered which client row the caller composes for, and the
+        // refusal carries the guard's own code because "no client row of your own" is the whole of
+        // the reason. Dispatch opens a delivery through CreateAsync, where the client is a field.
+        var clientId = accessGuard.RequireDeliveryComposer()
+            ?? throw new ForbiddenException(
+                ErrorCode.AUTH_FORBIDDEN,
+                "The caller composes deliveries for a client other than themselves and has no "
+                    + "client row of their own to attach a request to.");
+
+        await ValidatorExtensions.ValidateAndThrowAsync(requestValidator, command, cancellationToken);
+
+        await using var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken);
+
+        // No capacity check to make: there is no driver, and DeliveryCapacity's own rule is that an
+        // unassigned delivery has no vehicle to exceed (FR-103, FR-16).
+        //
+        // The client row is read even though the caller did not name it, and for the reason
+        // ActorNameAsync reads the account: a bearer token carries no revocation, so a client whose
+        // row an administrator has since deleted keeps a working token until it expires. Inserting
+        // on that id would be SQLSTATE 23503 - a foreign-key violation the constraint translator
+        // deliberately passes through, which would leave as a 500. AUTH_UNAUTHENTICATED rather than
+        // a 404, because what is gone is the identity behind the credentials: the caller's next move
+        // is to sign in again, and FR-13's session-expiry flow branches on exactly this code.
+        var requester = await unitOfWork.Clients.GetByIdAsync(clientId, cancellationToken)
+            ?? throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The client row behind these credentials no longer exists, so a delivery cannot be "
+                    + "attached to it.");
+
+        var delivery = new Delivery
+        {
+            ClientId = requester.Id,
+
+            // No DriverId, and no field on the command that could have carried one: FR-90's "the
+            // client assigns nobody" is the command's shape, and this line is where that shape
+            // stops being a claim.
+            PickupLocation = Point(command.Pickup!),
+            DropoffLocation = Point(command.Dropoff!),
+            PackageDetails = command.PackageDetails!.Trim(),
+            PackageWeightKg = command.PackageWeightKg,
+            DeliveryNotes = Blank(command.DeliveryNotes),
+
+            // No window either - FR-89 leaves the bounds to dispatch - and no Status, for the
+            // reason CreateAsync sets none: the entity is born Pending and the setter is private
+            // (AD-10, AD-25).
+            CreatedAt = timeProvider.GetUtcNow(),
+        };
+
+        unitOfWork.Deliveries.Add(delivery);
+
+        // No party lookup, unlike the create path: the type this method answers has no field a
+        // counterparty's name could be written into, so there is nothing to read them for (AD-17).
+        await unitOfWork.CommitAsync(cancellationToken);
+
+        // FR-94 / FR-95 / AD-12: queued after the commit, outside the transaction, and not awaited,
+        // exactly as CreateAsync queues it. A client waiting on a public geocoder is a client
+        // watching a spinner for a field the response does not carry yet anyway.
+        sideEffects.ResolveAddresses(delivery.Id);
+
+        return Assigned(delivery);
     }
 
     /// <inheritdoc />
@@ -469,7 +547,12 @@ public sealed class DeliveryService(
         // The guard first and the validator second, which is the order the matrix asks for: a driver
         // who types two characters is refused for being a driver, not told their query was short.
         // Inline in this method's own body, so the coverage gate can see it (AD-2).
-        accessGuard.RequireRole(UserRole.Dispatcher);
+        //
+        // The same question RequestAsync asks, and deliberately the same member: this search is the
+        // delivery form's second way of setting a point (FR-104), so whoever may compose a delivery
+        // may type an address for it. The answer - which client row - is nothing to a geocoder, and
+        // is discarded; what matters is that the member refuses a driver, who composes nothing.
+        _ = accessGuard.RequireDeliveryComposer();
 
         // Before the port call, and that is the point of the floor: a keystroke must not become a
         // request to a public geocoding service.

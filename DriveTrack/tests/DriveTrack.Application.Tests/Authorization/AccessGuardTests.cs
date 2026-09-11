@@ -503,6 +503,78 @@ public class AccessGuardTests
             Assert.Throws<ForbiddenException>(() => guard.RequireChatParticipant(null)).Code);
     }
 
+    // =====================================================================================
+    // RequireDeliveryComposer (story 7.4)
+    //
+    // FR-89 as one predicate: may this caller compose a delivery, and for which client row. It gets
+    // the same table the other members have, including the missing-claim row - this is the rule that
+    // decides whose name a new delivery is attached to.
+    // =====================================================================================
+
+    [Fact]
+    public void An_anonymous_caller_composing_a_delivery_is_unauthenticated_not_forbidden()
+    {
+        // 401, not 403, exactly as every other member answers it: FR-13's session-expiry flow
+        // branches on this single code, and an expired cookie on a live circuit arrives here too.
+        var guard = new AccessGuard(new StubCurrentUser());
+
+        var failure = Assert.Throws<ForbiddenException>(() => _ = guard.RequireDeliveryComposer());
+
+        Assert.Equal(ErrorCode.AUTH_UNAUTHENTICATED, failure.Code);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Dispatcher)]
+    public void Dispatch_composes_deliveries_for_somebody_else_and_is_answered_no_client_row(
+        UserRole role)
+    {
+        // Null rather than a refusal, and the difference is the point of the member answering a
+        // value at all. A dispatcher does compose deliveries - the client is an explicit field of
+        // CreateDeliveryCommand - so the honest answer to "which client row" is "none of mine". The
+        // request path turns that into its own refusal; the address search simply ignores it.
+        var guard = new AccessGuard(new StubCurrentUser(Target, role));
+
+        Assert.Null(guard.RequireDeliveryComposer());
+    }
+
+    [Fact]
+    public void A_client_composes_for_their_own_row_and_the_guard_names_it()
+    {
+        // The whole reason the member answers a value: the id a request is attached to comes from
+        // here and never from the payload, so a client cannot ask on another client's behalf.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Client, clientId: new ClientId(9)));
+
+        Assert.Equal(new ClientId(9), guard.RequireDeliveryComposer());
+    }
+
+    [Fact]
+    public void A_client_carrying_no_client_row_id_is_forbidden_rather_than_widened()
+    {
+        // The failure worth pinning, because the plausible-looking alternative is a disclosure of a
+        // different kind: null is dispatch's answer here, so widening a claimless client to it would
+        // let a broken account compose a delivery attached to nobody.
+        var guard = new AccessGuard(new StubCurrentUser(Target, UserRole.Client));
+
+        var failure = Assert.Throws<ForbiddenException>(() => _ = guard.RequireDeliveryComposer());
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
+    }
+
+    [Fact]
+    public void A_driver_composes_nothing_and_is_refused()
+    {
+        // FR-25 makes a driver a reader of the parcels they carry and never an author of one. The
+        // driver row id is present precisely so this is not passing for the missing-claim reason.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        var failure = Assert.Throws<ForbiddenException>(() => _ = guard.RequireDeliveryComposer());
+
+        Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
+    }
+
     /// <summary>
     /// A caller with no adapter behind it. The guard depends on the port, not on a
     /// <c>ClaimsPrincipal</c>, which is what makes these tests possible without a host.

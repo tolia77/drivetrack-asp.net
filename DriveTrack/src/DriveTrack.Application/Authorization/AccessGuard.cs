@@ -173,6 +173,50 @@ public sealed class AccessGuard(ICurrentUser currentUser) : IAccessGuard
     }
 
     /// <inheritdoc />
+    public ClientId? RequireDeliveryComposer()
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            // 401 for the reason every other member answers 401: an expired cookie on a live
+            // circuit is a caller with no credentials left, and FR-13 branches on this one code.
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "An anonymous caller attempted to compose a delivery.");
+        }
+
+        // AD-4 once more, and still decided in this one file. A dispatcher stands beside the admin
+        // because composing a delivery is what FR-14 gives dispatch. Null is the honest answer to
+        // "which client row": they compose for somebody else, and the client is a field of the
+        // command they send rather than a property of who they are.
+        if (currentUser.Role is UserRole.Admin or UserRole.Dispatcher)
+        {
+            return null;
+        }
+
+        if (currentUser.Role == UserRole.Client)
+        {
+            // Refused rather than widened, exactly as RequireScope refuses a claimless caller. The
+            // only other answer available here is null, which is dispatch's answer - so widening
+            // would let an account with a broken claim compose a delivery attached to nobody.
+            return currentUser.ClientId is { } clientId
+                ? clientId
+                : throw new ForbiddenException(
+                    ErrorCode.AUTH_FORBIDDEN,
+                    "User "
+                        + currentUser.UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        + " holds role Client and carries no client row id, so the row a request "
+                        + "would be attached to cannot be determined.");
+        }
+
+        // Total over the enum, like RequireScope and RequireAssignedDriver. A Driver lands here -
+        // FR-25 makes them a reader of deliveries and never an author of one - and so would a fifth
+        // role added without a decision about whether it composes anything.
+        throw new ForbiddenException(
+            ErrorCode.AUTH_FORBIDDEN,
+            "Role " + currentUser.Role + " does not compose deliveries.");
+    }
+
+    /// <inheritdoc />
     public void RequireChatParticipant(DriverId? thread)
     {
         if (!currentUser.IsAuthenticated)
