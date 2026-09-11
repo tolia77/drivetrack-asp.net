@@ -58,6 +58,19 @@ public sealed class DeliveriesController(IDeliveryService deliveries) : Controll
             new ListDeliveriesQuery(offset ?? 0, limit ?? ListDeliveriesQueryValidator.MaximumLimit),
             cancellationToken);
 
+    /// <summary>
+    /// The places matching a typed address (FR-104), each with the point a map click would set.
+    /// </summary>
+    /// <remarks>
+    /// A literal segment beside the <c>{id:int}</c> routes below, and the constraint is what keeps
+    /// the two apart: <c>places</c> is not an integer, so it can only ever match this route.
+    /// </remarks>
+    [HttpGet("places")]
+    public Task<IReadOnlyList<PlaceMatch>> SearchPlacesAsync(
+        [FromQuery] string? query,
+        CancellationToken cancellationToken) =>
+        deliveries.SearchPlacesAsync(new SearchPlacesQuery(query), cancellationToken);
+
     /// <summary>One delivery, as dispatch reads it.</summary>
     [HttpGet("{id:int}")]
     public Task<DeliverySummary> GetAsync(int id, CancellationToken cancellationToken) =>

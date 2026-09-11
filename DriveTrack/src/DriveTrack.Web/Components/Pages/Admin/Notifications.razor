@@ -1,0 +1,147 @@
+@page "/notifications"
+@attribute [Authorize]
+@inject INotificationLogService Log
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IDisposable
+
+@* FR-28: the row an administrator can read.
+
+   The original swallowed a failed notification silently, and this screen is the other half of the
+   remediation - a table with a home is only a remediation if somebody can open it. Every attempt is
+   here, the ones that worked as well as the ones that did not: recording only failures would leave
+   "no row" meaning either "nothing was owed" or "it worked", which is the ambiguity somebody opens
+   this page to resolve.
+
+   [Authorize] carries no roles, like every other screen here. Who may read this is decided by
+   IAccessGuard inside INotificationLogService - RequireRole(Admin), named outright - and a role on
+   the attribute would be a second copy of that rule in a place no test of the rule would read
+   (AD-2, FR-12).
+
+   Independent @if blocks and one literal localizer key per string, for the two reasons the shell
+   components already state: an `else` at markup level reads to NFR-14's scan as a rendered English
+   word, and a key composed at run time is a key the closed-catalogue test cannot see. *@
+
+<PageTitle>@Localizer["NotificationsTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.Notifications" />@Localizer["NotificationsTitle"]
+</h1>
+
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+<DtDataTable TItem="NotificationAttemptSummary"
+             Items="_attempts"
+             IsLoading="_isLoading"
+             EmptyText="@Localizer["NotificationsEmpty"]">
+    <HeaderTemplate>
+        <th scope="col">@Localizer["NotificationDelivery"]</th>
+        <th scope="col">@Localizer["NotificationKind"]</th>
+        <th scope="col">@Localizer["NotificationRecipient"]</th>
+        <th scope="col">@Localizer["NotificationOutcome"]</th>
+        <th scope="col">@Localizer["NotificationAttemptedAt"]</th>
+        <th scope="col">@Localizer["NotificationError"]</th>
+    </HeaderTemplate>
+    <RowTemplate Context="attempt">
+        <td class="dt-notification-delivery">@attempt.DeliveryId</td>
+        <td>
+            @* AD-18 / FR-16: the enum member is what the database stores and the wire carries
+               (AD-21); what a reader sees is a word. There is one kind today, so there is one
+               block - a second joins it the day a second kind is written. *@
+            @if (attempt.Kind == NotificationKind.StatusChange)
+            {
+                <span>@Localizer["NotificationKindStatusChange"]</span>
+            }
+        </td>
+        <td class="dt-notification-recipient">@attempt.Recipient</td>
+        <td>
+            @* A badge apiece rather than one element whose class is computed: AD-28's red is the
+               product's failure colour and the green beside it is its success colour, and both come
+               from the themed framework variables rather than from a rule written here. *@
+            @if (attempt.Outcome == NotificationOutcome.Sent)
+            {
+                <span class="badge text-bg-success dt-notification-sent">@Localizer["NotificationSent"]</span>
+            }
+            @if (attempt.Outcome == NotificationOutcome.Failed)
+            {
+                <span class="badge text-bg-danger dt-notification-failed">@Localizer["NotificationFailed"]</span>
+            }
+        </td>
+        @* Routed through a method rather than formatted in markup: NFR-14's scan strips a Razor
+           expression only up to its first closing bracket, so a `.ToString(...)` tail would be left
+           behind in the text node and read as a rendered English word. *@
+        <td>@Attempted(attempt)</td>
+        <td class="dt-notification-error">@attempt.Error</td>
+    </RowTemplate>
+</DtDataTable>
+
+@code {
+    // The screen's own lifetime. A user who navigates away mid-load leaves a query running against
+    // a pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private IReadOnlyList<NotificationAttemptSummary>? _attempts;
+    private IReadOnlyList<string> _failures = [];
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen calls a service. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        await ReloadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    /// <summary>
+    /// The attempt's instant in local time (AD-13: storage is offset zero, and the conversion
+    /// happens here, in the presentation layer, and nowhere else).
+    /// </summary>
+    private static string Attempted(NotificationAttemptSummary attempt) =>
+        attempt.AttemptedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+
+        // Rendered before the await, or the flag is set and cleared inside one synchronous stretch
+        // and DtDataTable's loading row never reaches the browser.
+        StateHasChanged();
+
+        try
+        {
+            _attempts = await Log.ListAsync(_cancellation.Token);
+            _failures = [];
+        }
+        catch (DriveTrackException failure)
+        {
+            // A dispatcher who typed the address reaches the guard's refusal here rather than a
+            // blank page, and it resolves through the same catalogue the REST envelope uses, so the
+            // two cannot disagree (NFR-3).
+            _failures = FailureKeys.For(failure);
+        }
+        finally
+        {
+            // In a finally so a refused or failed read leaves the table in its empty state rather
+            // than spinning forever, which reads to a user as a hung screen.
+            _isLoading = false;
+        }
+    }
+}

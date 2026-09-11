@@ -21,12 +21,18 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
     private readonly TestDatabase _database;
     private readonly bool _useProbeAuthentication;
     private readonly TimeProvider? _clock;
+    private readonly Action<IServiceCollection>? _configureServices;
 
-    private ApiFactory(TestDatabase database, bool useProbeAuthentication, TimeProvider? clock)
+    private ApiFactory(
+        TestDatabase database,
+        bool useProbeAuthentication,
+        TimeProvider? clock,
+        Action<IServiceCollection>? configureServices)
     {
         _database = database;
         _useProbeAuthentication = useProbeAuthentication;
         _clock = clock;
+        _configureServices = configureServices;
     }
 
     /// <summary>
@@ -51,15 +57,22 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
     /// A clock for the host to issue tokens against (AD-13). Null takes the real one; a back-dated
     /// <see cref="FixedTimeProvider"/> is how token expiry is exercised without waiting for it.
     /// </param>
+    /// <param name="configureServices">
+    /// Registrations applied last, after everything else this factory adds, so they win the
+    /// resolve. This is how a fake <c>IGeocoder</c> or <c>IEmailSender</c> takes the place of the
+    /// real adapter: AD-12's ports are the two things in this system that reach outside the
+    /// process, and a suite that let them do it would be asserting against somebody else's uptime.
+    /// </param>
     public static async Task<ApiFactory> CreateAsync(
         string adminConnectionString,
         CancellationToken cancellationToken,
         bool useProbeAuthentication = true,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         var database = await TestDatabase.CreateAsync(adminConnectionString, cancellationToken);
 
-        return new ApiFactory(database, useProbeAuthentication, clock);
+        return new ApiFactory(database, useProbeAuthentication, clock, configureServices);
     }
 
     /// <inheritdoc />
@@ -107,18 +120,19 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
                         ProbeAuthentication.ClaimType,
                         ProbeAuthentication.ClaimValue));
 
-            if (!_useProbeAuthentication)
+            if (_useProbeAuthentication)
             {
-                return;
+                // Registered last, so this scheme wins the default and [Authorize] has something to
+                // challenge with. The production schemes are still registered underneath; this only
+                // changes which one an endpoint with no explicit scheme resolves to.
+                services.AddAuthentication(ProbeAuthentication.SchemeName)
+                    .AddScheme<AuthenticationSchemeOptions, ProbeAuthenticationHandler>(
+                        ProbeAuthentication.SchemeName,
+                        _ => { });
             }
 
-            // Registered last, so this scheme wins the default and [Authorize] has something to
-            // challenge with. The production schemes are still registered underneath; this only
-            // changes which one an endpoint with no explicit scheme resolves to.
-            services.AddAuthentication(ProbeAuthentication.SchemeName)
-                .AddScheme<AuthenticationSchemeOptions, ProbeAuthenticationHandler>(
-                    ProbeAuthentication.SchemeName,
-                    _ => { });
+            // Last of all, so a suite can replace anything above it rather than only add to it.
+            _configureServices?.Invoke(services);
         });
     }
 

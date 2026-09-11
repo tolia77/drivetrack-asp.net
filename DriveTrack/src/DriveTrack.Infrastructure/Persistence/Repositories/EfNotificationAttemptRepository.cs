@@ -12,5 +12,16 @@ internal sealed class EfNotificationAttemptRepository(AppDbContext context) : IN
         context.NotificationAttempts.FirstOrDefaultAsync(attempt => attempt.Id == id, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<NotificationAttempt>> ListAsync(CancellationToken cancellationToken) =>
+        // Newest first, and the id breaks the tie: two attempts written by one commit share an
+        // instant to the microsecond, and without the tie-break the screen would reorder them
+        // between reads for no reason an administrator could name.
+        await context.NotificationAttempts
+            .AsNoTracking()
+            .OrderByDescending(attempt => attempt.AttemptedAt)
+            .ThenByDescending(attempt => attempt.Id)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public void Add(NotificationAttempt attempt) => context.NotificationAttempts.Add(attempt);
 }

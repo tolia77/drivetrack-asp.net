@@ -345,5 +345,10 @@ public class DeliveryTimelineTests
 
         public Task DeleteAsync(int id, CancellationToken cancellationToken) =>
             throw new NotSupportedException("The panel reads only the timeline.");
+
+        public Task<IReadOnlyList<PlaceMatch>> SearchPlacesAsync(
+            SearchPlacesQuery query,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The panel reads only the timeline.");
     }
 }

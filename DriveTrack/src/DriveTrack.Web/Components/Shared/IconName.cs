@@ -77,4 +77,10 @@ public enum IconName
 
     /// <summary>A delivery's append-only history (FR-105 to FR-108).</summary>
     Timeline,
+
+    /// <summary>Looking a place up by its address (FR-104).</summary>
+    Search,
+
+    /// <summary>The log of outbound notification attempts (FR-28).</summary>
+    Notifications,
 }

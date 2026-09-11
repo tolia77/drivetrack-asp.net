@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    NFR-14 for the words that leave the product by mail rather than through a screen.
+
+    This is not UiText.resx, and it cannot be. That catalogue is closed in both directions against
+    the keys components ask for - a key no `@Localizer["Key"]` reads fails the build - so a subject
+    line no component renders could not live there. Nor can these be read through
+    IStringLocalizer: that is an ASP.NET abstraction, and DriveTrack.Application is a class library
+    that takes no ASP.NET dependency (AD-1). A BCL ResourceManager over this file keeps the text out
+    of code without adding either.
+
+    The four status labels are duplicated from UiText.resx on purpose, and LocalizationTests pins
+    them equal so the two catalogues cannot drift: a client reading "У дорозі" in an email and
+    "In transit" on the screen would be one product speaking two languages.
+  -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <!-- {0} is the delivery's number, which is the one thing a client can quote back to dispatch. -->
+  <data name="StatusChangeSubject" xml:space="preserve">
+    <value>Доставка №{0}: стан змінено</value>
+  </data>
+  <!-- {0} the delivery's number, {1} the state it held, {2} the state it holds now. -->
+  <data name="StatusChangeBody" xml:space="preserve">
+    <value>Доброго дня!
+
+Стан вашої доставки №{0} змінено з «{1}» на «{2}».
+
+Це повідомлення сформовано автоматично, відповідати на нього не потрібно.</value>
+  </data>
+  <!-- FR-30's four statuses, worded exactly as the screens word them. -->
+  <data name="StatusPending" xml:space="preserve">
+    <value>Очікує</value>
+  </data>
+  <data name="StatusInTransit" xml:space="preserve">
+    <value>У дорозі</value>
+  </data>
+  <data name="StatusDelivered" xml:space="preserve">
+    <value>Доставлено</value>
+  </data>
+  <data name="StatusFailed" xml:space="preserve">
+    <value>Не вручено</value>
+  </data>
+</root>

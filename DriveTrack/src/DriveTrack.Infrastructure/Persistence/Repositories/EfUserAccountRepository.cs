@@ -40,6 +40,35 @@ internal sealed class EfUserAccountRepository(AppDbContext context, ScopedIdenti
     }
 
     /// <inheritdoc />
+    public async Task<UserAccount?> FindByClientIdAsync(
+        ClientId clientId,
+        CancellationToken cancellationToken)
+    {
+        // Two reads rather than a join, and the reason is the typed id (AD-22). UserId reaches the
+        // database through a value converter, so comparing a whole typed id translates - which is
+        // how every other query here is written - while reaching through to its `.Value` inside an
+        // expression tree does not. Materializing the client first turns the second comparison into
+        // a plain captured integer.
+        var client = await context.Clients
+            .FirstOrDefaultAsync(candidate => candidate.Id == clientId, cancellationToken);
+
+        if (client is null)
+        {
+            return null;
+        }
+
+        var userId = client.UserId.Value;
+
+        var user = await context.Users
+            .FirstOrDefaultAsync(candidate => candidate.Id == userId, cancellationToken);
+
+        // Through the same mapper as every other read here, so the account a notification is
+        // addressed to cannot disagree with the account the roster shows about its role or its
+        // subtype id.
+        return user is null ? null : await MapAsync(user, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken)
     {
         // Compared as Identity stores it, not as the caller typed it: two addresses differing only

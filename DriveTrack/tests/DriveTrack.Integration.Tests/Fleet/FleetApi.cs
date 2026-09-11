@@ -28,8 +28,29 @@ internal static class FleetApi
     /// A host whose default scheme is the production path selector rather than the probe: the
     /// fleet's whole refusal story is about real bearer tokens carrying a real role claim.
     /// </summary>
-    public static Task<ApiFactory> CreateAsync(string connectionString, CancellationToken cancellationToken) =>
-        ApiFactory.CreateAsync(connectionString, cancellationToken, useProbeAuthentication: false);
+    /// <param name="connectionString">The container's own database.</param>
+    /// <param name="cancellationToken">The test's token.</param>
+    /// <param name="configureServices">
+    /// Registrations applied after everything else, so they win the resolve — how a suite replaces
+    /// AD-12's two outbound ports with fakes.
+    /// </param>
+    /// <param name="clock">
+    /// The host's clock (AD-13). Null takes the real one, which is what every suite about
+    /// authorization wants. A stopped one is how a suite makes two writes share an instant — the
+    /// case the notification log's id tie-break exists for and which the real clock, ticking
+    /// between two HTTP round trips, never produces.
+    /// </param>
+    public static Task<ApiFactory> CreateAsync(
+        string connectionString,
+        CancellationToken cancellationToken,
+        Action<Microsoft.Extensions.DependencyInjection.IServiceCollection>? configureServices = null,
+        TimeProvider? clock = null) =>
+        ApiFactory.CreateAsync(
+            connectionString,
+            cancellationToken,
+            useProbeAuthentication: false,
+            clock: clock,
+            configureServices: configureServices);
 
     /// <summary>An address no other test has used.</summary>
     public static string UniqueEmail() => Guid.NewGuid().ToString("N")[..12] + "@drivetrack.test";

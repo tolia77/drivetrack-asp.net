@@ -142,14 +142,28 @@ services:
       # fallback rather than falling back to it, and seeds an administrator with no name.
       Admin__FirstName: ${Admin__FirstName:-Адміністратор}
       Admin__LastName: ${Admin__LastName:-Системи}
+      # Host stays bare on purpose: blank is a state this system has an answer for - no relay is
+      # configured, and the notification becomes a Failed attempt saying so.
       Smtp__Host: ${Smtp__Host}
-      Smtp__Port: ${Smtp__Port}
-      Smtp__UseStartTls: ${Smtp__UseStartTls}
+      # The next three are defaulted for the reason the Geocoder keys below are. An .env predating
+      # them forwards the empty string, and an empty string is a value: it overrides the option's
+      # default rather than falling back to it. For the port and the TLS switch that is a value the
+      # startup check refuses and the container never starts; for the from-address it is an address
+      # MailAddress rejects, so every notification fails with a message naming no key at all.
+      Smtp__Port: ${Smtp__Port:-587}
+      Smtp__UseStartTls: ${Smtp__UseStartTls:-false}
       Smtp__User: ${Smtp__User}
       Smtp__Password: ${Smtp__Password}
-      Smtp__FromAddress: ${Smtp__FromAddress}
+      Smtp__FromAddress: ${Smtp__FromAddress:-no-reply@drivetrack.local}
       Smtp__FromName: ${Smtp__FromName}
       Geocoder__Endpoint: ${Geocoder__Endpoint}
+      Geocoder__SearchEndpoint: ${Geocoder__SearchEndpoint}
+      # Defaulted rather than forwarded bare, for the reason the JWT keys above are: an .env
+      # predating these two would otherwise set them to the empty string, and an empty string
+      # overrides the option's default instead of falling back to it - which for the timeout is
+      # a value the binder refuses and startup aborts on, by design.
+      Geocoder__UserAgent: ${Geocoder__UserAgent:-DriveTrack/1.0}
+      Geocoder__TimeoutSeconds: ${Geocoder__TimeoutSeconds:-10}
       ObjectStore__ServiceUrl: ${ObjectStore__ServiceUrl}
       ObjectStore__Region: ${ObjectStore__Region}
       ObjectStore__AccessKey: ${ObjectStore__AccessKey}

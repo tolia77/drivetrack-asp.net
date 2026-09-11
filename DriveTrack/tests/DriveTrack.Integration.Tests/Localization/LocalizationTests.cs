@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Xml.Linq;
 using DriveTrack.Application.Common;
+using DriveTrack.Domain.Deliveries;
 using DriveTrack.Integration.Tests.Persistence;
 using DriveTrack.Integration.Tests.Support;
 using DriveTrack.Web.Resources;
@@ -191,6 +192,80 @@ public class LocalizationTests(PostgresFixture postgres)
             .ToArray();
 
         Assert.Empty(unused);
+    }
+
+    [Fact]
+    public void Every_delivery_status_has_an_email_label_and_it_matches_the_screens()
+    {
+        // Story 5.2 puts a second catalogue in the system, and this is the reason that is tolerable.
+        // Mail copy cannot live in UiText.resx - that catalogue is closed against the keys components
+        // ask for, so a subject line no component renders would fail the reverse test - and
+        // DriveTrack.Application carries no IStringLocalizer to read one with. So the four status
+        // labels exist twice, and the only thing that can stop them drifting is an assertion that
+        // they are the same words: a client reading one wording in an email and another on the
+        // screen is one product speaking two languages.
+        var ui = ValuesOf("UiText.resx").ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal);
+        var email = EmailValues().ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal);
+
+        foreach (var status in Enum.GetValues<DeliveryStatus>())
+        {
+            var key = "Status" + status;
+
+            Assert.True(email.ContainsKey(key), $"EmailText.resx has no entry for {key}.");
+            Assert.True(ui.ContainsKey(key), $"UiText.resx has no entry for {key}.");
+            Assert.Equal(ui[key], email[key]);
+        }
+    }
+
+    [Fact]
+    public void Every_email_template_is_written_in_Ukrainian()
+    {
+        // NFR-14 reaches the mail as well as the screens: an untranslated subject line is a Latin
+        // sentence in front of a client, and it is the one user-facing string no render test can see.
+        var offenders = EmailValues()
+            .Where(entry => !entry.Value.Any(IsCyrillic) || HasLatinWord(entry.Value))
+            .Select(entry => entry.Key)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
+    public void The_email_catalogue_carries_the_subject_and_body_the_notice_is_built_from()
+    {
+        // The forward direction, which nothing else covers: a ResourceManager answers a missing key
+        // with the key itself, exactly as IStringLocalizer does, so a renamed or moved entry ships
+        // an identifier to a client and nothing else goes wrong.
+        var keys = EmailValues().Select(entry => entry.Key).ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains("StatusChangeSubject", keys);
+        Assert.Contains("StatusChangeBody", keys);
+
+        // The placeholders the composer fills. Without them the notice names no delivery, which is
+        // the one thing a client can quote back to dispatch.
+        var body = EmailValues().Single(entry => entry.Key == "StatusChangeBody").Value;
+
+        Assert.Contains("{0}", body, StringComparison.Ordinal);
+        Assert.Contains("{1}", body, StringComparison.Ordinal);
+        Assert.Contains("{2}", body, StringComparison.Ordinal);
+    }
+
+    /// <summary>The entries of <c>DriveTrack.Application/Resources/EmailText.resx</c>.</summary>
+    private static IEnumerable<(string Key, string Value)> EmailValues()
+    {
+        var path = Path.Combine(
+            RepositoryLayout.ProjectDirectory("DriveTrack.Application"),
+            "Resources",
+            "EmailText.resx");
+
+        return XDocument.Load(path)
+            .Root!
+            .Elements("data")
+            .Select(element => (
+                Key: element.Attribute("name")?.Value ?? string.Empty,
+                Value: element.Element("value")?.Value ?? string.Empty))
+            .ToArray();
     }
 
     /// <summary>Every <c>@Localizer["Key"]</c> a component under <c>Components/</c> asks for.</summary>

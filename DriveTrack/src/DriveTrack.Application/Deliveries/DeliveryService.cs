@@ -36,11 +36,14 @@ public sealed class DeliveryService(
     IAccessGuard accessGuard,
     ICurrentUser currentUser,
     TimeProvider timeProvider,
+    IGeocoder geocoder,
+    IDeliverySideEffects sideEffects,
     IValidator<ListDeliveriesQuery> listValidator,
     IValidator<CreateDeliveryCommand> createValidator,
     IValidator<UpdateDeliveryCommand> updateValidator,
     IValidator<ChangeDeliveryStatusCommand> statusValidator,
-    IValidator<AddDeliveryNoteCommand> noteValidator) : IDeliveryService
+    IValidator<AddDeliveryNoteCommand> noteValidator,
+    IValidator<SearchPlacesQuery> searchValidator) : IDeliveryService
 {
     /// <inheritdoc />
     public async Task<IReadOnlyList<DeliverySummary>> ListAsync(
@@ -184,6 +187,13 @@ public sealed class DeliveryService(
 
         await unitOfWork.CommitAsync(cancellationToken);
 
+        // FR-94 / FR-95 / AD-12: queued after the commit, outside the transaction, and not awaited.
+        // The delivery exists and its id is known, so there is something to resolve an address for;
+        // the response below is built and returned with both addresses still null, which is what
+        // "filled in later or left absent" means. The method returns void and takes no token
+        // precisely so this line cannot become a wait the dispatcher does.
+        sideEffects.ResolveAddresses(delivery.Id);
+
         // Built from the entity the commit populated - the database assigned its id - rather than
         // re-read: a second read would only ask the database to confirm what this scope wrote.
         return Summary(delivery, parties);
@@ -246,6 +256,11 @@ public sealed class DeliveryService(
         var parties = await PartiesAsync(unitOfWork, [delivery], cancellationToken);
 
         await unitOfWork.CommitAsync(cancellationToken);
+
+        // The refill half of DR-11's rule. Moved(...) above cleared the address of whichever point
+        // actually moved and kept the one belonging to the point that did not, so this asks the
+        // geocoder about the moved point only - an edit to the weight costs no outbound call at all.
+        sideEffects.ResolveAddresses(delivery.Id);
 
         return Summary(delivery, parties);
     }
@@ -338,9 +353,16 @@ public sealed class DeliveryService(
 
         await unitOfWork.CommitAsync(cancellationToken);
 
-        // Story 5.2's client email attaches here, after the commit and outside the transaction
-        // (AD-12, FR-28). A send that fails is recorded as a notification attempt and never fails
-        // the status write, which is why it cannot be moved above this line.
+        // FR-28 / AD-12: the client's email, queued after the commit and outside the transaction.
+        // A send that fails is recorded as a notification attempt and never fails the status write,
+        // which is why this cannot move above the line before it - inside the transaction, an SMTP
+        // timeout would roll back a status change the driver already made.
+        //
+        // One line for every role (FR-34): the driver advancing their own delivery and the
+        // dispatcher advancing it from the board arrive here through the same method, so there is no
+        // second path that could forget to notify.
+        sideEffects.NotifyStatusChanged(delivery.Id, previous, requested);
+
         return View(entry);
     }
 
@@ -405,6 +427,30 @@ public sealed class DeliveryService(
         // The mapping step AD-17 puts the disclosure decision in. Nothing was written, so the scope
         // is disposed without a commit, as on every read path here.
         return [.. entries.Select(View)];
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<PlaceMatch>> SearchPlacesAsync(
+        SearchPlacesQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        // The guard first and the validator second, which is the order the matrix asks for: a driver
+        // who types two characters is refused for being a driver, not told their query was short.
+        // Inline in this method's own body, so the coverage gate can see it (AD-2).
+        accessGuard.RequireRole(UserRole.Dispatcher);
+
+        // Before the port call, and that is the point of the floor: a keystroke must not become a
+        // request to a public geocoding service.
+        await ValidatorExtensions.ValidateAndThrowAsync(searchValidator, query, cancellationToken);
+
+        // No unit of work: nothing here reads or writes a row. The answer comes from outside the
+        // system entirely, which is why the port is the only collaborator.
+        var places = await geocoder.SearchAsync(query.Query!.Trim(), cancellationToken);
+
+        return [.. places.Select(place =>
+            new PlaceMatch(place.Address, new MapLocation(place.Latitude, place.Longitude)))];
     }
 
     /// <summary>

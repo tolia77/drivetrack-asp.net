@@ -142,4 +142,25 @@ public interface IDeliveryService
     /// <exception cref="Common.ForbiddenException">The caller has no session, or no row scope.</exception>
     /// <exception cref="Common.NotFoundException">No delivery has that id, or the caller may not see it.</exception>
     Task<IReadOnlyList<TimelineEntryView>> ListTimelineAsync(int id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The places matching a typed address (FR-104), each with the point a map click would have
+    /// produced.
+    /// <para>
+    /// This capability's rather than a new one's, because the search exists for one screen: FR-104
+    /// is the delivery form's second way of setting a pickup or a dropoff, beside the map. A
+    /// capability of its own would be a capability with one caller and one reason to exist, and the
+    /// guard decision would have to be restated in it.
+    /// </para>
+    /// <para>
+    /// Reserved to dispatch for the same reason the form is: a driver and a client read deliveries
+    /// rather than compose them, and a public geocoder reachable by anyone with a session is a
+    /// public geocoder anyone with a session can spend.
+    /// </para>
+    /// </summary>
+    /// <exception cref="Common.ForbiddenException">The caller runs neither dispatch nor the system.</exception>
+    /// <exception cref="Common.ValidationException">The query is blank or shorter than three characters.</exception>
+    Task<IReadOnlyList<PlaceMatch>> SearchPlacesAsync(
+        SearchPlacesQuery query,
+        CancellationToken cancellationToken);
 }

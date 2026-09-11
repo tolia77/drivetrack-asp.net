@@ -127,6 +127,20 @@
         <path d="M6.5 7.25h8.25v1.5H6.5Z" />
         <path d="M6.5 13h8.25v1.5H6.5Z" />
     }
+    @* A lens with a handle. Deliberately the same lens as the not-found glyph, which is that lens
+       over nothing: one shape for "look for something" and for "there was nothing there". *@
+    @if (Name == IconName.Search)
+    {
+        <path fill-rule="evenodd" d="M6.75 1.5a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Zm0 1.5a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z" />
+        <path d="M10.28 11.34 11.34 10.28 14.9 13.84 13.84 14.9Z" />
+    }
+    @* An envelope with its flap drawn in: the notification log is a record of mail that was sent,
+       and the flap is what tells it apart from the parcel above it at 16px. *@
+    @if (Name == IconName.Notifications)
+    {
+        <path d="M1.5 4.25A1.25 1.25 0 0 1 2.75 3h10.5a1.25 1.25 0 0 1 1.25 1.25v.4L8 8.6 1.5 4.65Z" />
+        <path d="M1.5 6.4v5.35A1.25 1.25 0 0 0 2.75 13h10.5a1.25 1.25 0 0 0 1.25-1.25V6.4L8 10.35Z" />
+    }
 </svg>
 
 @code {

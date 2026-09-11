@@ -38,9 +38,39 @@ internal static class ComponentRenderer
     /// clock. Supplied per render rather than baked in, so a test can render the same component
     /// once per role and assert on what each one is actually offered.
     /// </param>
-    public static async Task<string> RenderAsync<TComponent>(
+    public static Task<string> RenderAsync<TComponent>(
         IDictionary<string, object?>? parameters = null,
         Action<IServiceCollection>? configureServices = null)
+        where TComponent : IComponent =>
+        RenderAsync<TComponent>(parameters, configureServices, waitForQuiescence: true);
+
+    /// <summary>
+    /// The component's <em>first</em> render pass, before anything it awaited has answered.
+    /// <para>
+    /// This is the only way to read a loading state back. A screen sets its flag, calls
+    /// <c>StateHasChanged</c> and then awaits its service; by the time the render has quiesced the
+    /// flag is false again and the rows are on the page, so the state that exists precisely to stop
+    /// a screen looking broken while it waits is invisible to every other assertion in this suite.
+    /// </para>
+    /// <para>
+    /// The component under test is given a service whose task never completes, so "the first pass"
+    /// and "while it is still waiting" are the same moment. Quiescence is deliberately not awaited —
+    /// waiting for it would be waiting forever.
+    /// </para>
+    /// </summary>
+    /// <typeparam name="TComponent">The component to render.</typeparam>
+    /// <param name="parameters">Its parameters, or null for none.</param>
+    /// <param name="configureServices">Extra registrations, as for <see cref="RenderAsync{TComponent}"/>.</param>
+    public static Task<string> RenderFirstPassAsync<TComponent>(
+        IDictionary<string, object?>? parameters = null,
+        Action<IServiceCollection>? configureServices = null)
+        where TComponent : IComponent =>
+        RenderAsync<TComponent>(parameters, configureServices, waitForQuiescence: false);
+
+    private static async Task<string> RenderAsync<TComponent>(
+        IDictionary<string, object?>? parameters,
+        Action<IServiceCollection>? configureServices,
+        bool waitForQuiescence)
         where TComponent : IComponent
     {
         // The product is Ukrainian and the resources are neutral-uk (NFR-14/NFR-15), so the render
@@ -66,6 +96,11 @@ internal static class ComponentRenderer
             // contract, and calling in from the test thread throws rather than racing.
             return await renderer.Dispatcher.InvokeAsync(async () =>
             {
+                if (!waitForQuiescence)
+                {
+                    return renderer.BeginRenderingComponent<TComponent>(view).ToHtmlString();
+                }
+
                 var output = await renderer.RenderComponentAsync<TComponent>(view);
 
                 return output.ToHtmlString();
