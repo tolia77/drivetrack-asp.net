@@ -27,7 +27,12 @@ internal static class DeliveryApi
     /// <summary>A client, signed in.</summary>
     /// <param name="ClientId">The client row's id, which a delivery refers to them by.</param>
     /// <param name="Token">A bearer token for the client's own account.</param>
-    internal sealed record ClientCaller(int ClientId, string Token);
+    /// <param name="Email">
+    /// The address on their account — which is where a client's address lives and the only place it
+    /// does (FR-28). Carried so a notification suite can assert who a notice was addressed to
+    /// without reading the roster back a second time.
+    /// </param>
+    internal sealed record ClientCaller(int ClientId, string Token, string Email);
 
     /// <summary>
     /// Takes on a driver through the fleet endpoint and signs them in.
@@ -127,7 +132,7 @@ internal static class DeliveryApi
             .EnumerateArray()
             .Single(candidate => candidate.GetProperty("email").GetString() == email);
 
-        return new ClientCaller(row.GetProperty("clientId").GetInt32(), token);
+        return new ClientCaller(row.GetProperty("clientId").GetInt32(), token, email);
     }
 
     /// <summary>A vehicle of a chosen capacity, which is the figure a capacity test is about to cross.</summary>

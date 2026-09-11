@@ -51,6 +51,18 @@ public interface IUserAccountRepository
     /// <summary>Loads the account with that id, or null when there is none.</summary>
     Task<UserAccount?> GetByIdAsync(UserId id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Loads the account behind a client row, or null when there is none (FR-28).
+    /// <para>
+    /// A client's address lives on the Identity account and nowhere else — neither <c>Client</c>
+    /// nor <c>Delivery</c> carries one — so notifying the client of a delivery means starting from
+    /// its <see cref="ClientId"/> and arriving here. Asked as its own question rather than by
+    /// scanning <see cref="ListByRoleAsync"/> for a match: a background job that wants one address
+    /// must not read the whole client roster to find it.
+    /// </para>
+    /// </summary>
+    Task<UserAccount?> FindByClientIdAsync(ClientId clientId, CancellationToken cancellationToken);
+
     /// <summary>Whether any account already holds that email, compared as Identity normalizes it.</summary>
     Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken);
 

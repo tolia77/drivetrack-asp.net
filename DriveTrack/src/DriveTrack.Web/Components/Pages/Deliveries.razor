@@ -279,27 +279,107 @@
             <div class="alert alert-danger" role="alert">@Errors[key]</div>
         }
 
+        @* FR-15 and FR-104: a point is set by clicking the map, or by searching for an address and
+           choosing one of the answers. Both end at the same assignment - the chosen match writes the
+           same MapLocation a click writes - so the two are one input with two ways in rather than
+           two fields that could disagree.
+
+           The search row is a sibling of <DtMap>, never a child of it: Leaflet builds its own DOM
+           inside that container, outside Blazor's diff, so anything rendered inside would be wiped
+           on the first pan.
+
+           These two blocks sit OUTSIDE <EditForm>, and that is the point rather than an accident of
+           ordering. An <input> inside a form whose default button is the dialog's Save button makes
+           Enter an implicit submit: the most natural gesture in a search box would save the delivery
+           instead of searching. Blazor's `@@onkeydown:preventDefault` is evaluated once per render
+           and cannot be made conditional on the key, so preventing the default here would also
+           prevent the characters being typed. Taking the two boxes out of the form removes the
+           default instead of fighting it - neither carries an Input* component, so the EditContext
+           loses nothing - and Enter is then free to mean what it should.
+
+           Every handler is built in C# below rather than written as a lambda in an attribute: a
+           `=>` here would close the tag as far as NFR-14's markup scan is concerned, and everything
+           after it would be read as rendered English. *@
+        <div class="mb-3">
+            @* No `for` on the map's label: a map is a region rather than a labelable control, and a
+               `for` pointing at one would be an association a browser ignores. DtMap carries its own
+               aria-label. The search box above it is an input and has one. *@
+            <label class="form-label" for="pickup-search">@Localizer["AddressSearch"]</label>
+            <div class="input-group">
+                <input id="pickup-search" class="form-control"
+                       @bind="_form.PickupSearch.Query"
+                       @bind:event="oninput"
+                       @onkeydown="Enter(_form.PickupSearch)" />
+                <button type="button" class="btn btn-secondary dt-pickup-search"
+                        disabled="@_form.PickupSearch.IsBusy"
+                        @onclick="Search(_form.PickupSearch)">
+                    <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
+                </button>
+            </div>
+            <div class="form-text">@Localizer["AddressSearchHint"]</div>
+            @if (_form.PickupSearch.FoundNothing)
+            {
+                @* role="status", like the timeline's empty line: "the search found nothing" is the
+                   one outcome with no visible change to notice, and a dispatcher who cannot see the
+                   box is otherwise told nothing at all (NFR-22). *@
+                <div class="form-text dt-pickup-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
+            }
+            @if (_form.PickupSearch.Matches.Count > 0)
+            {
+                <ul class="list-group mb-2">
+                    @foreach (var match in _form.PickupSearch.Matches)
+                    {
+                        <li class="list-group-item">
+                            <button type="button" class="btn btn-link dt-pickup-match"
+                                    @onclick="Choose(_form.PickupSearch, match)">@match.Address</button>
+                        </li>
+                    }
+                </ul>
+            }
+            <label class="form-label">@Localizer["Pickup"]</label>
+            <DtMap Value="_form.Pickup" ValueChanged="PickPickup" Picker="true" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="dropoff-search">@Localizer["AddressSearch"]</label>
+            <div class="input-group">
+                <input id="dropoff-search" class="form-control"
+                       @bind="_form.DropoffSearch.Query"
+                       @bind:event="oninput"
+                       @onkeydown="Enter(_form.DropoffSearch)" />
+                <button type="button" class="btn btn-secondary dt-dropoff-search"
+                        disabled="@_form.DropoffSearch.IsBusy"
+                        @onclick="Search(_form.DropoffSearch)">
+                    <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
+                </button>
+            </div>
+            <div class="form-text">@Localizer["AddressSearchHint"]</div>
+            @if (_form.DropoffSearch.FoundNothing)
+            {
+                @* See the pickup box above. *@
+                <div class="form-text dt-dropoff-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
+            }
+            @if (_form.DropoffSearch.Matches.Count > 0)
+            {
+                <ul class="list-group mb-2">
+                    @foreach (var match in _form.DropoffSearch.Matches)
+                    {
+                        <li class="list-group-item">
+                            <button type="button" class="btn btn-link dt-dropoff-match"
+                                    @onclick="Choose(_form.DropoffSearch, match)">@match.Address</button>
+                        </li>
+                    }
+                </ul>
+            }
+            <label class="form-label">@Localizer["Dropoff"]</label>
+            <DtMap Value="_form.Dropoff" ValueChanged="PickDropoff" Picker="true" />
+        </div>
+
         <EditForm id="delivery-form" Model="_form" OnValidSubmit="SaveAsync">
             @* Clearing a number or a date field leaves a parse failure on the EditContext, and
                OnValidSubmit then never fires - so without this the Save button would do nothing and
                say nothing. ValidationSummary rather than per-field ValidationMessage: a
                `For="@(() => ...)"` lambda inside an attribute is what NFR-14's scan misreads. *@
             <ValidationSummary />
-
-            @* FR-15: a point is set by clicking the map. There is no address search here and no
-               reverse geocoding - both are IGeocoder's, which is story 5.2's port - so the map is
-               the whole of the input and the stored address stays null until then. *@
-            <div class="mb-3">
-                @* No `for`: a map is a region rather than a labelable control, and a `for` pointing
-                   at one would be an association a browser ignores. DtMap carries its own
-                   aria-label. *@
-                <label class="form-label">@Localizer["Pickup"]</label>
-                <DtMap Value="_form.Pickup" ValueChanged="PickPickup" Picker="true" />
-            </div>
-            <div class="mb-3">
-                <label class="form-label">@Localizer["Dropoff"]</label>
-                <DtMap Value="_form.Dropoff" ValueChanged="PickDropoff" Picker="true" />
-            </div>
 
             <div class="mb-3">
                 <label class="form-label" for="delivery-details">@Localizer["PackageDetails"]</label>
@@ -677,6 +757,45 @@
 
     private void PickDropoff(MapLocation picked) => _form.Dropoff = picked;
 
+    /// <summary>
+    /// One box's search action, bound as a delegate so no lambda has to live in markup.
+    /// </summary>
+    /// <remarks>
+    /// The box is a parameter rather than one method per point, so the markup names the same holder
+    /// it rendered the list from and there is no second place a pickup handler could be wired to the
+    /// dropoff box. The three-character floor is the service's, not this screen's, and is
+    /// deliberately not repeated here: a rule stated twice is a rule that can disagree with itself,
+    /// and the hint under the box is what tells the dispatcher about it beforehand.
+    /// </remarks>
+    private Func<Task> Search(PlaceSearch search) => async () =>
+        _failures = await search.RunAsync(Dispatch.SearchPlacesAsync, _cancellation.Token);
+
+    /// <summary>
+    /// The same action on Enter, which is the gesture a search box invites. Anything else typed in
+    /// the box falls through and is ignored.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// No <c>preventDefault</c> to go with it, and none is needed: these two boxes are rendered
+    /// outside <c>EditForm</c> precisely so Enter has no form to submit. See the comment above them.
+    /// </para>
+    /// <para>
+    /// The busy check is the same guard the button carries as <c>disabled</c>. Enter is a key that
+    /// can be held down, and without it an impatient second press during a lookup is a second
+    /// request to a public service whose slower answer then overwrites the faster one's matches.
+    /// </para>
+    /// </remarks>
+    private Func<KeyboardEventArgs, Task> Enter(PlaceSearch search) => async args =>
+    {
+        if (args.Key == "Enter" && !search.IsBusy)
+        {
+            _failures = await search.RunAsync(Dispatch.SearchPlacesAsync, _cancellation.Token);
+        }
+    };
+
+    /// <summary>A match's selection action, for the reason <see cref="Search" /> takes its box.</summary>
+    private static Action Choose(PlaceSearch search, PlaceMatch match) => () => search.Choose(match);
+
     private async Task LoadAsync()
     {
         _loading = true;
@@ -712,6 +831,9 @@
 
     private async Task OpenCreateAsync()
     {
+        // A new form brings two new search boxes with it: they belong to the form rather than to the
+        // screen, so a dialog opened on one delivery cannot offer the matches somebody searched for
+        // while editing another.
         _failures = [];
         _form = new DeliveryForm();
 
@@ -955,7 +1077,13 @@
     /// What the dialog is editing. A screen-local shape rather than a command: a command's update
     /// fields are <c>Optional&lt;T&gt;</c>, and two-way binding needs somewhere plain to write.
     /// </summary>
-    private sealed class DeliveryForm
+    /// <remarks>
+    /// Internal rather than private, for the reason <see cref="Matches" /> and <see cref="Sort" />
+    /// are: static rendering dispatches no events, so nothing a render test can do reaches the two
+    /// address boxes, and the wiring between a box and the point it fills would otherwise be
+    /// asserted nowhere at all.
+    /// </remarks>
+    internal sealed class DeliveryForm
     {
         /// <summary>The delivery being edited, or null while creating one.</summary>
         public int? Id { get; set; }
@@ -963,6 +1091,27 @@
         public MapLocation? Pickup { get; set; }
 
         public MapLocation? Dropoff { get; set; }
+
+        /// <summary>
+        /// FR-104's box above the pickup map, wired to <em>this</em> form's pickup point.
+        /// </summary>
+        /// <remarks>
+        /// Owned by the form rather than by the screen, and constructed here rather than assigned
+        /// from outside. A box is only ever about one point, and building the pair beside the two
+        /// fields they fill is what keeps "the dropoff box sets the dropoff" a single readable line
+        /// instead of two handlers on the screen that could be crossed.
+        /// </remarks>
+        public PlaceSearch PickupSearch { get; }
+
+        /// <inheritdoc cref="PickupSearch" />
+        public PlaceSearch DropoffSearch { get; }
+
+        /// <summary>A form with two empty address boxes, each bound to its own point.</summary>
+        public DeliveryForm()
+        {
+            PickupSearch = new PlaceSearch(point => Pickup = point);
+            DropoffSearch = new PlaceSearch(point => Dropoff = point);
+        }
 
         public string? PackageDetails { get; set; }
 
@@ -977,5 +1126,95 @@
         public int? DriverId { get; set; }
 
         public int? ClientId { get; set; }
+    }
+
+    /// <summary>
+    /// One of the two address boxes on the delivery form (FR-104): what was typed, what it found,
+    /// whether a lookup is in flight, and what choosing a match does.
+    /// </summary>
+    /// <remarks>
+    /// Internal and free of the framework for the reason <see cref="Matches" /> and
+    /// <see cref="Sort" /> are static: static rendering dispatches no events, so no render test can
+    /// press this button or click one of its answers. Every decision the box makes therefore lives
+    /// here, where it can be driven directly — including the one that is easy to get wrong and
+    /// impossible to see in a diff, which is which point a box fills in.
+    /// <para>
+    /// The port is a parameter of <see cref="RunAsync" /> rather than a constructor dependency,
+    /// because this type is built by <see cref="DeliveryForm" />'s own constructor and a form is
+    /// built in places that have no service to hand.
+    /// </para>
+    /// </remarks>
+    /// <param name="assign">Where a chosen match's point goes. The whole identity of the box.</param>
+    internal sealed class PlaceSearch(Action<MapLocation> assign)
+    {
+        /// <summary>What the dispatcher typed. Bound two-way to the box.</summary>
+        public string? Query { get; set; }
+
+        /// <summary>What the last search found. Empty before the first one.</summary>
+        public IReadOnlyList<PlaceMatch> Matches { get; private set; } = [];
+
+        /// <summary>True while a lookup is in flight.</summary>
+        public bool IsBusy { get; private set; }
+
+        /// <summary>True once a search has run at all, whatever it answered.</summary>
+        public bool HasSearched { get; private set; }
+
+        /// <summary>
+        /// True when a search has run and matched nothing — which is a different state from "no
+        /// search has run yet", and the only one of the two with something to say.
+        /// </summary>
+        public bool FoundNothing => HasSearched && Matches.Count == 0;
+
+        /// <summary>
+        /// Runs the search, and answers the failure keys to render — empty when it succeeded.
+        /// </summary>
+        /// <param name="search">The capability's search method.</param>
+        /// <param name="cancellationToken">The screen's own token.</param>
+        public async Task<IReadOnlyList<string>> RunAsync(
+            Func<SearchPlacesQuery, CancellationToken, Task<IReadOnlyList<PlaceMatch>>> search,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(search);
+
+            // The button is disabled while this is set. A lookup is bounded only by the geocoder's
+            // own timeout, so without it the button looks like it did nothing and an impatient
+            // second click is a second request to a public service.
+            IsBusy = true;
+
+            try
+            {
+                Matches = await search(new SearchPlacesQuery(Query), cancellationToken);
+
+                return [];
+            }
+            catch (DriveTrackException failure)
+            {
+                Matches = [];
+
+                return FailureKeys.For(failure);
+            }
+            finally
+            {
+                // Both in a finally, so a refusal leaves the box usable and says so rather than
+                // leaving it disabled and looking as though the button had done nothing.
+                HasSearched = true;
+                IsBusy = false;
+            }
+        }
+
+        /// <summary>Applies a match to the point this box is about.</summary>
+        public void Choose(PlaceMatch match)
+        {
+            ArgumentNullException.ThrowIfNull(match);
+
+            // The same assignment a map click makes. DtMap re-centres when its Value changes, so the
+            // map follows the chosen address without this having to tell it to (FR-104, FR-15).
+            assign(match.Point);
+
+            // Cleared on the way out: a list left standing beside a map that has already moved
+            // invites a second click on a match that has already been applied.
+            Matches = [];
+            HasSearched = false;
+        }
     }
 }

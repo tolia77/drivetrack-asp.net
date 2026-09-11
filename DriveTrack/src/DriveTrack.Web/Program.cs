@@ -205,6 +205,14 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 // Accept-Language header or a query string without someone deciding to allow it.
 var ukrainian = new CultureInfo("uk-UA");
 
+// UseRequestLocalization sets the culture per request, and the product has work that runs on no
+// request at all: the side-effect worker composes a client's notification from EmailText on its own
+// thread, long after the request that queued it was answered. Without these two the notice would be
+// formatted in whatever culture the machine happens to have, which is the one place NFR-15 would
+// silently not hold. Set before the host serves anything, so every thread it starts inherits them.
+CultureInfo.DefaultThreadCurrentCulture = ukrainian;
+CultureInfo.DefaultThreadCurrentUICulture = ukrainian;
+
 app.UseRequestLocalization(new RequestLocalizationOptions
 {
     DefaultRequestCulture = new RequestCulture(ukrainian),

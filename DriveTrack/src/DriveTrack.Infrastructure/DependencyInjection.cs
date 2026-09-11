@@ -3,16 +3,21 @@ using DriveTrack.Application.Abstractions;
 using DriveTrack.Application.Authorization;
 using DriveTrack.Application.Deliveries;
 using DriveTrack.Application.Drivers;
+using DriveTrack.Application.Notifications;
 using DriveTrack.Application.Users;
 using DriveTrack.Application.Vehicles;
+using DriveTrack.Infrastructure.Email;
+using DriveTrack.Infrastructure.Geocoding;
 using DriveTrack.Infrastructure.Identity;
 using DriveTrack.Infrastructure.Persistence;
+using DriveTrack.Infrastructure.SideEffects;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace DriveTrack.Infrastructure;
 
@@ -89,6 +94,7 @@ public static class DependencyInjection
 
         AddIdentity(services);
         AddAuthorizationAndAccounts(services, configuration);
+        AddSideEffects(services, configuration);
 
         return services;
     }
@@ -197,5 +203,118 @@ public static class DependencyInjection
         // of the request or circuit it is serving, and it takes the clock registered above so
         // FR-19's overdue rule is a function of an injected TimeProvider rather than of the machine.
         services.AddScoped<IDeliveryService, DeliveryService>();
+
+        // FR-28's read side. Scoped for the same reason as the rest: the guard inside it reads the
+        // caller of the request or circuit it is serving.
+        services.AddScoped<INotificationLogService, NotificationLogService>();
     }
+
+    /// <summary>
+    /// Registers AD-12's outbound ports and the queue that runs them after a commit: the geocoder
+    /// (FR-94, FR-104), the mail transport (FR-28), the job runner, the queue behind
+    /// <see cref="IDeliverySideEffects"/> and the one background loop that drains it.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// A key in either section is present but unusable. An <c>.env</c> predating these keys forwards
+    /// the empty string, which does not fall back to an option's default — it fails the binder with
+    /// an opaque message at the first delivery somebody creates, which is both far from the cause
+    /// and inside a background job where nobody is watching. Caught here instead, and named the way
+    /// the environment spells it.
+    /// </exception>
+    private static void AddSideEffects(IServiceCollection services, IConfiguration configuration)
+    {
+        RequirePositiveInteger(configuration, GeocoderOptions.TimeoutSecondsConfigurationKey, "seconds");
+        RequirePositiveInteger(configuration, SmtpOptions.PortConfigurationKey, "port number");
+        RequireBoolean(configuration, SmtpOptions.UseStartTlsConfigurationKey);
+
+        services.Configure<GeocoderOptions>(configuration.GetSection(GeocoderOptions.SectionName));
+        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+
+        // Read eagerly, and only after the checks above, because Get<T> runs the same binder they
+        // exist to keep away from an unusable value. The timeout has to be known here rather than
+        // per request: HttpClient.Timeout is set once, on the instance.
+        var geocoder = configuration.GetSection(GeocoderOptions.SectionName).Get<GeocoderOptions>()
+            ?? new GeocoderOptions();
+
+        // One client for the process (NFR-8's other half): a client per lookup exhausts the socket
+        // pool under load, and this one holds no per-request state - the agent header is set on the
+        // request, beside the value it was read from.
+        //
+        // Constructed for the geocoder rather than registered as a service. `AddSingleton<HttpClient>`
+        // would put a bare client in the container for every consumer, and the next thing to ask for
+        // one would silently inherit a timeout tuned for a geocoding lookup - a dependency nothing
+        // declares and nobody would look for.
+        services.AddSingleton<IGeocoder>(provider => new NominatimGeocoder(
+            new HttpClient { Timeout = TimeSpan.FromSeconds(geocoder.TimeoutSeconds) },
+            provider.GetRequiredService<IOptions<GeocoderOptions>>()));
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
+
+        // Singletons, like the factory and the clock they are built from. A side effect belongs to
+        // no request and to no circuit - that is the whole of AD-12 - so there is no scope for one
+        // to live in, and the runner opens its own unit of work per job.
+        services.AddSingleton<IDeliverySideEffectRunner, DeliverySideEffectRunner>();
+
+        // The queue is registered as itself and then as the interface, resolving to the same
+        // instance. Two registrations of the implementation type would be two queues: the delivery
+        // service would fill one and the worker would drain the other, and nothing would ever fail
+        // loudly enough to say so.
+        services.AddSingleton<DeliverySideEffectQueue>();
+        services.AddSingleton<IDeliverySideEffects>(provider =>
+            provider.GetRequiredService<DeliverySideEffectQueue>());
+
+        services.AddHostedService<DeliverySideEffectWorker>();
+    }
+
+    /// <summary>
+    /// Refuses a configuration value that is present but is not a positive whole number, naming the
+    /// key in both the spelling the code uses and the spelling the environment does.
+    /// </summary>
+    /// <remarks>
+    /// Absent is not the same as blank, and only blank is refused: a deployment that never set the
+    /// variable takes the option's default and must keep working.
+    /// </remarks>
+    private static void RequirePositiveInteger(
+        IConfiguration configuration,
+        string key,
+        string unit)
+    {
+        var value = configuration[key];
+
+        if (value is null)
+        {
+            return;
+        }
+
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            || parsed <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Configuration value '{key}' is '{value}', which is not a positive whole number of "
+                    + $"{unit}. Set the '{EnvironmentSpelling(key)}' environment variable "
+                    + "(see .env.example), or remove it to take the default.");
+        }
+    }
+
+    /// <inheritdoc cref="RequirePositiveInteger" />
+    private static void RequireBoolean(IConfiguration configuration, string key)
+    {
+        var value = configuration[key];
+
+        if (value is null)
+        {
+            return;
+        }
+
+        if (!bool.TryParse(value, out _))
+        {
+            throw new InvalidOperationException(
+                $"Configuration value '{key}' is '{value}', which is not true or false. Set the "
+                    + $"'{EnvironmentSpelling(key)}' environment variable (see .env.example), or "
+                    + "remove it to take the default.");
+        }
+    }
+
+    /// <summary>The key as an environment variable spells it, which is what an operator will search for.</summary>
+    private static string EnvironmentSpelling(string key) =>
+        key.Replace(":", "__", StringComparison.Ordinal);
 }

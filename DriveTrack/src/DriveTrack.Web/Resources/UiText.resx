@@ -494,4 +494,61 @@
   <data name="ChangeStatus" xml:space="preserve">
     <value>Змінити стан:</value>
   </data>
+  <!-- FR-104: the second way to set a point on the delivery form, beside the map. The hint says
+       what the floor is, because a search that silently refuses two characters reads as broken. -->
+  <data name="AddressSearch" xml:space="preserve">
+    <value>Пошук за адресою</value>
+  </data>
+  <data name="AddressSearchHint" xml:space="preserve">
+    <value>Введіть щонайменше три символи.</value>
+  </data>
+  <!-- A verb, not the noun "Search" already in this catalogue: that one labels the filter box on
+       the fleet screens, and a button has to say what pressing it does. -->
+  <data name="AddressSearchAction" xml:space="preserve">
+    <value>Знайти</value>
+  </data>
+  <data name="AddressSearchEmpty" xml:space="preserve">
+    <value>За цим запитом нічого не знайдено.</value>
+  </data>
+  <!-- FR-28: the log of outbound notification attempts, which is an administrator's screen. -->
+  <data name="NavNotifications" xml:space="preserve">
+    <value>Сповіщення</value>
+  </data>
+  <data name="NotificationsTitle" xml:space="preserve">
+    <value>Журнал сповіщень</value>
+  </data>
+  <data name="NotificationsEmpty" xml:space="preserve">
+    <value>Жодного сповіщення ще не надсилалося.</value>
+  </data>
+  <data name="NotificationDelivery" xml:space="preserve">
+    <value>Доставка</value>
+  </data>
+  <data name="NotificationRecipient" xml:space="preserve">
+    <value>Одержувач</value>
+  </data>
+  <data name="NotificationOutcome" xml:space="preserve">
+    <value>Результат</value>
+  </data>
+  <data name="NotificationAttemptedAt" xml:space="preserve">
+    <value>Час спроби</value>
+  </data>
+  <data name="NotificationError" xml:space="preserve">
+    <value>Причина помилки</value>
+  </data>
+  <!-- AD-18 / FR-16: the outcome is shown as a word a reader knows, never as the enum member the
+       database stores. -->
+  <data name="NotificationSent" xml:space="preserve">
+    <value>Надіслано</value>
+  </data>
+  <data name="NotificationFailed" xml:space="preserve">
+    <value>Помилка</value>
+  </data>
+  <!-- The only kind the system writes today (FR-28). Named rather than rendered as the enum member
+       for the reason the outcome is. -->
+  <data name="NotificationKindStatusChange" xml:space="preserve">
+    <value>Зміна стану</value>
+  </data>
+  <data name="NotificationKind" xml:space="preserve">
+    <value>Подія</value>
+  </data>
 </root>

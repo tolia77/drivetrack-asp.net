@@ -11,6 +11,7 @@ using DriveTrack.Integration.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 using DeliveryColumn = DriveTrack.Web.Components.Pages.Deliveries.DeliveryColumn;
 using DeliveryFilter = DriveTrack.Web.Components.Pages.Deliveries.DeliveryFilter;
+using DeliveryForm = DriveTrack.Web.Components.Pages.Deliveries.DeliveryForm;
 
 namespace DriveTrack.Integration.Tests.Components;
 
@@ -371,6 +372,42 @@ public class DeliveryScreenTests
     }
 
     [Fact]
+    public void Each_address_box_is_wired_to_the_point_it_is_labelled_with()
+    {
+        // The join the PlaceSearch tests below leave open, and the same shape of hole the sort
+        // headings above have: driving the holders directly proves each one searches its own query
+        // and assigns its own point, but nothing there can tell whether the *dropoff* box's button
+        // is wired to the dropoff holder. Swap one argument and a dispatcher's pickup search fills
+        // the dropoff list and moves the dropoff map, with every test in this file still green.
+        //
+        // Read from source, because a statically rendered page carries no trace of an event
+        // handler's target - which is exactly why the wiring needs reading rather than rendering.
+        var page = SharedMarkup.ReadComponent("Pages", "Deliveries.razor");
+
+        foreach (var point in new[] { "Pickup", "Dropoff" })
+        {
+            var box = point.ToLowerInvariant();
+            var holder = $"_form.{point}Search";
+
+            // The input, its button, and the button on each match: every control in the box names
+            // the same holder, and that holder is this point's.
+            Assert.Equal(1, SharedMarkup.Occurrences(page, $@"@bind=""{holder}.Query"""));
+            Assert.Equal(1, SharedMarkup.Occurrences(page, $"Enter({holder})"));
+            Assert.Equal(1, SharedMarkup.Occurrences(page, $"Search({holder})"));
+            Assert.Equal(1, SharedMarkup.Occurrences(page, $"Choose({holder}, match)"));
+
+            // And the hooks that name the point are on the controls that carry them, so a renamed
+            // class cannot quietly separate the two halves of this assertion.
+            Assert.Equal(1, SharedMarkup.Occurrences(page, $@"dt-{box}-search"""));
+            Assert.Equal(1, SharedMarkup.Occurrences(page, $@"dt-{box}-match"""));
+            Assert.Equal(1, SharedMarkup.Occurrences(page, $@"dt-{box}-empty"""));
+
+            // The list the matches are drawn from is this holder's too.
+            Assert.Equal(1, SharedMarkup.Occurrences(page, $"in {holder}.Matches"));
+        }
+    }
+
+    [Fact]
     public async Task The_own_deliveries_screen_names_no_counterparty_and_says_so_when_empty()
     {
         // FR-27 and FR-96 at the component tier. The type this screen renders has no party field at
@@ -437,6 +474,135 @@ public class DeliveryScreenTests
             page,
             StringComparison.Ordinal);
     }
+
+    // =====================================================================================
+    // FR-104's two address boxes
+    //
+    // Static rendering dispatches no events, so nothing above can press a search button or click
+    // one of its answers. The state and the transitions therefore live on the form, where they can
+    // be driven directly - which is the only way the wiring between a box and the point it fills
+    // is asserted at all. Cross the two and every render assertion in this file still passes.
+    // =====================================================================================
+
+    [Fact]
+    public async Task Each_box_searches_its_own_query()
+    {
+        // The mistake this exists for: SearchDropoffAsync sending the pickup box's text. Both boxes
+        // look identical in the markup and a rendered page cannot tell the two apart.
+        var form = new DeliveryForm();
+        var asked = new List<string?>();
+
+        form.PickupSearch.Query = "Хрещатик";
+        form.DropoffSearch.Query = "Площа Ринок";
+
+        await form.DropoffSearch.RunAsync(Recording(asked, []), TestContext.Current.CancellationToken);
+
+        Assert.Equal(new string?[] { "Площа Ринок" }, asked);
+
+        await form.PickupSearch.RunAsync(Recording(asked, []), TestContext.Current.CancellationToken);
+
+        Assert.Equal(new string?[] { "Площа Ринок", "Хрещатик" }, asked);
+    }
+
+    [Fact]
+    public async Task Choosing_a_match_sets_that_box_s_point_and_leaves_the_other_alone()
+    {
+        // The other half of the same mistake: ChooseDropoff assigning _form.Pickup. The dropoff map
+        // would then stay where it was and the pickup map would jump to an address nobody chose for
+        // it, and no render test could see either.
+        var form = new DeliveryForm();
+        var match = new PlaceMatch("Львів, площа Ринок, 1", new MapLocation(49.8419, 24.0315));
+
+        await form.DropoffSearch.RunAsync(Answering([match]), TestContext.Current.CancellationToken);
+
+        Assert.Single(form.DropoffSearch.Matches);
+        Assert.Empty(form.PickupSearch.Matches);
+
+        form.DropoffSearch.Choose(match);
+
+        Assert.Equal(match.Point, form.Dropoff);
+        Assert.Null(form.Pickup);
+
+        // The list is cleared with the choice: one left standing beside a map that has already moved
+        // invites a second click on a match that has already been applied.
+        Assert.Empty(form.DropoffSearch.Matches);
+        Assert.False(form.DropoffSearch.FoundNothing);
+    }
+
+    [Fact]
+    public async Task A_search_that_matched_nothing_says_so_and_an_untouched_box_says_nothing()
+    {
+        // "No search has run" and "a search found nothing" are different states, and only the second
+        // has anything to tell the dispatcher. One flag for both would make the hint appear under a
+        // box nobody has used yet.
+        var form = new DeliveryForm();
+
+        Assert.False(form.PickupSearch.FoundNothing);
+
+        await form.PickupSearch.RunAsync(Answering([]), TestContext.Current.CancellationToken);
+
+        Assert.True(form.PickupSearch.FoundNothing);
+        Assert.False(form.DropoffSearch.FoundNothing);
+    }
+
+    [Fact]
+    public async Task A_refused_search_answers_the_failure_keys_and_leaves_the_box_usable()
+    {
+        // The 422 a query under three characters earns. The screen renders these keys through the
+        // same catalogue the REST envelope uses (NFR-3), and the box has to come back out of its
+        // busy state or the button stays disabled and reads as a hung screen.
+        var form = new DeliveryForm();
+
+        var keys = await form.PickupSearch.RunAsync(
+            (_, _) => throw new ValidationException(
+                ErrorCode.COMMON_VALIDATION_FAILED,
+                "Too short.",
+                []),
+            TestContext.Current.CancellationToken);
+
+        Assert.NotEmpty(keys);
+        Assert.False(form.PickupSearch.IsBusy);
+        Assert.True(form.PickupSearch.FoundNothing);
+        Assert.Empty(form.PickupSearch.Matches);
+    }
+
+    [Fact]
+    public async Task A_box_is_busy_only_while_its_own_lookup_is_running()
+    {
+        // The busy flag is what disables the button, so an impatient second click cannot become a
+        // second request to a public geocoder. Per box: searching for a pickup must not disable the
+        // dropoff box.
+        var form = new DeliveryForm();
+        var observed = new List<(bool Pickup, bool Dropoff)>();
+
+        await form.PickupSearch.RunAsync(
+            (_, _) =>
+            {
+                observed.Add((form.PickupSearch.IsBusy, form.DropoffSearch.IsBusy));
+
+                return Task.FromResult<IReadOnlyList<PlaceMatch>>([]);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([(true, false)], observed);
+        Assert.False(form.PickupSearch.IsBusy);
+    }
+
+    /// <summary>A search that records the query it was given and answers a fixed list.</summary>
+    private static Func<SearchPlacesQuery, CancellationToken, Task<IReadOnlyList<PlaceMatch>>> Recording(
+        List<string?> asked,
+        IReadOnlyList<PlaceMatch> matches) =>
+        (query, _) =>
+        {
+            asked.Add(query.Query);
+
+            return Task.FromResult(matches);
+        };
+
+    /// <inheritdoc cref="Recording" />
+    private static Func<SearchPlacesQuery, CancellationToken, Task<IReadOnlyList<PlaceMatch>>> Answering(
+        IReadOnlyList<PlaceMatch> matches) =>
+        (_, _) => Task.FromResult(matches);
 
     // =====================================================================================
     // The two pure functions behind the dispatch board
@@ -817,6 +983,14 @@ public class DeliveryScreenTests
             int id,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<TimelineEntryView>>([Entry]);
+
+        // Story 5.2's address search, for the reason the three above are here: static rendering
+        // dispatches no events, so no render test can press the search button - the member exists
+        // because widening IDeliveryService widens every implementation of it.
+        public Task<IReadOnlyList<PlaceMatch>> SearchPlacesAsync(
+            SearchPlacesQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PlaceMatch>>([]);
 
         private static TimelineEntryView Entry => new(
             1,

@@ -64,6 +64,30 @@ public class NavigationTests
         Assert.Equal(dispatchers, destinations.Contains(NavDestination.Dispatchers));
     }
 
+    [Theory]
+    [InlineData(UserRole.Admin, true)]
+    [InlineData(UserRole.Dispatcher, false)]
+    [InlineData(UserRole.Driver, false)]
+    [InlineData(UserRole.Client, false)]
+    public void The_notification_log_is_offered_to_the_administrator_and_to_nobody_else(
+        UserRole role,
+        bool notifications)
+    {
+        // Story 5.2's destination, pinned to its tier. Moving it into the dispatcher set is the
+        // change this exists to catch: the source assertions below still count one @if block and
+        // thirteen icons whichever tier it sits in, so without this the link could quietly be
+        // offered to three more roles.
+        //
+        // Admin-only rather than dispatcher-or-admin because the log is an operations record that
+        // carries the address of every client the system has written to, and because
+        // NotificationLogService names RequireRole(Admin) outright - so a dispatcher's link could
+        // only ever refuse. FR-12 unchanged: this is what is worth showing, and the guard is what
+        // decides.
+        Assert.Equal(
+            notifications,
+            NavDestinations.For(role).Contains(NavDestination.Notifications));
+    }
+
     [Fact]
     public void An_anonymous_caller_is_offered_the_page_that_allows_them()
     {
@@ -132,12 +156,12 @@ public class NavigationTests
 
         // Every link and action carries an icon beside its text (NFR-24): the brand mark, home,
         // profile, the two fleet screens (4.1), the dispatch board and the own-deliveries screen
-        // (5.1), the two administration rosters (7.1), sign-out, sign-in and register - twelve in
-        // all. The count moves with the destination table on purpose: a destination rendered
-        // without a glyph is markup with nothing behind it, which is the defect this whole test
-        // guards, so adding a link has to be a deliberate edit to this line rather than an empty
-        // box nobody notices.
-        Assert.Equal(12, SharedMarkup.Occurrences(menu, "<Icon Name="));
+        // (5.1), the two administration rosters (7.1), story 5.2's notification log, sign-out,
+        // sign-in and register - thirteen in all. The count moves with the destination table on
+        // purpose: a destination rendered without a glyph is markup with nothing behind it, which
+        // is the defect this whole test guards, so adding a link has to be a deliberate edit to
+        // this line rather than an empty box nobody notices.
+        Assert.Equal(13, SharedMarkup.Occurrences(menu, "<Icon Name="));
     }
 
     [Fact]
@@ -207,6 +231,13 @@ public class NavigationTests
 
         Assert.Equal(destinations.Contains(NavDestination.Clients), links.Contains("clients"));
         Assert.Equal(destinations.Contains(NavDestination.Dispatchers), links.Contains("dispatchers"));
+
+        // Story 5.2's log, rendered rather than only read off the table: the table says which roles
+        // are offered it, and this says the menu actually renders that answer.
+        Assert.Equal(
+            destinations.Contains(NavDestination.Notifications),
+            links.Contains("notifications"));
+        Assert.Equal(role == UserRole.Admin, links.Contains("notifications"));
     }
 
     [Fact]

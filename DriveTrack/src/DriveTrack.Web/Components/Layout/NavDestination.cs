@@ -33,6 +33,12 @@ public enum NavDestination
     /// whatever the caller's own scope narrows to rather than a roster somebody administers.
     /// </summary>
     MyDeliveries,
+
+    /// <summary>
+    /// The log of outbound notification attempts (FR-28). An administrator's, and nobody else's:
+    /// it carries the address of every client the system has ever written to.
+    /// </summary>
+    Notifications,
 }
 
 /// <summary>
@@ -102,12 +108,23 @@ internal static class NavDestinations
 
     /// <summary>
     /// What an administrator is offered: everything a dispatcher is, plus the roster of
-    /// dispatchers themselves. Built from <see cref="Dispatcher"/> for the reason
-    /// <see cref="Fleet"/> is built from <see cref="Personal"/>: a destination added to either
-    /// tier has to reach this one, and a restated list is how that stops happening.
+    /// dispatchers themselves and FR-28's notification log. Built from <see cref="Dispatcher"/> for
+    /// the reason <see cref="Fleet"/> is built from <see cref="Personal"/>: a destination added to
+    /// either tier has to reach this one, and a restated list is how that stops happening.
+    /// <para>
+    /// The notification log is admin-only rather than dispatcher-or-admin, which makes it the
+    /// second entry in this tier and the second one to be argued for. It is an operations record of
+    /// what the system sent and to which address, so it discloses every notified client's email in
+    /// one page — and <c>NotificationLogService</c> names <c>RequireRole(UserRole.Admin)</c>
+    /// outright, so offering a dispatcher the link would be offering one that can only refuse.
+    /// </para>
     /// </summary>
     private static readonly IReadOnlySet<NavDestination> Administrator =
-        new HashSet<NavDestination>(Dispatcher) { NavDestination.Dispatchers };
+        new HashSet<NavDestination>(Dispatcher)
+        {
+            NavDestination.Dispatchers,
+            NavDestination.Notifications,
+        };
 
     /// <summary>
     /// What a caller with no session is offered. The landing page is <c>[AllowAnonymous]</c>, so it
