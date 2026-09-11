@@ -54,6 +54,39 @@ public interface IDeliveryService
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Opens a delivery the caller asked for themselves (FR-89, FR-90, FR-91).
+    /// <para>
+    /// <see cref="CreateAsync"/>'s sibling rather than an overload of it, because the two differ in
+    /// who the row is attached to and in who may call them. The requester is the guard's answer,
+    /// never a field of the command, so a client cannot ask on another client's behalf; the driver
+    /// and the status are absent from the command entirely, so FR-90's "the client sets neither" is
+    /// a shape rather than a rule someone has to enforce.
+    /// </para>
+    /// <para>
+    /// Answers <see cref="AssignedDeliverySummary"/> rather than <see cref="DeliverySummary"/>, and
+    /// that is AD-17 rather than economy: the row a client just created is a row they read on
+    /// <c>/my-deliveries</c>, and a payload with a <c>Driver</c> field on it would be a
+    /// counterparty's name one mapping mistake away from a client's screen (FR-27).
+    /// </para>
+    /// <para>
+    /// Dispatch needs nothing new for the result. The row lands in <see cref="ListAsync"/> with its
+    /// client named and no driver, and <see cref="UpdateAsync"/> assigns one with the vehicle
+    /// capacity re-checked (FR-103) — the same edit path a dispatcher's own delivery takes.
+    /// </para>
+    /// </summary>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous, or presents a still-valid token for a client row that has since
+    /// been deleted (<c>AUTH_UNAUTHENTICATED</c>, 401); or is a driver, is a client whose claims
+    /// carry no client row id, or composes for somebody else — a dispatcher or an administrator,
+    /// who open a delivery through <see cref="CreateAsync"/> where the client is an explicit field
+    /// (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    /// <exception cref="Common.ValidationException">The command describes a delivery that may not exist.</exception>
+    Task<AssignedDeliverySummary> RequestAsync(
+        RequestDeliveryCommand command,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Changes a delivery (FR-22, FR-23). Absent fields are left alone and a present null clears
     /// what may be cleared (AD-23); every rule is judged against the merged state.
     /// </summary>
@@ -153,12 +186,21 @@ public interface IDeliveryService
     /// guard decision would have to be restated in it.
     /// </para>
     /// <para>
-    /// Reserved to dispatch for the same reason the form is: a driver and a client read deliveries
-    /// rather than compose them, and a public geocoder reachable by anyone with a session is a
-    /// public geocoder anyone with a session can spend.
+    /// Open to the roles that compose a delivery and closed to the one that does not — precisely
+    /// <c>IAccessGuard.RequireDeliveryComposer</c>, the same question <see cref="RequestAsync"/>
+    /// asks. FR-104 is unqualified about who sets a location by typing, and since story 7.4 a
+    /// client's request form sets two of them, so a dispatcher-only reservation would refuse the
+    /// second caller the requirement is about. A driver stays refused: they read the parcel they
+    /// are carrying and compose nothing, so a public geocoder is still not reachable by every
+    /// session that exists.
     /// </para>
     /// </summary>
-    /// <exception cref="Common.ForbiddenException">The caller runs neither dispatch nor the system.</exception>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401); or is a driver, or is a client
+    /// whose claims carry no client row id, or holds a role with no part in composing a delivery
+    /// (<c>AUTH_FORBIDDEN</c>, 403). The same two codes <see cref="RequestAsync"/> answers, because
+    /// it is the same guard member deciding.
+    /// </exception>
     /// <exception cref="Common.ValidationException">The query is blank or shorter than three characters.</exception>
     Task<IReadOnlyList<PlaceMatch>> SearchPlacesAsync(
         SearchPlacesQuery query,

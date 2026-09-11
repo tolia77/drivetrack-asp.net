@@ -179,6 +179,134 @@ public class DeliveryValidationTests
     }
 
     // =====================================================================================
+    // Requesting (story 7.4)
+    //
+    // FR-89's matrix, over the five fields a client actually sends. The rules are the create path's
+    // and the assertions are written out again on purpose: "a client's 422 names the same field a
+    // dispatcher's does" is the claim, and a claim about two validators cannot be made by testing
+    // one of them.
+    // =====================================================================================
+
+    [Fact]
+    public void The_minimum_request_is_valid()
+    {
+        // Two points, a description and a weight - the same minimum a create has, minus the four
+        // fields the command does not carry. There is nothing to assert about a driver, a client or
+        // a window here, because there is no field a test could set.
+        Assert.Empty(Failures(Request()));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void A_requested_weight_that_is_not_positive_is_refused_naming_the_field(decimal weight)
+    {
+        // FR-102 reaches the request path unchanged: the column and its check constraint do not
+        // care which endpoint the row arrived through.
+        Assert.Contains(
+            nameof(RequestDeliveryCommand.PackageWeightKg),
+            Failures(Request(weight: weight)));
+    }
+
+    [Fact]
+    public void A_requested_weight_wider_than_the_column_is_refused_before_the_commit()
+    {
+        Assert.Contains(
+            nameof(RequestDeliveryCommand.PackageWeightKg),
+            Failures(Request(weight: CreateDeliveryCommandValidator.PackageWeightMaximum + 0.001m)));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void Blank_requested_package_details_are_refused(string? details)
+    {
+        Assert.Contains(
+            nameof(RequestDeliveryCommand.PackageDetails),
+            Failures(Request(details: details)));
+    }
+
+    [Fact]
+    public void Requested_package_details_longer_than_the_column_are_refused()
+    {
+        Assert.Contains(
+            nameof(RequestDeliveryCommand.PackageDetails),
+            Failures(Request(
+                details: new string('я', CreateDeliveryCommandValidator.PackageDetailsMaximumLength + 1))));
+    }
+
+    [Fact]
+    public void Requested_notes_longer_than_the_column_are_refused_and_the_longest_allowed_is_not()
+    {
+        // The boundary in both directions. A one-sided assertion passes for a validator that
+        // refuses every note, which is the mistake worth catching.
+        Assert.Contains(
+            nameof(RequestDeliveryCommand.DeliveryNotes),
+            Failures(Request(
+                notes: new string('я', CreateDeliveryCommandValidator.DeliveryNotesMaximumLength + 1))));
+
+        Assert.Empty(Failures(Request(
+            notes: new string('я', CreateDeliveryCommandValidator.DeliveryNotesMaximumLength))));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void An_absent_requested_note_is_accepted(string? notes)
+    {
+        // FR-17: notes are optional, and whitespace is the service's business to blank rather than
+        // the validator's to refuse.
+        Assert.Empty(Failures(Request(notes: notes)));
+    }
+
+    [Fact]
+    public void A_request_with_no_pickup_is_refused_once_by_name()
+    {
+        // Written out rather than through the helper, because "no pickup at all" is precisely the
+        // case a defaulted parameter would fill in.
+        var command = new RequestDeliveryCommand(null, Lviv, "Одна палета", 12.5m, null);
+
+        Assert.Equal(new[] { nameof(RequestDeliveryCommand.Pickup) }, Failures(command));
+    }
+
+    [Fact]
+    public void A_request_with_no_dropoff_is_refused_once_by_name()
+    {
+        var command = new RequestDeliveryCommand(Kyiv, null, "Одна палета", 12.5m, null);
+
+        Assert.Equal(new[] { nameof(RequestDeliveryCommand.Dropoff) }, Failures(command));
+    }
+
+    [Fact]
+    public void A_requested_coordinate_outside_the_map_is_refused_naming_the_location()
+    {
+        // The same child validator the create path applies, reported under the location's own name
+        // rather than under "Latitude" - which is the field a form has an input for.
+        var failures = Failures(Request(pickup: new LocationInput(91, 30.5234)));
+
+        Assert.Contains(failures, failure =>
+            failure.StartsWith(nameof(RequestDeliveryCommand.Pickup), StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(181d)]
+    [InlineData(-181d)]
+    [InlineData(double.NaN)]
+    public void A_requested_dropoff_outside_the_map_is_refused_naming_the_location(double? longitude)
+    {
+        // The dropoff's own rule, because the child validator is applied to the two points as two
+        // separate RuleFor blocks - and a block pasted from the pickup's keeps compiling with
+        // `command.Pickup!` in it. The pickup test above passes either way; this one does not.
+        var failures = Failures(Request(dropoff: new LocationInput(49.8397, longitude)));
+
+        Assert.Contains(failures, failure =>
+            failure.StartsWith(nameof(RequestDeliveryCommand.Dropoff), StringComparison.Ordinal));
+    }
+
+    // =====================================================================================
     // Merging, then validating the merged state (AD-23)
     // =====================================================================================
 
@@ -461,6 +589,18 @@ public class DeliveryValidationTests
             driverId,
             clientId);
 
+    /// <summary>
+    /// A client's request, with the same defaults <see cref="Create" /> uses so a difference
+    /// between the two suites is a difference between the validators rather than the fixtures.
+    /// </summary>
+    private static RequestDeliveryCommand Request(
+        LocationInput? pickup = null,
+        LocationInput? dropoff = null,
+        string? details = "Одна палета",
+        decimal weight = 12.5m,
+        string? notes = null) =>
+        new(pickup ?? Kyiv, dropoff ?? Lviv, details, weight, notes);
+
     private static UpdateDeliveryCommand Update(
         Optional<LocationInput> pickup = default,
         Optional<LocationInput> dropoff = default,
@@ -505,7 +645,17 @@ public class DeliveryValidationTests
             .Distinct(StringComparer.Ordinal),
     ];
 
-    /// <inheritdoc cref="Failures" />
+    /// <inheritdoc cref="Failures(CreateDeliveryCommand)" />
+    private static string[] Failures(RequestDeliveryCommand command) =>
+    [
+        .. new RequestDeliveryCommandValidator()
+            .Validate(command)
+            .Errors
+            .Select(failure => failure.PropertyName)
+            .Distinct(StringComparer.Ordinal),
+    ];
+
+    /// <inheritdoc cref="Failures(CreateDeliveryCommand)" />
     private static string[] NoteFailures(string? note) =>
     [
         .. new AddDeliveryNoteCommandValidator()
@@ -515,7 +665,7 @@ public class DeliveryValidationTests
             .Distinct(StringComparer.Ordinal),
     ];
 
-    /// <inheritdoc cref="Failures" />
+    /// <inheritdoc cref="Failures(CreateDeliveryCommand)" />
     private static string[] StatusFailures(ChangeDeliveryStatusCommand command) =>
     [
         .. new ChangeDeliveryStatusCommandValidator()
@@ -525,7 +675,7 @@ public class DeliveryValidationTests
             .Distinct(StringComparer.Ordinal),
     ];
 
-    /// <inheritdoc cref="Failures" />
+    /// <inheritdoc cref="Failures(CreateDeliveryCommand)" />
     private static string[] UpdateFailures(UpdateDeliveryCommand merged) =>
     [
         .. new UpdateDeliveryCommandValidator()

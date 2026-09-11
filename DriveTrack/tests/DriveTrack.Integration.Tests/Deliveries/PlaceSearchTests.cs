@@ -89,11 +89,15 @@ public class PlaceSearchTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task A_driver_and_a_client_are_refused_before_the_query_is_even_looked_at()
+    public async Task A_driver_is_refused_before_the_query_is_even_looked_at()
     {
-        // The guard before the validator. Both callers send a query that would pass validation, so
-        // the only thing that can refuse them is their role - and neither reaches the port, which
+        // The guard before the validator. The caller sends a query that would pass validation, so
+        // the only thing that can refuse them is their role - and nothing reaches the port, which
         // is what stops a public geocoder being spendable by anyone with a session.
+        //
+        // A driver alone, since story 7.4. The rule the search follows is "may this caller compose
+        // a delivery" rather than a role list, and a driver composes nothing: FR-25 makes them a
+        // reader of the parcels they carry.
         var cancellationToken = TestContext.Current.CancellationToken;
 
         var geocoder = new FakeGeocoder { Matches = Matches };
@@ -107,12 +111,87 @@ public class PlaceSearchTests(PostgresFixture postgres)
 
         var dispatcher = await DeliveryApi.DispatcherAsync(factory, client, cancellationToken);
         var driver = await DeliveryApi.DriverAsync(client, dispatcher, vehicleId: null, cancellationToken);
+
+        using (var response = await SearchAsync(client, driver.Token, "Хрещатик", cancellationToken))
+        {
+            await FleetApi.AssertFailureAsync(
+                response,
+                HttpStatusCode.Forbidden,
+                ErrorCode.AUTH_FORBIDDEN,
+                cancellationToken);
+        }
+
+        Assert.Empty(geocoder.Searched);
+    }
+
+    [Fact]
+    public async Task A_client_gets_matches_because_their_own_request_form_sets_two_points()
+    {
+        // The reservation story 7.4 retires, asserted where FR-104 lives. The justification for
+        // dispatcher-only was "a client reads deliveries rather than composes them" - which stopped
+        // being true the moment /my-deliveries grew a request form with a pickup and a dropoff on
+        // it. FR-104 itself is unqualified about who sets a location by typing.
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var geocoder = new FakeGeocoder { Matches = Matches };
+
+        await using var factory = await FleetApi.CreateAsync(
+            postgres.ConnectionString,
+            cancellationToken,
+            OutboundPorts.Replace(geocoder, new FakeEmailSender()));
+
+        using var client = factory.CreateClient();
+
+        var dispatcher = await DeliveryApi.DispatcherAsync(factory, client, cancellationToken);
         var customer = await DeliveryApi.ClientAsync(client, dispatcher, cancellationToken);
 
-        foreach (var token in new[] { driver.Token, customer.Token })
-        {
-            using var response = await SearchAsync(client, token, "Хрещатик", cancellationToken);
+        using var response = await SearchAsync(client, customer.Token, "Хрещатик", cancellationToken);
 
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var places = (await FleetApi.DataAsync(response, cancellationToken)).EnumerateArray().ToArray();
+
+        Assert.Equal(2, places.Length);
+        Assert.Equal(Matches[0].Address, places[0].GetProperty("address").GetString());
+    }
+
+    [Fact]
+    public async Task A_client_with_no_client_row_is_refused_rather_than_widened()
+    {
+        // The missing-claim row, which the search inherits from the guard member it now asks. An
+        // account holding role Client with no clients row behind it cannot compose anything, and
+        // answering "go ahead" on the strength of a missing claim is the failure worth pinning.
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var geocoder = new FakeGeocoder { Matches = Matches };
+
+        await using var factory = await FleetApi.CreateAsync(
+            postgres.ConnectionString,
+            cancellationToken,
+            OutboundPorts.Replace(geocoder, new FakeEmailSender()));
+
+        using var client = factory.CreateClient();
+
+        var email = FleetApi.UniqueEmail();
+
+        await using (var unitOfWork = await factory.Database.UnitOfWorkFactory
+                         .CreateAsync(cancellationToken))
+        {
+            await unitOfWork.Users.EnsureRoleAsync(UserRole.Client, cancellationToken);
+
+            await unitOfWork.Users.CreateAsync(
+                new NewUserAccount("Олена", "Петренко", email),
+                FleetApi.Password,
+                UserRole.Client,
+                cancellationToken);
+
+            await unitOfWork.CommitAsync(cancellationToken);
+        }
+
+        var token = await FleetApi.SignInAsync(client, email, FleetApi.Password, cancellationToken);
+
+        using (var response = await SearchAsync(client, token, "Хрещатик", cancellationToken))
+        {
             await FleetApi.AssertFailureAsync(
                 response,
                 HttpStatusCode.Forbidden,

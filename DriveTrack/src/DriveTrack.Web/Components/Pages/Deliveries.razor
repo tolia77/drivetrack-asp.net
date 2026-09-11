@@ -1170,8 +1170,13 @@
     }
 
     /// <summary>
-    /// One of the two address boxes on the delivery form (FR-104): what was typed, what it found,
-    /// whether a lookup is in flight, and what choosing a match does.
+    /// One address box beside a map (FR-104): what was typed, what it found, whether a lookup is in
+    /// flight, and what choosing a match does.
+    /// <para>
+    /// Two forms build a pair of these now — this screen's <see cref="DeliveryForm" /> and the
+    /// client's request form on <c>/my-deliveries</c> — which is why it lives here as a type of its
+    /// own rather than as four fields on the one that came first. It knows nothing about either.
+    /// </para>
     /// </summary>
     /// <remarks>
     /// Internal and free of the framework for the reason <see cref="Matches" /> and
@@ -1181,14 +1186,15 @@
     /// impossible to see in a diff, which is which point a box fills in.
     /// <para>
     /// The port is a parameter of <see cref="RunAsync" /> rather than a constructor dependency,
-    /// because this type is built by <see cref="DeliveryForm" />'s own constructor and a form is
-    /// built in places that have no service to hand.
+    /// because this type is built by a form's own constructor — this screen's
+    /// <see cref="DeliveryForm" /> and the client's request form alike — and a form is built in
+    /// places that have no service to hand.
     /// </para>
     /// </remarks>
     /// <param name="assign">Where a chosen match's point goes. The whole identity of the box.</param>
     internal sealed class PlaceSearch(Action<MapLocation> assign)
     {
-        /// <summary>What the dispatcher typed. Bound two-way to the box.</summary>
+        /// <summary>What the caller typed. Bound two-way to the box.</summary>
         public string? Query { get; set; }
 
         /// <summary>What the last search found. Empty before the first one.</summary>

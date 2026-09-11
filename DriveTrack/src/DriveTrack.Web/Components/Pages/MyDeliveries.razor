@@ -1,8 +1,15 @@
 @page "/my-deliveries"
 @* FR-25, FR-27, FR-96: what a driver is carrying, and what a client asked for.
 
-   Neither role opens, edits or deletes a delivery, so there is no create action, no edit dialog and
-   no delete prompt: a client's request is epic 8's, and everything else on this list is dispatch's.
+   Neither role edits or deletes a delivery, so there is no edit dialog and no delete prompt: both
+   are dispatch's. Opening one is split rather than absent. A client asks for a delivery of their own
+   (FR-89 to FR-91) through the request dialog below, which is why this screen carries a form at all;
+   a driver asks for nothing, so neither the action nor the dialog is rendered for them. Withheld,
+   not decided - IAccessGuard.RequireDeliveryComposer refuses a driver's request whether or not this
+   screen ever drew a button (FR-12).
+
+   The request form is deliberately not the dispatch board's. That one names a driver, a client and a
+   delivery window; this one cannot, because RequestDeliveryCommand has no field for any of them.
 
    What both roles do have is the delivery's history. A driver advances the parcel they are carrying
    (FR-26) and a client adds a note to their own delivery (FR-107), so the row's history action opens
@@ -23,6 +30,12 @@
 @inject IDeliveryService Mine
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@* The dispatch board's address box, reused rather than copied. It is framework-free and takes its
+   search delegate as a parameter precisely so a second screen can drive it, and FR-104's rule about
+   which box fills which point is one rule however many forms ask it. Aliased because `Deliveries`
+   alone reads as two things in this file - the component type and the Application namespace. *@
+@using PlaceSearch = DriveTrack.Web.Components.Pages.Deliveries.PlaceSearch
 @implements IDisposable
 
 <PageTitle>@Localizer["MyDeliveriesTitle"]</PageTitle>
@@ -30,6 +43,17 @@
 <h1>
     <Icon Name="IconName.Deliveries" />@Localizer["MyDeliveriesTitle"]
 </h1>
+
+@* FR-89: the client's one way of asking for a delivery, on the one screen their deliveries live on.
+   A driver never sees it - OffersRequest says so - and the guard refuses them either way. *@
+@if (_offersRequest)
+{
+    <p>
+        <button type="button" class="btn btn-primary dt-delivery-request" @onclick="OpenRequestAsync">
+            <Icon Name="IconName.Create" />@Localizer["RequestDeliveryAction"]
+        </button>
+    </p>
+}
 
 @if (IsTruncated)
 {
@@ -139,6 +163,134 @@
     </ChildContent>
 </DtDialog>
 
+@* FR-89 to FR-91. Rendered at all only for a client, so a driver's page carries no request markup
+   to find rather than a hidden dialog they cannot open - which is the difference between "the
+   affordance is withheld" and "the affordance is styled away".
+
+   The shape is the dispatch board's create dialog and the differences are the story: no driver box,
+   no client box and no window bounds, because RequestDeliveryCommand has no field to bind them to.
+   The two address blocks sit OUTSIDE <EditForm> for the reason they do there - an <input> inside a
+   form whose default button submits would make Enter in a search box send the request - and the
+   search row is a sibling of <DtMap> rather than a child, because Leaflet owns that container's DOM
+   and anything rendered inside it is wiped on the first pan. *@
+@if (_offersRequest)
+{
+    <DtDialog @ref="_requestDialog" Title="@Localizer["RequestDeliveryTitle"]">
+        <ChildContent>
+            @* Inside the dialog, deliberately. A DtDialog opens with showModal(), so a refusal
+               rendered at page level would sit behind the backdrop and say nothing. *@
+            @foreach (var key in _failures)
+            {
+                <div class="alert alert-danger" role="alert">@Errors[key]</div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label" for="request-pickup-search">@Localizer["AddressSearch"]</label>
+                <div class="input-group">
+                    <input id="request-pickup-search" class="form-control"
+                           @bind="_request.PickupSearch.Query"
+                           @bind:event="oninput"
+                           @onkeydown="Enter(_request.PickupSearch)" />
+                    <button type="button" class="btn btn-secondary dt-request-pickup-search"
+                            disabled="@_request.PickupSearch.IsBusy"
+                            @onclick="Search(_request.PickupSearch)">
+                        <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
+                    </button>
+                </div>
+                <div class="form-text">@Localizer["AddressSearchHint"]</div>
+                @if (_request.PickupSearch.FoundNothing)
+                {
+                    <div class="form-text dt-request-pickup-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
+                }
+                @if (_request.PickupSearch.Matches.Count > 0)
+                {
+                    <ul class="list-group mb-2">
+                        @foreach (var match in _request.PickupSearch.Matches)
+                        {
+                            <li class="list-group-item">
+                                <button type="button" class="btn btn-link dt-request-pickup-match"
+                                        @onclick="Choose(_request.PickupSearch, match)">@match.Address</button>
+                            </li>
+                        }
+                    </ul>
+                }
+                @* No `for` on the map's label: a map is a region rather than a labelable control, and
+                   DtMap carries its own aria-label. The search box above it is an input and has one. *@
+                <label class="form-label">@Localizer["Pickup"]</label>
+                <DtMap Value="_request.Pickup" ValueChanged="PickRequestPickup" Picker="true" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="request-dropoff-search">@Localizer["AddressSearch"]</label>
+                <div class="input-group">
+                    <input id="request-dropoff-search" class="form-control"
+                           @bind="_request.DropoffSearch.Query"
+                           @bind:event="oninput"
+                           @onkeydown="Enter(_request.DropoffSearch)" />
+                    <button type="button" class="btn btn-secondary dt-request-dropoff-search"
+                            disabled="@_request.DropoffSearch.IsBusy"
+                            @onclick="Search(_request.DropoffSearch)">
+                        <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
+                    </button>
+                </div>
+                <div class="form-text">@Localizer["AddressSearchHint"]</div>
+                @if (_request.DropoffSearch.FoundNothing)
+                {
+                    <div class="form-text dt-request-dropoff-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
+                }
+                @if (_request.DropoffSearch.Matches.Count > 0)
+                {
+                    <ul class="list-group mb-2">
+                        @foreach (var match in _request.DropoffSearch.Matches)
+                        {
+                            <li class="list-group-item">
+                                <button type="button" class="btn btn-link dt-request-dropoff-match"
+                                        @onclick="Choose(_request.DropoffSearch, match)">@match.Address</button>
+                            </li>
+                        }
+                    </ul>
+                }
+                <label class="form-label">@Localizer["Dropoff"]</label>
+                <DtMap Value="_request.Dropoff" ValueChanged="PickRequestDropoff" Picker="true" />
+            </div>
+
+            <EditForm id="request-form" Model="_request" OnValidSubmit="SubmitRequestAsync">
+                @* Clearing the number field leaves a parse failure on the EditContext and
+                   OnValidSubmit then never fires, so without this the button would do nothing and
+                   say nothing. ValidationSummary rather than per-field ValidationMessage: a
+                   `For="@(() => ...)"` lambda inside an attribute is what NFR-14's scan misreads. *@
+                <ValidationSummary />
+
+                <div class="mb-3">
+                    <label class="form-label" for="request-details">@Localizer["PackageDetails"]</label>
+                    <InputText id="request-details" class="form-control" @bind-Value="_request.PackageDetails" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="request-weight">@Localizer["PackageWeightKg"]</label>
+                    @* No {0} in the message: the framework fills it with the CLR property name,
+                       which would put a Latin word in front of a user (NFR-14). *@
+                    <InputNumber id="request-weight" class="form-control"
+                                 ParsingErrorMessage="@Localizer["NumberParseError"]"
+                                 @bind-Value="_request.PackageWeightKg" />
+                    @* No capacity hint here, and none is missing: a request names no driver, so
+                       there is no vehicle whose capacity a client could be about to exceed. *@
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="request-notes">@Localizer["DeliveryNotes"]</label>
+                    <InputTextArea id="request-notes" class="form-control" @bind-Value="_request.DeliveryNotes" />
+                </div>
+            </EditForm>
+        </ChildContent>
+        <Actions>
+            <button type="submit" form="request-form" class="btn btn-primary dt-request-submit">
+                <Icon Name="IconName.Confirm" />@Localizer["RequestDeliverySubmit"]
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="CloseRequestAsync">
+                <Icon Name="IconName.Close" />@Localizer["Cancel"]
+            </button>
+        </Actions>
+    </DtDialog>
+}
+
 @code {
     // The screen's own lifetime. A driver who navigates away mid-load leaves a query running
     // against a pooled connection otherwise, and nothing would ever ask it to stop.
@@ -171,10 +323,23 @@
     private DtDialog? _timelineDialog;
     private DtDialog? _captureDialog;
     private DtDialog? _proofDialog;
+
+    /// <summary>The request panel, or null for a driver, whose page never renders one.</summary>
+    private DtDialog? _requestDialog;
+
+    /// <summary>What the request dialog is holding. Replaced on each open rather than cleared.</summary>
+    private RequestForm _request = new();
+
+    /// <summary>The resource keys of the last refusal, rendered inside the request dialog.</summary>
+    private IReadOnlyList<string> _failures = [];
+
     private bool _loading = true;
 
     /// <summary>Whether this caller is offered the transition buttons.</summary>
     private bool _offersStatusChange;
+
+    /// <summary>Whether this caller is offered the request action and the form behind it.</summary>
+    private bool _offersRequest;
 
     /// <summary>The signed-in caller's role, read once the authenticated check below has passed.</summary>
     private UserRole _role;
@@ -216,6 +381,20 @@
         role == UserRole.Driver && !hasProof;
 
     /// <summary>
+    /// Whether this caller may ask for a delivery of their own (FR-89). A client may; a driver
+    /// carries parcels and composes none, so they are offered neither the action nor the form.
+    /// </summary>
+    /// <remarks>
+    /// Internal and static for the reason <see cref="OffersStatusChange"/> is, and with one
+    /// difference that matters more here: this flag also decides whether the dialog is rendered at
+    /// all, so inverting it would put a request form on a driver's page — markup
+    /// <c>IAccessGuard.RequireDeliveryComposer</c> would refuse the moment it was used, but markup
+    /// that should never have been drawn.
+    /// </remarks>
+    /// <param name="role">The signed-in caller's role.</param>
+    internal static bool OffersRequest(UserRole role) => role == UserRole.Client;
+
+    /// <summary>
     /// True when the page came back full. The query returns no total (PRD section 8 excludes one),
     /// so "there may be more" is the honest claim rather than a count.
     /// </summary>
@@ -237,9 +416,106 @@
         // asking outside that branch would take the screen down instead of refusing it.
         _role = Caller.Role;
         _offersStatusChange = OffersStatusChange(_role);
+        _offersRequest = OffersRequest(_role);
 
         await LoadAsync();
     }
+
+    /// <summary>
+    /// Opens the request panel on a form with nothing in it, so a refused attempt that was closed
+    /// and reopened does not come back holding the values that were refused.
+    /// </summary>
+    private async Task OpenRequestAsync()
+    {
+        _request = new RequestForm();
+        _failures = [];
+
+        if (_requestDialog is not null)
+        {
+            await _requestDialog.ShowAsync();
+        }
+    }
+
+    private async Task CloseRequestAsync()
+    {
+        if (_requestDialog is not null)
+        {
+            await _requestDialog.CloseAsync();
+        }
+    }
+
+    /// <summary>
+    /// Sends the request (FR-89 to FR-91) and refreshes the list it will appear in.
+    /// </summary>
+    /// <remarks>
+    /// The command carries five values and nothing else. There is no driver to send, no status to
+    /// send and no client id to send: the row is attached to whoever asked, which the guard decides
+    /// inside the capability and this screen never names.
+    /// </remarks>
+    private async Task SubmitRequestAsync()
+    {
+        try
+        {
+            await Mine.RequestAsync(_request.ToCommand(), _cancellation.Token);
+
+            _failures = [];
+
+            await CloseRequestAsync();
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Outside the try, deliberately. The request has committed, so a failure refreshing the
+        // list afterwards is a failed read, and reporting it as a refused request would tell the
+        // client their delivery was not asked for when it was.
+        await LoadAsync();
+    }
+
+    private void PickRequestPickup(MapLocation picked) => _request.Pickup = picked;
+
+    private void PickRequestDropoff(MapLocation picked) => _request.Dropoff = picked;
+
+    /// <summary>
+    /// One box's search action, bound as a delegate so no lambda has to live in markup — a <c>=&gt;</c>
+    /// in an attribute closes the tag as far as NFR-14's markup scan is concerned.
+    /// </summary>
+    /// <remarks>
+    /// The box is a parameter rather than one method per point, so the markup names the same holder
+    /// it rendered the list from and there is no second place the pickup handler could be wired to
+    /// the dropoff box. The three-character floor is the capability's and is deliberately not
+    /// repeated here; the hint under the box is what tells the client about it beforehand.
+    /// </remarks>
+    /// <param name="search">The box being searched with.</param>
+    private Func<Task> Search(PlaceSearch search) => async () =>
+        _failures = await search.RunAsync(Mine.SearchPlacesAsync, _cancellation.Token);
+
+    /// <summary>
+    /// The same action on Enter, which is the gesture a search box invites. Anything else typed
+    /// falls through and is ignored.
+    /// </summary>
+    /// <remarks>
+    /// No <c>preventDefault</c> to go with it, and none is needed: the two boxes are rendered
+    /// outside <c>EditForm</c> precisely so Enter has no form to submit. The busy check is the same
+    /// guard the button carries as <c>disabled</c> — Enter is a key that can be held down, and
+    /// without it a held key is a burst of requests to a public service.
+    /// </remarks>
+    /// <param name="search">The box being searched with.</param>
+    private Func<KeyboardEventArgs, Task> Enter(PlaceSearch search) => async args =>
+    {
+        if (args.Key == "Enter" && !search.IsBusy)
+        {
+            _failures = await search.RunAsync(Mine.SearchPlacesAsync, _cancellation.Token);
+        }
+    };
+
+    /// <summary>A match's selection action, for the reason <see cref="Search" /> takes its box.</summary>
+    /// <param name="search">The box the match came from.</param>
+    /// <param name="match">The match chosen.</param>
+    private static Action Choose(PlaceSearch search, PlaceMatch match) => () => search.Choose(match);
 
     /// <summary>The row's history action, bound as a delegate so no lambda has to live in markup.</summary>
     private Func<Task> TimelineHandler(AssignedDeliverySummary delivery) =>
@@ -359,4 +635,69 @@
         delivery.WindowLatestAt is { } latest
             ? latest.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)
             : string.Empty;
+
+    /// <summary>
+    /// What the request dialog is holding: exactly the five values
+    /// <see cref="RequestDeliveryCommand" /> carries, plus the two address boxes that fill two of
+    /// them.
+    /// </summary>
+    /// <remarks>
+    /// Internal for the reason the dispatch board's form is: static rendering dispatches no events,
+    /// so nothing a render test can do reaches these two boxes, and the wiring between a box and the
+    /// point it fills would otherwise be asserted nowhere at all. The pair is constructed here
+    /// rather than assigned from outside, so "the dropoff box sets the dropoff" stays one readable
+    /// line instead of two handlers on the screen that could be crossed.
+    /// <para>
+    /// There is no driver, client, status or window property, and that is the story rather than an
+    /// omission: the command has no field for one, so a form that carried one would be collecting a
+    /// value with nowhere to send it.
+    /// </para>
+    /// </remarks>
+    internal sealed class RequestForm
+    {
+        /// <summary>A form with two empty address boxes, each bound to its own point.</summary>
+        public RequestForm()
+        {
+            PickupSearch = new PlaceSearch(point => Pickup = point);
+            DropoffSearch = new PlaceSearch(point => Dropoff = point);
+        }
+
+        public MapLocation? Pickup { get; set; }
+
+        public MapLocation? Dropoff { get; set; }
+
+        /// <summary>FR-104's box above the pickup map, wired to <em>this</em> form's pickup point.</summary>
+        public PlaceSearch PickupSearch { get; }
+
+        /// <inheritdoc cref="PickupSearch" />
+        public PlaceSearch DropoffSearch { get; }
+
+        public string? PackageDetails { get; set; }
+
+        public decimal PackageWeightKg { get; set; }
+
+        public string? DeliveryNotes { get; set; }
+
+        /// <summary>What this form sends, as the five values the command carries.</summary>
+        /// <remarks>
+        /// Here rather than inline in <c>SubmitRequestAsync</c> for the reason the boxes are
+        /// constructed here: the two points are the pair that can be crossed, and a screen method
+        /// building the command is a crossing no test in a static-rendering harness can reach.
+        /// Built here, it is a plain object a test can construct and read back.
+        /// </remarks>
+        public RequestDeliveryCommand ToCommand() =>
+            new(
+                Coordinates(Pickup),
+                Coordinates(Dropoff),
+                PackageDetails,
+                PackageWeightKg,
+                DeliveryNotes);
+
+        /// <summary>
+        /// The coordinates a picked point sends, or null when nothing has been picked — which the
+        /// capability refuses with a field name rather than this screen guessing at one.
+        /// </summary>
+        private static LocationInput? Coordinates(MapLocation? point) =>
+            point is { } value ? new LocationInput(value.Latitude, value.Longitude) : null;
+    }
 }

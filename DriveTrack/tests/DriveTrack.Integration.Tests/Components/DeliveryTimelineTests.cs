@@ -337,6 +337,11 @@ public class DeliveryTimelineTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("The panel reads only the timeline.");
 
+        public Task<AssignedDeliverySummary> RequestAsync(
+            RequestDeliveryCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The panel reads only the timeline.");
+
         public Task<DeliverySummary> UpdateAsync(
             int id,
             UpdateDeliveryCommand command,

@@ -85,6 +85,24 @@ public sealed class DeliveriesController(
         CancellationToken cancellationToken) =>
         deliveries.CreateAsync(command, cancellationToken);
 
+    /// <summary>Asks for a delivery as the client who wants it (FR-89, FR-90, FR-91).</summary>
+    /// <remarks>
+    /// A route of its own rather than a shape flag on <see cref="CreateAsync"/>, and the body type
+    /// is the whole reason: <see cref="RequestDeliveryCommand"/> has no driver, no client and no
+    /// status, so those three are unrepresentable on this wire rather than ignored on it. A literal
+    /// segment beside the <c>{id:int}</c> routes for the reason <c>places</c> is one — an integer
+    /// can never match it.
+    /// <para>
+    /// Still no <c>Roles</c> argument. "A client acting for their own row" is not a role list, and
+    /// <c>IAccessGuard.RequireDeliveryComposer</c> states it precisely (AD-2).
+    /// </para>
+    /// </remarks>
+    [HttpPost("requests")]
+    public Task<AssignedDeliverySummary> RequestAsync(
+        [FromBody] RequestDeliveryCommand command,
+        CancellationToken cancellationToken) =>
+        deliveries.RequestAsync(command, cancellationToken);
+
     /// <summary>Changes a delivery (FR-22). Absent fields are left alone (AD-23).</summary>
     [HttpPut("{id:int}")]
     public Task<DeliverySummary> UpdateAsync(

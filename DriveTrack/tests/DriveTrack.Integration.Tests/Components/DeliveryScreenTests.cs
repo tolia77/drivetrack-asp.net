@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using DeliveryColumn = DriveTrack.Web.Components.Pages.Deliveries.DeliveryColumn;
 using DeliveryFilter = DriveTrack.Web.Components.Pages.Deliveries.DeliveryFilter;
 using DeliveryForm = DriveTrack.Web.Components.Pages.Deliveries.DeliveryForm;
+using RequestForm = DriveTrack.Web.Components.Pages.MyDeliveries.RequestForm;
 
 namespace DriveTrack.Integration.Tests.Components;
 
@@ -84,16 +85,17 @@ public class DeliveryScreenTests
     }
 
     [Fact]
-    public async Task The_dispatch_board_offers_a_create_action_and_the_own_deliveries_screen_does_not()
+    public async Task A_driver_is_offered_no_way_to_open_a_delivery_at_all()
     {
-        // The distinction the two screens exist to make. Opening, editing and deleting a delivery
-        // are dispatch's alone - a client's request is epic 8's - so an action offered on the
-        // own-deliveries screen could only ever be refused.
+        // The distinction the two screens exist to make, as a driver sees it. Opening, editing and
+        // deleting a delivery on somebody's behalf is dispatch's, and asking for one is the client's
+        // (FR-89) - so a driver gets none of it, and an action offered here could only ever be
+        // refused.
         //
         // The timeline is the exception story 5.3 introduced, and it is not a counter-example: a
         // driver advances the parcel they are carrying (FR-26) and a client adds a note to their own
-        // delivery (FR-107), so that dialog belongs on both screens. What must not appear there is
-        // the delivery form.
+        // delivery (FR-107), so that dialog belongs on both screens. What must not appear is a form
+        // that opens a delivery - dispatch's or the client's.
         var dispatch = await RenderDeliveriesAsync(UserRole.Dispatcher);
         var mine = await RenderMyDeliveriesAsync();
 
@@ -103,21 +105,82 @@ public class DeliveryScreenTests
         Assert.DoesNotContain("btn btn-success", mine, StringComparison.Ordinal);
         Assert.DoesNotContain("Створити", mine, StringComparison.Ordinal);
 
-        // No create form, no edit form and no deletion prompt: the three dialogs the dispatch board
-        // carries and this screen has no operation for.
+        // No dispatch form, no edit form and no deletion prompt: the three dialogs the dispatch
+        // board carries and this screen has no operation for.
         Assert.DoesNotContain("delivery-form", mine, StringComparison.Ordinal);
         Assert.DoesNotContain("dt-delivery-edit", mine, StringComparison.Ordinal);
         Assert.DoesNotContain("dt-confirm-accept", mine, StringComparison.Ordinal);
 
-        // And the count, because the three named checks above only rule out the three dialogs that
-        // exist today: a fourth, added for some later capability, would slip past every one of them.
+        // And none of the client's request markup either. Withheld rather than hidden: the dialog is
+        // not rendered at all for a driver, so there is nothing on the page to reach.
+        Assert.DoesNotContain("dt-delivery-request", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("request-form", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("Замовити", mine, StringComparison.Ordinal);
+
+        // And the count, because the named checks above only rule out the dialogs that exist today:
+        // a further one, added for some later capability, would slip past every one of them.
         //
-        // Three, and each is an operation this screen genuinely has. The timeline is story 5.3's;
-        // story 6.1 added the capture a driver performs at the door (FR-119) and the proof either
-        // role may read afterwards (FR-122). The number is pinned rather than relaxed for the reason
-        // it was pinned at one: it is the only assertion that notices a dispatch-only dialog
-        // arriving here by a paste.
+        // Three for a driver, and each is an operation they genuinely have. The timeline is story
+        // 5.3's; story 6.1 added the capture a driver performs at the door (FR-119) and the proof
+        // either role may read afterwards (FR-122). The number is pinned rather than relaxed for the
+        // reason it was pinned at one: it is the only assertion that notices a dialog belonging to
+        // another role arriving here by a paste.
         Assert.Equal(3, SharedMarkup.Occurrences(mine, "<dialog"));
+    }
+
+    [Fact]
+    public async Task A_client_is_offered_the_request_action_and_the_form_behind_it()
+    {
+        // FR-89 to FR-91 at the surface the intent names. The same screen, the same three dialogs a
+        // driver gets, plus one: the request form, which exists for exactly one role.
+        var mine = await RenderMyDeliveriesAsync(role: UserRole.Client);
+
+        Assert.Contains("dt-delivery-request", mine, StringComparison.Ordinal);
+        Assert.Contains("Замовити доставку", mine, StringComparison.Ordinal);
+
+        // The form itself, and the two address boxes FR-104 puts above the maps.
+        Assert.Contains("request-form", mine, StringComparison.Ordinal);
+        Assert.Contains("dt-request-pickup-search", mine, StringComparison.Ordinal);
+        Assert.Contains("dt-request-dropoff-search", mine, StringComparison.Ordinal);
+        Assert.Contains("dt-request-submit", mine, StringComparison.Ordinal);
+
+        // And what the form must not carry, which is the story rather than a styling choice: a
+        // request names no driver, no client and no window, because RequestDeliveryCommand has no
+        // field to bind one to.
+        Assert.DoesNotContain("delivery-driver", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("delivery-client", mine, StringComparison.Ordinal);
+
+        // The ids the dispatch board's window inputs actually carry, so a block pasted across from
+        // it is what this catches - an id only this assertion has ever named would catch nothing.
+        Assert.DoesNotContain("delivery-window-earliest", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("delivery-window-latest", mine, StringComparison.Ordinal);
+
+        // Nor dispatch's own create action, which the driver's test rules out for a driver and
+        // nothing ruled out here: a client asks for a delivery of their own and opens none for
+        // anybody else, so the green button belongs on the dispatch board alone.
+        Assert.DoesNotContain("btn btn-success", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("Створити", mine, StringComparison.Ordinal);
+
+        // Still not the dispatch board's form, and still not its edit or delete prompts.
+        Assert.DoesNotContain("delivery-form", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-delivery-edit", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-confirm-accept", mine, StringComparison.Ordinal);
+
+        Assert.Equal(4, SharedMarkup.Occurrences(mine, "<dialog"));
+    }
+
+    [Theory]
+    [InlineData(UserRole.Client, true)]
+    [InlineData(UserRole.Driver, false)]
+    [InlineData(UserRole.Dispatcher, false)]
+    [InlineData(UserRole.Admin, false)]
+    public void Only_a_client_is_offered_the_request_action(UserRole role, bool offered)
+    {
+        // Asserted directly for the reason the other two predicates on this screen are: the flag
+        // decides whether the dialog is rendered at all, and inverting it would put a request form
+        // on a driver's page - markup IAccessGuard.RequireDeliveryComposer would refuse the moment
+        // it was used, but markup that should never have been drawn.
+        Assert.Equal(offered, Web.Components.Pages.MyDeliveries.OffersRequest(role));
     }
 
     [Fact]
@@ -620,6 +683,92 @@ public class DeliveryScreenTests
         Assert.False(form.PickupSearch.IsBusy);
     }
 
+    [Fact]
+    public async Task Each_box_on_the_request_form_searches_its_own_query()
+    {
+        // The client's form builds its own pair of boxes, so it can cross them in its own
+        // constructor - and swapping the two lambdas there compiles, renders byte-identical markup
+        // and leaves every render assertion in this file green. This is the only thing that sees it.
+        var form = new RequestForm();
+        var asked = new List<string?>();
+
+        form.PickupSearch.Query = "Хрещатик";
+        form.DropoffSearch.Query = "Площа Ринок";
+
+        await form.DropoffSearch.RunAsync(Recording(asked, []), TestContext.Current.CancellationToken);
+
+        Assert.Equal(new string?[] { "Площа Ринок" }, asked);
+
+        await form.PickupSearch.RunAsync(Recording(asked, []), TestContext.Current.CancellationToken);
+
+        Assert.Equal(new string?[] { "Площа Ринок", "Хрещатик" }, asked);
+    }
+
+    [Fact]
+    public async Task Choosing_a_match_on_the_request_form_sets_that_box_s_point_and_leaves_the_other_alone()
+    {
+        // The other half of the same mistake, on the client's form: a dropoff box wired to the
+        // pickup point would leave the dropoff map where it was and jump the pickup map to an
+        // address nobody chose for it, and the request would be sent with both.
+        var form = new RequestForm();
+        var match = new PlaceMatch("Львів, площа Ринок, 1", new MapLocation(49.8419, 24.0315));
+
+        await form.DropoffSearch.RunAsync(Answering([match]), TestContext.Current.CancellationToken);
+
+        Assert.Single(form.DropoffSearch.Matches);
+        Assert.Empty(form.PickupSearch.Matches);
+
+        form.DropoffSearch.Choose(match);
+
+        Assert.Equal(match.Point, form.Dropoff);
+        Assert.Null(form.Pickup);
+
+        // And the pickup box fills the pickup point, which is the half a one-sided assertion would
+        // pass for a form that wired both boxes to the same field.
+        var pickup = new PlaceMatch("Київ, вулиця Хрещатик, 1", new MapLocation(50.4472, 30.5222));
+
+        form.PickupSearch.Choose(pickup);
+
+        Assert.Equal(pickup.Point, form.Pickup);
+        Assert.Equal(match.Point, form.Dropoff);
+    }
+
+    [Fact]
+    public void The_request_form_sends_each_point_as_the_field_it_filled()
+    {
+        // The last place the pair can be crossed: the two points are adjacent arguments of the same
+        // type in the command's constructor, so swapping them compiles, renders byte-identical
+        // markup and leaves every assertion above green - and the parcel is then collected at the
+        // address it was meant to be delivered to.
+        var form = new RequestForm
+        {
+            Pickup = new MapLocation(50.4472, 30.5222),
+            Dropoff = new MapLocation(49.8419, 24.0315),
+            PackageDetails = "Одна палета",
+            PackageWeightKg = 12.5m,
+            DeliveryNotes = "Подзвонити за годину",
+        };
+
+        var command = form.ToCommand();
+
+        Assert.Equal(new LocationInput(50.4472, 30.5222), command.Pickup);
+        Assert.Equal(new LocationInput(49.8419, 24.0315), command.Dropoff);
+        Assert.Equal("Одна палета", command.PackageDetails);
+        Assert.Equal(12.5m, command.PackageWeightKg);
+        Assert.Equal("Подзвонити за годину", command.DeliveryNotes);
+    }
+
+    [Fact]
+    public void An_unpicked_point_is_sent_as_nothing_rather_than_as_a_guess()
+    {
+        // Null rather than a zero coordinate, which is a real place off the coast of Africa: the
+        // capability refuses an absent point by name, and a guessed one it would accept.
+        var command = new RequestForm().ToCommand();
+
+        Assert.Null(command.Pickup);
+        Assert.Null(command.Dropoff);
+    }
+
     /// <summary>A search that records the query it was given and answers a fixed list.</summary>
     private static Func<SearchPlacesQuery, CancellationToken, Task<IReadOnlyList<PlaceMatch>>> Recording(
         List<string?> asked,
@@ -986,6 +1135,14 @@ public class DeliveryScreenTests
             CreateDeliveryCommand command,
             CancellationToken cancellationToken) =>
             Task.FromResult(Board[0]);
+
+        // Story 7.4's client request, for the reason every write above answers rather than records:
+        // static rendering dispatches no events, so nothing here is ever called by a screen test -
+        // it exists because widening IDeliveryService widens every implementation of it.
+        public Task<AssignedDeliverySummary> RequestAsync(
+            RequestDeliveryCommand command,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Assigned[0]);
 
         public Task<DeliverySummary> UpdateAsync(
             int id,

@@ -350,6 +350,15 @@ public class AdministrationScreenTests
         // dispatcher who owns no conversation must still pass. One member with a nullable argument
         // also answers "may this caller see the roster at all", because a null thread never equals
         // a driver's row id - two questions, one rule, one place to read it.
+        //
+        // Story 7.4 adds RequireDeliveryComposer, and its argument is the same shape: "may this
+        // caller compose a delivery, and for which client row" is a question none of the five can
+        // answer. RequireRole(Client) reads as "a client or an admin" by AD-4's design and an admin
+        // carries no client row id, so a service using it would have to decide what a missing id
+        // means - authorization living somewhere else again. RequireScope hands a driver a scope and
+        // so cannot refuse one, and its answer is about which rows may be read rather than who may
+        // open a new one. It serves two call sites, which is the test of a question rather than a
+        // convenience: the request path and FR-104's address search behind the same form.
         var members = typeof(IAccessGuard)
             .GetMethods()
             .Select(method => method.Name)
@@ -360,6 +369,7 @@ public class AdministrationScreenTests
             [
                 "RequireAssignedDriver",
                 "RequireChatParticipant",
+                "RequireDeliveryComposer",
                 "RequireRole",
                 "RequireScope",
                 "RequireSelf",

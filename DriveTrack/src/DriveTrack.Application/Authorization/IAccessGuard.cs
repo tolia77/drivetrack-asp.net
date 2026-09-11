@@ -19,12 +19,13 @@ namespace DriveTrack.Application.Authorization;
 /// own row"; <c>RequireRole</c> answers "is this caller one of these people"; <c>RequireScope</c>
 /// answers "which rows of a collection may this caller be shown"; <c>RequireAssignedDriver</c>
 /// answers "is this the driver carrying this parcel, or dispatch"; <c>RequireChatParticipant</c>
-/// answers "may this caller work in this driver's conversation, or see the list of them". Each
-/// arrived with the first capability that had a caller for it — the scope with story 5.1, the
-/// assignment with 5.3, the conversation with 8.1 — and none is a rewording of another: none of the
-/// first three can express "the assigned driver, or dispatch, but never the client whose delivery
-/// it is", and writing that as a role test inside a service would be a second place authorization
-/// lived.
+/// answers "may this caller work in this driver's conversation, or see the list of them";
+/// <c>RequireDeliveryComposer</c> answers "may this caller compose a delivery, and for which client
+/// row". Each arrived with the first capability that had a caller for it — the scope with story
+/// 5.1, the assignment with 5.3, the conversation with 8.1, the composer with 7.4 — and none is a
+/// rewording of another: none of the first three can express "the assigned driver, or dispatch, but
+/// never the client whose delivery it is", and writing that as a role test inside a service would be
+/// a second place authorization lived.
 /// </para>
 /// <para>
 /// AD-4's "admin satisfies every check" lives inside the implementation, once, so every member
@@ -115,6 +116,45 @@ public interface IAccessGuard
     /// assigned one, or holds a role with no part in the lifecycle (<c>AUTH_FORBIDDEN</c>, 403).
     /// </exception>
     void RequireAssignedDriver(DriverId? assignedDriverId);
+
+    /// <summary>
+    /// Answers "may this caller compose a delivery, and for which client row" (FR-89, FR-104).
+    /// <para>
+    /// Two call sites share it because they share one rule. A client composing a request of their
+    /// own is the caller the answer names; a dispatcher or an administrator composes for somebody
+    /// else, so the honest answer to "which client row" is <c>null</c> rather than a refusal — they
+    /// do compose deliveries, and the client is an explicit field of the command they send. A
+    /// driver composes nothing at all and is refused, which is what keeps a public geocoder out of
+    /// reach of the one role that only ever reads deliveries.
+    /// </para>
+    /// <para>
+    /// None of the members above expresses it. <c>RequireRole(UserRole.Client)</c> reads as "a
+    /// client <em>or</em> an admin" by AD-4's design, and an admin carries no client row id — so a
+    /// service using it would have to decide what a missing client id means, which is an
+    /// authorization decision living outside this interface. <c>RequireScope</c> hands a driver a
+    /// scope and therefore cannot refuse one, and its answer is about which rows may be
+    /// <em>read</em> rather than about who may open a new one. <c>RequireSelf</c> compares user ids,
+    /// and the row a request is attached to is a client row.
+    /// </para>
+    /// <para>
+    /// AD-4 applies as it does everywhere but <see cref="RequireChatParticipant"/>: an
+    /// administrator passes by rule. A client whose claims carry no client row id is refused rather
+    /// than widened, exactly as <see cref="RequireScope"/> refuses them — the only other answer
+    /// available, <c>null</c>, is dispatch's answer and would let an account with a broken claim
+    /// compose a delivery attached to nobody.
+    /// </para>
+    /// </summary>
+    /// <returns>
+    /// The client row the caller is composing for, or <c>null</c> when they compose for someone
+    /// else — which a caller that needs a requester treats as a refusal and a caller that does not,
+    /// such as the address search, simply ignores.
+    /// </returns>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401), is a driver, is a client whose
+    /// claims carry no client row id, or holds a role with no part in composing a delivery at all
+    /// (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    ClientId? RequireDeliveryComposer();
 
     /// <summary>
     /// Requires that the caller is a participant in a driver's conversation — or, when
