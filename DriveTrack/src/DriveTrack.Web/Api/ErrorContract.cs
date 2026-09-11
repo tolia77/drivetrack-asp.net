@@ -43,6 +43,11 @@ internal static class ErrorContract
         ErrorCode.AUTH_PASSWORD_TOO_WEAK => StatusCodes.Status422UnprocessableEntity,
         ErrorCode.AUTH_PASSWORD_CONFIRMATION_MISMATCH => StatusCodes.Status422UnprocessableEntity,
 
+        // FR-88, and 422 rather than 401 for the reason the code itself sets out: the caller is
+        // signed in and it is one field of their request that was refused. A 401 here would reach
+        // FR-13's boundary as an expired session and send them back to sign-in.
+        ErrorCode.AUTH_CURRENT_PASSWORD_INCORRECT => StatusCodes.Status422UnprocessableEntity,
+
         // Three genuine collisions with the current state of another row (FR-41, FR-43, FR-44).
         // Each is a refusal the caller can act on - free the vehicle, unassign the driver, choose
         // another plate - which is why they are distinct codes rather than one COMMON_CONFLICT.

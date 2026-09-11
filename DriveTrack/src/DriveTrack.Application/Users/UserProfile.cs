@@ -13,7 +13,12 @@ namespace DriveTrack.Application.Users;
 /// <param name="Role">The single role (AD-4).</param>
 /// <param name="LicenseNumber">
 /// The driving licence number, present only when <paramref name="Role"/> is
-/// <see cref="UserRole.Driver"/> — the one field a subtype row contributes to this shape.
+/// <see cref="UserRole.Driver"/> — one of the two fields a subtype row contributes to this shape.
+/// </param>
+/// <param name="PhoneNumber">
+/// The contact number in E.164 form, present only when <paramref name="Role"/> is
+/// <see cref="UserRole.Client"/> — DR-3 gives no other role a row to store one in. It is here
+/// because FR-87 lets a client edit it, and a screen cannot offer to edit what it cannot show.
 /// </param>
 public sealed record UserProfile(
     UserId UserId,
@@ -21,4 +26,5 @@ public sealed record UserProfile(
     string LastName,
     string Email,
     UserRole Role,
-    string? LicenseNumber);
+    string? LicenseNumber,
+    string? PhoneNumber);

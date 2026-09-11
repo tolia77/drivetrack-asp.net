@@ -4,6 +4,7 @@ using DriveTrack.Application.Authorization;
 using DriveTrack.Application.Users;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Integration.Tests.Support;
+using DriveTrack.Web.Components.Pages.Admin;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -117,6 +118,73 @@ public class AdministrationScreenTests
         Assert.True(password.Success, "The edit dialog has no password field.");
         Assert.Contains(@"type=""password""", password.Value, StringComparison.Ordinal);
         Assert.DoesNotContain("value=", password.Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_client_edit_dialog_carries_the_address_an_administrator_may_change()
+    {
+        // FR-92's administrator half, and the only route an administrator has to it: the service
+        // accepts an email on UpdateClientCommand, but without this box nobody can send one. Asserted
+        // as a render rather than as source, for the same reason the password field is.
+        var html = await RenderClientsAsync();
+
+        var email = Regex.Match(
+            html,
+            @"<input[^>]*id=""client-email""[^>]*>",
+            RegexOptions.None,
+            TimeSpan.FromSeconds(5));
+
+        Assert.True(email.Success, "The edit dialog has no email field.");
+        Assert.Contains(@"type=""email""", email.Value, StringComparison.Ordinal);
+
+        // Whether the box is *filled* is not a claim this render can make: ShowEditAsync populates
+        // the form, and a static render never reaches a click. What it can say is that the field the
+        // administrator needs is on the page at all. The filling is asserted below instead.
+    }
+
+    [Fact]
+    public void The_client_edit_form_opens_carrying_the_row_and_sends_every_field_back()
+    {
+        // The claim the render above cannot make. AD-23 makes the command say what the form shows,
+        // so a box the administrator leaves as they found it has to send the value already in it -
+        // and FR-92 gave the address a rule, so an unfilled box is refused 422 rather than read as
+        // "unchanged". Before this form was lifted out of the component, deleting the address line
+        // turned every administrator edit of a client into a 422 with the suite still green.
+        var form = new ClientEditForm();
+
+        form.Fill(Clients[0]);
+
+        Assert.Equal("Олена", form.FirstName, StringComparer.Ordinal);
+        Assert.Equal("Петренко", form.LastName, StringComparer.Ordinal);
+        Assert.Equal("olena@drivetrack.test", form.Email, StringComparer.Ordinal);
+        Assert.Equal("+380441234567", form.PhoneNumber, StringComparer.Ordinal);
+
+        // Never pre-filled: only a hash is stored (FR-8), and empty is how AD-23's absent case is
+        // expressed on a form.
+        Assert.Null(form.Password);
+
+        var command = form.ToCommand();
+
+        Assert.True(command.Email.HasValue);
+        Assert.Equal("olena@drivetrack.test", command.Email.Value, StringComparer.Ordinal);
+        Assert.True(command.FirstName.HasValue);
+        Assert.Equal("Олена", command.FirstName.Value, StringComparer.Ordinal);
+        Assert.True(command.PhoneNumber.HasValue);
+        Assert.Equal("+380441234567", command.PhoneNumber.Value, StringComparer.Ordinal);
+
+        // The untouched password box, which must reach the service as absent - a present null here
+        // would be an administrator's every edit clearing the account's password.
+        Assert.False(command.Password.HasValue);
+
+        // And a typed one travels, so the two Optional<string?> fields at the end of the command are
+        // pinned to their own values rather than to each other's.
+        form.Password = "Новий-Пароль-1";
+
+        var withPassword = form.ToCommand();
+
+        Assert.True(withPassword.Password.HasValue);
+        Assert.Equal("Новий-Пароль-1", withPassword.Password.Value, StringComparer.Ordinal);
+        Assert.Equal("olena@drivetrack.test", withPassword.Email.Value, StringComparer.Ordinal);
     }
 
     [Fact]

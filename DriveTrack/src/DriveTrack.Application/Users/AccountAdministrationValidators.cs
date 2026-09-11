@@ -39,6 +39,15 @@ public sealed class ClientAccountStateValidator : AbstractValidator<ClientAccoun
             .Matches(RegisterClientCommandValidator.PhoneNumberPattern)
                 .WithMessage(nameof(ErrorCode.AUTH_PHONE_NUMBER_INVALID));
 
+        // FR-92. The same three checks, and the same code, as every other address in the system.
+        // Whether it is *free* is asked once, in EmailChange, because that is a question about the
+        // whole roster rather than about this row.
+        RuleFor(state => state.Email)
+            .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_EMAIL_INVALID))
+            .MaximumLength(RegisterClientCommandValidator.EmailMaximumLength)
+                .WithMessage(nameof(ErrorCode.AUTH_EMAIL_INVALID))
+            .EmailAddress().WithMessage(nameof(ErrorCode.AUTH_EMAIL_INVALID));
+
         // Null is the unchanged case and has no rules to break. Everything else is a password the
         // caller is actually setting, so it is bounded here and judged for strength by Identity's
         // own policy - the same policy, reported with the same code, as at registration.

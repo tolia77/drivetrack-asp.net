@@ -196,6 +196,31 @@
   <data name="LicenseNumber" xml:space="preserve">
     <value>Номер посвідчення водія</value>
   </data>
+  <!-- Story 7.3: the editable profile - FR-87, FR-88 and FR-92 on one screen, three dialogs. -->
+  <data name="EditProfileTitle" xml:space="preserve">
+    <value>Редагування профілю</value>
+  </data>
+  <data name="ChangePassword" xml:space="preserve">
+    <value>Змінити пароль</value>
+  </data>
+  <data name="ChangePasswordTitle" xml:space="preserve">
+    <value>Зміна пароля</value>
+  </data>
+  <data name="ChangeEmail" xml:space="preserve">
+    <value>Змінити пошту</value>
+  </data>
+  <data name="ChangeEmailTitle" xml:space="preserve">
+    <value>Зміна електронної пошти</value>
+  </data>
+  <data name="CurrentPassword" xml:space="preserve">
+    <value>Поточний пароль</value>
+  </data>
+  <data name="NewPassword" xml:space="preserve">
+    <value>Новий пароль</value>
+  </data>
+  <data name="NewPasswordConfirmation" xml:space="preserve">
+    <value>Підтвердження нового пароля</value>
+  </data>
   <data name="Loading" xml:space="preserve">
     <value>Завантаження…</value>
   </data>
@@ -290,7 +315,7 @@
     <value>Залиште поле порожнім, щоб не змінювати пароль.</value>
   </data>
   <data name="EmailAtCreationHint" xml:space="preserve">
-    <value>Адресу можна задати лише під час створення облікового запису.</value>
+    <value>Тут адресу задають під час створення. Згодом власник облікового запису змінює її у своєму профілі.</value>
   </data>
   <data name="NavDrivers" xml:space="preserve">
     <value>Водії</value>

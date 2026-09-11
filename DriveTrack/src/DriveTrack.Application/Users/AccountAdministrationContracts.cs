@@ -11,7 +11,7 @@ namespace DriveTrack.Application.Users;
 /// <param name="ClientId">The client row's own id, distinct from the user's (AD-22).</param>
 /// <param name="FirstName">Given name.</param>
 /// <param name="LastName">Family name.</param>
-/// <param name="Email">The address the account signs in with. Read-only here — story 7.3 owns it.</param>
+/// <param name="Email">The address the account signs in with, and which an administrator may change (FR-92).</param>
 /// <param name="PhoneNumber">Contact number in E.164 form.</param>
 public sealed record ClientAccount(
     UserId UserId,
@@ -45,11 +45,17 @@ public sealed record DispatcherAccount(UserId UserId, string FirstName, string L
 /// <param name="LastName">Family name, or absent.</param>
 /// <param name="PhoneNumber">Contact number in E.164 form, or absent.</param>
 /// <param name="Password">A new password, or absent for unchanged (FR-50).</param>
+/// <param name="Email">
+/// The address the account signs in with, or absent for unchanged (FR-92). It rides the edit the
+/// administrator is already performing rather than being an operation of its own, so a taken address
+/// rolls the name and the phone number back with it (AD-5).
+/// </param>
 public sealed record UpdateClientCommand(
     Optional<string?> FirstName,
     Optional<string?> LastName,
     Optional<string?> PhoneNumber,
-    Optional<string?> Password);
+    Optional<string?> Password,
+    Optional<string?> Email);
 
 /// <summary>
 /// What an administrator sends to open a dispatcher account (FR-49). Not partial: a new account has
@@ -89,11 +95,13 @@ public sealed record UpdateDispatcherCommand(
 /// The new password, or null for unchanged. There is no current plaintext to merge against — only
 /// a hash is stored (FR-8) — so absent stays null here and means "not being set".
 /// </param>
+/// <param name="Email">The address as it will be. Unlike the password, this one is stored and merges.</param>
 public sealed record ClientAccountState(
     string? FirstName,
     string? LastName,
     string? PhoneNumber,
-    string? Password);
+    string? Password,
+    string? Email);
 
 /// <inheritdoc cref="ClientAccountState" />
 /// <param name="FirstName">Given name as it will be.</param>

@@ -90,7 +90,9 @@ public sealed class ClientAdministrationService(
             Trim(command.PhoneNumber.Or(client.PhoneNumber)),
 
             // No current plaintext exists to merge against: absent stays null and means "unchanged".
-            command.Password.HasValue ? command.Password.Value : null);
+            command.Password.HasValue ? command.Password.Value : null,
+
+            Trim(command.Email.Or(account.Email)));
 
         await ValidatorExtensions.ValidateAndThrowAsync(stateValidator, merged, cancellationToken);
 
@@ -106,8 +108,14 @@ public sealed class ClientAdministrationService(
             await unitOfWork.Users.SetPasswordAsync(userId, merged.Password, cancellationToken);
         }
 
-        // AD-5: the renamed user, the edited client row and the new password hash reach the
-        // database here or nowhere. A password Identity refuses leaves the name unwritten too.
+        // FR-92's administrator half, through the same helper the self-service path uses - so the
+        // two cannot disagree about whether re-casing an address is a conflict. Last of the four
+        // writes, because SetPasswordAsync above is the operation's one Identity update-path call
+        // and this one is a plain assignment on the same tracked row.
+        var email = await EmailChange.ApplyAsync(unitOfWork, account, merged.Email!, cancellationToken);
+
+        // AD-5: the renamed user, the edited client row, the new password hash and the new address
+        // reach the database here or nowhere. A taken address leaves the name unwritten too.
         await unitOfWork.CommitAsync(cancellationToken);
 
         return new ClientAccount(
@@ -115,7 +123,7 @@ public sealed class ClientAdministrationService(
             client.Id,
             firstName,
             lastName,
-            account.Email,
+            email,
             client.PhoneNumber);
     }
 
