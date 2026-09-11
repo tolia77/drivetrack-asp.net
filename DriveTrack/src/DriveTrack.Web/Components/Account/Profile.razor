@@ -3,15 +3,37 @@
 @inject IUserService Users
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
 @implements IDisposable
+
+@* FR-5 / FR-87 / FR-88 / FR-92: what a signed-in user of any role reads about themselves, and the
+   three things they can change about it.
+
+   One screen rather than three, because they are one thing a user came here to do. Three dialogs
+   rather than one form, because they are three operations with three different refusals: a name is
+   a 422 on the merged row, an address can collide with another account and answer 409, and a
+   password needs the current one before it will move at all.
+
+   [Authorize] carries no roles, and there is no <AuthorizeView> anywhere below. Who may read or
+   change *this* profile is decided by IAccessGuard.RequireSelf inside IUserService and nowhere else
+   (AD-2, FR-12) - which is also what gives an administrator the client's half of FR-92 without a
+   second guard member.
+
+   Written as independent @if blocks rather than if/else chains: an `else` at markup level is a
+   rendered text node as far as the source is concerned, and NFR-14's scan reads it as an
+   untranslated word. The conditions are mutually exclusive, so the result is the same. *@
 
 <PageTitle>@Localizer["ProfileTitle"]</PageTitle>
 
 <h1>@Localizer["ProfileTitle"]</h1>
 
-@* Written as independent @if blocks rather than if/else chains: an `else` at markup level is a
-   rendered text node as far as the source is concerned, and NFR-14's scan reads it as an
-   untranslated word. The conditions are mutually exclusive, so the result is the same. *@
+@* Rendered at page level as well as inside each dialog: a refusal the user can act on has to be
+   visible whether the dialog is still open or has already been dismissed. *@
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
 @if (_profile is null)
 {
     <p>@Localizer["Loading"]</p>
@@ -28,6 +50,14 @@
 
         <dt class="col-sm-4">@Localizer["Email"]</dt>
         <dd class="col-sm-8">@_profile.Email</dd>
+
+        @* DR-3 gives no role but a client a row to keep a number in, so the row appears exactly
+           when there is one to show. *@
+        @if (_profile.PhoneNumber is not null)
+        {
+            <dt class="col-sm-4">@Localizer["PhoneNumber"]</dt>
+            <dd class="col-sm-8">@_profile.PhoneNumber</dd>
+        }
 
         <dt class="col-sm-4">@Localizer["Role"]</dt>
         <dd class="col-sm-8">
@@ -58,14 +88,129 @@
             <dd class="col-sm-8">@_profile.LicenseNumber</dd>
         }
     </dl>
+
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-primary dt-profile-edit" @onclick="ShowEditAsync">
+            <Icon Name="IconName.Edit" />@Localizer["Edit"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-profile-password" @onclick="ShowPasswordAsync">
+            <Icon Name="IconName.Edit" />@Localizer["ChangePassword"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-profile-email" @onclick="ShowEmailAsync">
+            <Icon Name="IconName.Edit" />@Localizer["ChangeEmail"]
+        </button>
+    </div>
 }
+
+<DtDialog @ref="_editDialog" Title="@Localizer["EditProfileTitle"]">
+    <ChildContent>
+        @* Repeated inside the dialog, not only at the top of the page: a native <dialog> opened with
+           showModal() sits in the top layer with everything behind it inert, so a banner rendered up
+           there is invisible to the user who just pressed Save and got a 422. *@
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+        <div class="mb-3">
+            <label class="form-label" for="profile-first-name">@Localizer["FirstName"]</label>
+            <input id="profile-first-name" class="form-control" @bind="_form.FirstName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="profile-last-name">@Localizer["LastName"]</label>
+            <input id="profile-last-name" class="form-control" @bind="_form.LastName" />
+        </div>
+        @* FR-87 / DR-3: only a client has a row to store a number in, so only a client is offered
+           the box. ProfileEdit.ToProfileCommand leaves the field absent for everybody else, which is
+           what stops a dispatcher's own rename being refused for a number they were never shown. *@
+        @if (_isClient)
+        {
+            <div class="mb-3">
+                <label class="form-label" for="profile-phone">@Localizer["PhoneNumber"]</label>
+                <input id="profile-phone" class="form-control" @bind="_form.PhoneNumber" />
+                <div class="form-text">@Localizer["PhoneNumberHint"]</div>
+            </div>
+        }
+    </ChildContent>
+    <Actions>
+        @* The handler is a method rather than a lambda in the attribute: a `=>` here would close the
+           tag as far as NFR-14's markup scan is concerned, and everything after it would be read as
+           rendered English. *@
+        <button type="button" class="btn btn-primary dt-profile-save" @onclick="SaveProfileAsync">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-profile-cancel" @onclick="CloseEditAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+<DtDialog @ref="_passwordDialog" Title="@Localizer["ChangePasswordTitle"]">
+    <ChildContent>
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+        <div class="mb-3">
+            <label class="form-label" for="profile-current-password">@Localizer["CurrentPassword"]</label>
+            <input id="profile-current-password" type="password" autocomplete="current-password"
+                   class="form-control" @bind="_form.CurrentPassword" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="profile-new-password">@Localizer["NewPassword"]</label>
+            <input id="profile-new-password" type="password" autocomplete="new-password"
+                   class="form-control" @bind="_form.NewPassword" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="profile-new-password-confirmation">@Localizer["NewPasswordConfirmation"]</label>
+            <input id="profile-new-password-confirmation" type="password" autocomplete="new-password"
+                   class="form-control" @bind="_form.NewPasswordConfirmation" />
+        </div>
+    </ChildContent>
+    <Actions>
+        <button type="button" class="btn btn-primary dt-password-save" @onclick="SavePasswordAsync">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-password-cancel" @onclick="ClosePasswordAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+<DtDialog @ref="_emailDialog" Title="@Localizer["ChangeEmailTitle"]">
+    <ChildContent>
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+        <div class="mb-3">
+            <label class="form-label" for="profile-email">@Localizer["Email"]</label>
+            <input id="profile-email" type="email" class="form-control" @bind="_form.Email" />
+        </div>
+    </ChildContent>
+    <Actions>
+        <button type="button" class="btn btn-primary dt-email-save" @onclick="SaveEmailAsync">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-email-cancel" @onclick="CloseEmailAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
 
 @code {
     // The screen's own lifetime. A user who navigates away mid-load leaves a query running against a
     // pooled connection otherwise, and nothing would ever ask it to stop.
     private readonly CancellationTokenSource _cancellation = new();
 
+    private readonly ProfileEditForm _form = new();
+
+    private DtDialog? _editDialog;
+    private DtDialog? _passwordDialog;
+    private DtDialog? _emailDialog;
+
     private UserProfile? _profile;
+    private IReadOnlyList<string> _failures = [];
+    private bool _isClient;
 
     protected override async Task OnInitializedAsync()
     {
@@ -79,7 +224,7 @@
                 "The circuit has no authenticated caller: the session cookie is gone.");
         }
 
-        _profile = await Users.GetProfileAsync(Caller.UserId, _cancellation.Token);
+        await ReloadAsync();
     }
 
     /// <inheritdoc />
@@ -88,4 +233,183 @@
         _cancellation.Cancel();
         _cancellation.Dispose();
     }
+
+    private async Task ReloadAsync()
+    {
+        _profile = await Users.GetProfileAsync(Caller.UserId, _cancellation.Token);
+
+        // Read from the profile rather than from ICurrentUser: the two agree, and the one the screen
+        // renders is the one it should decide from.
+        _isClient = _profile.Role == UserRole.Client;
+    }
+
+    private async Task ShowEditAsync()
+    {
+        if (_profile is null)
+        {
+            return;
+        }
+
+        _failures = [];
+
+        _form.Fill(_profile);
+
+        if (_editDialog is not null)
+        {
+            await _editDialog.ShowAsync();
+        }
+    }
+
+    private async Task ShowPasswordAsync()
+    {
+        _failures = [];
+
+        // Never pre-filled: only a hash is stored (FR-8), so there is nothing to pre-fill them with.
+        ClearPasswords();
+
+        if (_passwordDialog is not null)
+        {
+            await _passwordDialog.ShowAsync();
+        }
+    }
+
+    private async Task ShowEmailAsync()
+    {
+        if (_profile is null)
+        {
+            return;
+        }
+
+        _failures = [];
+        _form.Email = _profile.Email;
+
+        if (_emailDialog is not null)
+        {
+            await _emailDialog.ShowAsync();
+        }
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        try
+        {
+            await Users.UpdateProfileAsync(
+                Caller.UserId,
+                ProfileEdit.ToProfileCommand(
+                    _form.FirstName,
+                    _form.LastName,
+                    _form.PhoneNumber,
+                    _isClient),
+                _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Cleared on the way out, not only when a dialog opens: the banner is rendered at page level
+        // as well as inside the dialog, so a refused attempt that is then corrected and accepted
+        // would otherwise leave the failure standing on the page behind the closed dialog,
+        // contradicting the values the user can see were written.
+        _failures = [];
+
+        // Outside the try, because the write has already committed by now: a refetch that failed
+        // inside it would be caught and rendered as though the edit had been refused, which is the
+        // one thing the user must not be told.
+        await CloseEditAsync();
+        await ReloadAsync();
+    }
+
+    private async Task SavePasswordAsync()
+    {
+        try
+        {
+            await Users.ChangePasswordAsync(
+                Caller.UserId,
+                new ChangePasswordCommand(
+                    _form.CurrentPassword,
+                    _form.NewPassword,
+                    _form.NewPasswordConfirmation),
+                _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            // A refused change must not render the submitted passwords back, exactly as the two
+            // account forms do not.
+            ClearPasswords();
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        ClearPasswords();
+        _failures = [];
+
+        await ClosePasswordAsync();
+
+        // DW-11 owns revoking the session, so nothing here signs the user out: the cookie keys on
+        // the user id and survives the change. There is nothing on this screen to refetch either -
+        // a password has no readable form (FR-8).
+    }
+
+    private async Task SaveEmailAsync()
+    {
+        try
+        {
+            await Users.ChangeEmailAsync(
+                Caller.UserId,
+                new ChangeEmailCommand(_form.Email),
+                _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        _failures = [];
+
+        await CloseEmailAsync();
+        await ReloadAsync();
+    }
+
+    private void ClearPasswords() => _form.ClearPasswords();
+
+    // The three closers clear the banner on the way out, and that is not tidying. The banner is
+    // rendered at page level as well as inside each dialog, so a refusal followed by Cancel would
+    // otherwise leave a red alert standing over values nothing changed - the page asserting a
+    // failure about an edit the user abandoned.
+    private async Task CloseEditAsync()
+    {
+        _failures = [];
+
+        if (_editDialog is not null)
+        {
+            await _editDialog.CloseAsync();
+        }
+    }
+
+    private async Task ClosePasswordAsync()
+    {
+        _failures = [];
+
+        if (_passwordDialog is not null)
+        {
+            await _passwordDialog.CloseAsync();
+        }
+    }
+
+    private async Task CloseEmailAsync()
+    {
+        _failures = [];
+
+        if (_emailDialog is not null)
+        {
+            await _emailDialog.CloseAsync();
+        }
+    }
+
 }

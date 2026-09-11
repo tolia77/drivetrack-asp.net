@@ -224,6 +224,43 @@ public class ClientAdministrationTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task An_omitted_email_leaves_the_address_alone()
+    {
+        // AD-23's absent case on the field story 7.3 added to this command. UpdateClientCommand grew
+        // an Email, and a command that grew a field is exactly where "absent means unchanged"
+        // regresses: merging the stored address back in is what stops every edit of a name being an
+        // attempted rewrite of the address to null.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var factory = await AdministrationApi.CreateHostAsync(postgres.ConnectionString, cancellationToken);
+        using var client = factory.CreateClient();
+
+        var subject = await AdministrationApi.RegisterClientAsync(
+            client, cancellationToken, firstName: "Олена");
+        var admin = await AdministrationApi.AdminTokenAsync(client, cancellationToken);
+
+        using (var response = await AdministrationApi.SendAsync(
+            client, HttpMethod.Patch, Route(subject.UserId), admin,
+            new { firstName = "Оксана" }, cancellationToken))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            Assert.Equal(
+                subject.Email,
+                (await AdministrationApi.ReadAsync(response, cancellationToken))
+                    .GetProperty("data").GetProperty("email").GetString());
+        }
+
+        Assert.Equal(
+            subject.Email,
+            (await GetAsync(client, admin, subject.UserId, cancellationToken))
+                .GetProperty("email").GetString());
+
+        // And the account still signs in with it, which is the claim the roster row cannot make.
+        Assert.True(await AdministrationApi.CanSignInAsync(
+            client, subject.Email, AdministrationApi.Password, cancellationToken));
+    }
+
+    [Fact]
     public async Task An_omitted_field_and_a_null_one_are_different_requests()
     {
         // AD-23 on the wire, which is the only place the distinction can be proved: the same

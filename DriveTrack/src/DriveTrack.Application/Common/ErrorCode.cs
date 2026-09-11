@@ -53,6 +53,18 @@ public enum ErrorCode
     AUTH_PASSWORD_CONFIRMATION_MISMATCH,
 
     /// <summary>
+    /// The current password offered alongside a new one does not match the stored hash. 422
+    /// (FR-88), and deliberately not <see cref="AUTH_INVALID_CREDENTIALS"/>.
+    /// <para>
+    /// The caller is authenticated: they are signed in and changing their own password. A 401 would
+    /// be read by FR-13's boundary as "the session has gone" and would bounce the user to sign-in,
+    /// and read by a human the same way — both of which are false. What was refused is one field of
+    /// the request, so it is a 422 on the content like every other refusal of that shape.
+    /// </para>
+    /// </summary>
+    AUTH_CURRENT_PASSWORD_INCORRECT,
+
+    /// <summary>
     /// The named vehicle is already held by another driver. 409 (FR-44). Distinct from
     /// <see cref="FLEET_VEHICLE_IN_USE"/>: this refuses an assignment, that one refuses a deletion.
     /// </summary>

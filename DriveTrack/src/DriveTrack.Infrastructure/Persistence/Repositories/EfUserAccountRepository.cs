@@ -304,6 +304,37 @@ internal sealed class EfUserAccountRepository(AppDbContext context, ScopedIdenti
         Throw(await identity.Users.AddPasswordAsync(user, password));
     }
 
+    /// <inheritdoc />
+    public async Task SetEmailAsync(UserId userId, string email, CancellationToken cancellationToken)
+    {
+        var user = await RequiredAsync(userId, cancellationToken);
+
+        // Staged on the tracked entity, for the reason UpdateNameAsync sets out at length:
+        // UserManager.SetEmailAsync and SetUserNameAsync are both Identity update-path calls, and
+        // SetPasswordAsync above already spends the one such call a unit of work may make. An
+        // administrator's single PATCH can carry a password and an address at once, so this side
+        // has to be the assignment.
+        //
+        // Four columns, and the user-name pair is the load-bearing half.
+        //
+        // `email_index` on normalized_email is declared WITHOUT `unique` (see the DomainModel
+        // migration); the only unique index on this table's identity columns is `user_name_index` on
+        // normalized_user_name. So the user-name pair is the entire race backstop behind
+        // EmailChange's friendly EmailExistsAsync check - narrow this method to the email columns
+        // and two callers claiming one address at the same instant would both be written.
+        //
+        // Registration sets UserName = Email, so writing only the email pair would also leave the
+        // user name pointing at an address the account no longer has.
+        //
+        // Normalized through identity.Users so the stored form is exactly what EmailExistsAsync and
+        // FindByEmailAsync compare against - a hand-rolled ToUpperInvariant here would be a second
+        // normalizer that could disagree with Identity's own.
+        user.Email = email;
+        user.NormalizedEmail = identity.Users.NormalizeEmail(email);
+        user.UserName = email;
+        user.NormalizedUserName = identity.Users.NormalizeName(email);
+    }
+
     /// <summary>
     /// Loads a user that must exist. The services have already refused an unknown id, so this
     /// answers the case where a row disappeared between the read and the write - which is a 404

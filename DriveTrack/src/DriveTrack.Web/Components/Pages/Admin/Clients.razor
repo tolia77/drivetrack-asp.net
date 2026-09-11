@@ -80,6 +80,12 @@
             <label class="form-label" for="client-last-name">@Localizer["LastName"]</label>
             <input id="client-last-name" class="form-control" @bind="_form.LastName" />
         </div>
+        @* FR-92's administrator half, in the dialog that already edits the rest of the account: one
+           Save, one transaction, so a taken address takes the name back with it (AD-5). *@
+        <div class="mb-3">
+            <label class="form-label" for="client-email">@Localizer["Email"]</label>
+            <input id="client-email" type="email" class="form-control" @bind="_form.Email" />
+        </div>
         <div class="mb-3">
             <label class="form-label" for="client-phone">@Localizer["PhoneNumber"]</label>
             <input id="client-phone" class="form-control" @bind="_form.PhoneNumber" />
@@ -116,7 +122,7 @@
     // a pooled connection otherwise, and nothing would ever ask it to stop.
     private readonly CancellationTokenSource _cancellation = new();
 
-    private readonly ClientForm _form = new();
+    private readonly ClientEditForm _form = new();
 
     private DtDialog? _editDialog;
     private DtConfirmDialog? _deleteDialog;
@@ -182,13 +188,9 @@
         _selected = client;
         _failures = [];
 
-        _form.FirstName = client.FirstName;
-        _form.LastName = client.LastName;
-        _form.PhoneNumber = client.PhoneNumber;
-
-        // Never pre-filled: only a hash is stored (FR-8), so there is nothing to pre-fill it with,
-        // and an empty box is exactly what "leave the password alone" looks like.
-        _form.Password = null;
+        // Including the password, which Fill always clears: only a hash is stored (FR-8), so there
+        // is nothing to pre-fill it with, and an empty box is exactly what "leave it alone" means.
+        _form.Fill(client);
 
         if (_editDialog is not null)
         {
@@ -216,14 +218,7 @@
 
         try
         {
-            await Roster.UpdateAsync(
-                _selected.UserId,
-                new UpdateClientCommand(
-                    Optional<string?>.Present(_form.FirstName),
-                    Optional<string?>.Present(_form.LastName),
-                    Optional<string?>.Present(_form.PhoneNumber),
-                    PasswordBox.ToOptional(_form.Password)),
-                _cancellation.Token);
+            await Roster.UpdateAsync(_selected.UserId, _form.ToCommand(), _cancellation.Token);
         }
         catch (DriveTrackException failure)
         {
@@ -281,15 +276,4 @@
         }
     }
 
-    /// <summary>What the edit dialog is bound to. Nullable throughout, because a box can be empty.</summary>
-    private sealed class ClientForm
-    {
-        public string? FirstName { get; set; }
-
-        public string? LastName { get; set; }
-
-        public string? PhoneNumber { get; set; }
-
-        public string? Password { get; set; }
-    }
 }

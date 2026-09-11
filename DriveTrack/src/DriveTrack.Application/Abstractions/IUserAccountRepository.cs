@@ -154,4 +154,29 @@ public interface IUserAccountRepository
     /// <exception cref="Common.ValidationException">Identity's own policy refused the password.</exception>
     Task SetPasswordAsync(UserId userId, string password, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Replaces the address the account signs in with (FR-92), staged for the caller's commit.
+    /// <para>
+    /// Deliberately narrow, for the reason <see cref="RenameAsync"/> is: the address, the user name
+    /// that mirrors it, and nothing else. A general "update the user" method here would be the seam
+    /// through which a second writer of the address appeared.
+    /// </para>
+    /// <para>
+    /// Staged by assignment on the tracked entity rather than through any <c>UserManager</c> update
+    /// path — <see cref="SetPasswordAsync"/> spends the one such call a unit of work may make, and a
+    /// single administrator's edit can carry both a password and an address.
+    /// </para>
+    /// <para>
+    /// It does not ask whether the address is free: the caller has already asked, once, in the one
+    /// place that decision lives. The race backstop is <c>user_name_index</c>, the unique index on
+    /// <c>normalized_user_name</c> — <c>email_index</c> on <c>normalized_email</c> is declared
+    /// without <c>unique</c> and enforces nothing. An implementation must therefore write the user
+    /// name alongside the address: narrowed to the email columns alone, this method would have no
+    /// backstop at all, and two callers claiming one address at the same instant would both be
+    /// written. A collision that beats the check surfaces from the commit as
+    /// <see cref="Common.ErrorCode.PERSISTENCE_UNIQUE_VIOLATION"/> — a 409, like the friendly answer.
+    /// </para>
+    /// </summary>
+    /// <exception cref="Common.NotFoundException">No account has that id.</exception>
+    Task SetEmailAsync(UserId userId, string email, CancellationToken cancellationToken);
 }

@@ -101,6 +101,29 @@ public class AccountAdministrationValidationTests
         AssertField(failure, "Password", nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
     }
 
+    [Theory]
+    [InlineData("not-an-address")]
+    [InlineData("")]
+    [InlineData("@drivetrack.test")]
+    public async Task A_merged_client_email_that_is_not_an_address_is_refused(string email)
+    {
+        // FR-92's administrator half. The merged state carries the stored address when the body
+        // omits one, so the only way to reach this rule is to have actually sent something.
+        var failure = await Refuse(ClientState, ValidClient() with { Email = email });
+
+        AssertField(failure, "Email", nameof(ErrorCode.AUTH_EMAIL_INVALID));
+    }
+
+    [Fact]
+    public async Task Clearing_a_client_email_is_refused_rather_than_written()
+    {
+        // Present-null on the address a client signs in with: an account nobody can reach is not an
+        // edit, so it is a 422 rather than an empty column.
+        var failure = await Refuse(ClientState, ValidClient() with { Email = null });
+
+        AssertField(failure, "Email", nameof(ErrorCode.AUTH_EMAIL_INVALID));
+    }
+
     [Fact]
     public async Task A_merged_dispatcher_that_changed_nothing_passes()
     {
@@ -178,7 +201,7 @@ public class AccountAdministrationValidationTests
 
         var failures = new List<ValidationException>
         {
-            await Refuse(ClientState, new ClientAccountState(null, null, null, string.Empty)),
+            await Refuse(ClientState, new ClientAccountState(null, null, null, string.Empty, null)),
             await Refuse(DispatcherState, new DispatcherAccountState(null, null, string.Empty)),
             await Refuse(CreateDispatcher, new CreateDispatcherCommand(null, null, null, null)),
         };
@@ -193,7 +216,7 @@ public class AccountAdministrationValidationTests
     }
 
     private static ClientAccountState ValidClient() =>
-        new("Олена", "Петренко", "+380441234567", "New-Passw0rd");
+        new("Олена", "Петренко", "+380441234567", "New-Passw0rd", "olena@drivetrack.test");
 
     private static DispatcherAccountState ValidDispatcher() =>
         new("Ігор", "Ковальчук", "New-Passw0rd");

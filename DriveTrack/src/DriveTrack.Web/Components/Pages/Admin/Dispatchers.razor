@@ -70,8 +70,13 @@
         <div class="mb-3">
             <label class="form-label" for="new-dispatcher-email">@Localizer["Email"]</label>
             <input id="new-dispatcher-email" class="form-control" @bind="_createForm.Email" />
-            @* FR-87 belongs to story 7.3: the address is settled here and nowhere else, so the edit
-               dialog below has no email field at all. *@
+            @* This is where an administrator sets the address, and the edit dialog below has no
+               email field - but not because the address is fixed. FR-92 gives a dispatcher their own
+               /profile to change it from, which is the route this screen points them at. An
+               administrator is not locked out of it either: AD-4 makes RequireSelf read as
+               "themselves, or an admin", so POST /api/users/{id}/email answers an administrator for
+               any account. What FR-92 does not ask for is a second place in this screen to do it
+               from, which is why the field is here and not below. *@
             <div class="form-text">@Localizer["EmailAtCreationHint"]</div>
         </div>
         <div class="mb-3">

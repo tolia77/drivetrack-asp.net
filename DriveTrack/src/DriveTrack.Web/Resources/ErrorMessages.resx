@@ -105,6 +105,9 @@
   <data name="AUTH_PASSWORD_CONFIRMATION_MISMATCH" xml:space="preserve">
     <value>Підтвердження пароля не збігається з паролем.</value>
   </data>
+  <data name="AUTH_CURRENT_PASSWORD_INCORRECT" xml:space="preserve">
+    <value>Поточний пароль указано неправильно.</value>
+  </data>
   <data name="FLEET_VEHICLE_ALREADY_ASSIGNED" xml:space="preserve">
     <value>Цей автомобіль уже закріплено за іншим водієм.</value>
   </data>
