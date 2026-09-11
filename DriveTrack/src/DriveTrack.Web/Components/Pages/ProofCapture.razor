@@ -1,0 +1,318 @@
+@* FR-119 and FR-121: what a driver fills in at the door.
+
+   Dialog content rather than a route. The parcel is handed over while the driver is standing on the
+   list of their own deliveries, so the capture belongs over that row - a route would lose which row
+   it was and a back button would leave a half-typed capture behind.
+
+   The coordinates are read from the device and are neither typed nor editable, which is FR-119 read
+   literally: the point recorded is where the capture happened. A browser that refuses geolocation
+   therefore cannot capture, and the panel says so - inventing a fallback, the dropoff point say,
+   would record a place the hand-over did not happen.
+
+   Failures render through FailureKeys.For, exactly as the dispatch board does, so the dialog and the
+   REST envelope resolve the same refusal through the same catalogue (NFR-3).
+
+   The @@if blocks are independent rather than if/else chains and every handler is built in code: an
+   `else` reads to NFR-14's source scan as a rendered English word, and a `=>` inside an attribute
+   closes the tag as far as that scan is concerned. *@
+@inject IProofOfDeliveryService Proofs
+@inject IJSRuntime JS
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IAsyncDisposable
+
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+<div class="dt-proof-form">
+    <div>
+        <label class="form-label" for="@_recipientFieldId">@Localizer["ProofRecipientName"]</label>
+        <input id="@_recipientFieldId" class="form-control" type="text"
+               maxlength="@CaptureProofCommandValidator.RecipientNameMaximumLength"
+               @bind="_recipientName" />
+    </div>
+
+    <div>
+        <span class="form-label">@Localizer["ProofSignature"]</span>
+        <DtSignaturePad @ref="_signature" />
+    </div>
+
+    <div>
+        <label class="form-label" for="@_photosFieldId">@Localizer["ProofPhotos"]</label>
+        @* The accept list is the same allowlist ProofAssetRules holds, stated here as the browser
+           spells it. It narrows the picker; it refuses nothing - the validator does that, and it
+           runs whether or not a caller went round this control. *@
+        <InputFile id="@_photosFieldId" class="form-control" multiple
+                   accept="image/png,image/jpeg,image/webp" OnChange="Choose" />
+        <p class="dt-proof-hint">@Localizer["ProofPhotosHint"]</p>
+    </div>
+
+    <div>
+        <span class="form-label">@Localizer["ProofLocation"]</span>
+        @if (_location is null && _locationRefused)
+        {
+            <p class="dt-proof-hint" role="status">@Localizer["ProofLocationRefused"]</p>
+        }
+        @if (_location is null && !_locationRefused)
+        {
+            <p class="dt-proof-hint" role="status">@Localizer["ProofLocationPending"]</p>
+        }
+        @if (_location is { } point)
+        {
+            <DtMap Value="point" Picker="false" />
+        }
+    </div>
+
+    <div class="dt-proof-actions">
+        @* Disabled while there is no capture point as well as while a capture is in flight. FR-119
+           records where the hand-over happened and the form draws no coordinate field, so a submit
+           without one can only ever return a 422 naming CaptureLocation - a refusal about something
+           this panel never offered to fill in, paid for with every photograph streamed up the
+           circuit first. The sentence above the map is what the driver acts on instead. *@
+        <button type="button" class="btn btn-primary dt-proof-submit" disabled="@(_saving || _location is null)"
+                @onclick="CaptureAsync">
+            <Icon Name="IconName.Camera" />@Localizer["ProofCaptureAction"]
+        </button>
+    </div>
+</div>
+
+@code {
+    private const string ModulePath = "./Components/Pages/ProofCapture.razor.js";
+
+    // The panel's own lifetime. A driver who closes the dialog mid-upload leaves a capture running
+    // otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    /// <summary>
+    /// Generated rather than fixed: two of these on one screen must not share an id, or a label
+    /// would point at the wrong field.
+    /// </summary>
+    private readonly string _recipientFieldId = $"dt-proof-recipient-{Guid.NewGuid():N}";
+
+    /// <inheritdoc cref="_recipientFieldId" />
+    private readonly string _photosFieldId = $"dt-proof-photos-{Guid.NewGuid():N}";
+
+    private IReadOnlyList<IBrowserFile> _photos = [];
+    private IReadOnlyList<string> _failures = [];
+    private DtSignaturePad? _signature;
+    private IJSObjectReference? _module;
+    private MapLocation? _location;
+    private string? _recipientName;
+    private bool _locationRefused;
+    private bool _saving;
+
+    /// <summary>The delivery this capture is about.</summary>
+    [Parameter]
+    [EditorRequired]
+    public int DeliveryId { get; set; }
+
+    /// <summary>
+    /// Raised once a proof has committed, so the screen behind the dialog can withdraw the capture
+    /// action and refetch. A proof is captured once (FR-123), so this fires at most once per dialog.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnCaptured { get; set; }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // In OnAfterRenderAsync rather than OnInitializedAsync, so static rendering never reaches
+        // IJSRuntime - and because there is no position to ask for until there is a browser.
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+
+        var point = await _module.InvokeAsync<double[]?>("currentPosition");
+
+        // A refusal, a timeout and a browser with no geolocation at all are one answer here: there
+        // are no coordinates, so there is no capture. The panel says which half is missing rather
+        // than failing at submit with a validation message about a field nobody can see.
+        if (point is [var latitude, var longitude])
+        {
+            _location = new MapLocation(latitude, longitude);
+        }
+        else
+        {
+            _locationRefused = true;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        await _cancellation.CancelAsync();
+        _cancellation.Dispose();
+
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit went away before the component did; there is no module left to release.
+        }
+    }
+
+    private void Choose(InputFileChangeEventArgs change)
+    {
+        // The cap is `change.FileCount` rather than a figure of our own, so this call can never be
+        // the thing that refuses. GetMultipleFiles throws InvalidOperationException the moment more
+        // files were picked than the cap allows, and a throw inside an event handler is not a
+        // refusal - it is an unhandled exception on the circuit, which takes the whole screen down
+        // instead of showing a message.
+        //
+        // Every file therefore reaches the command, and CaptureProofCommandValidator refuses the
+        // sixth with the rule that names the limit (FR-119). That is the same answer the REST
+        // surface gives, which is what AD-9 is for: this panel is not a second, stricter definition
+        // of a valid proof, and it is not a kinder one either.
+        _photos = change.GetMultipleFiles(change.FileCount);
+        _failures = [];
+    }
+
+    private async Task CaptureAsync()
+    {
+        _saving = true;
+
+        // Opened here and disposed in the finally below, whatever happened: a browser file stream is
+        // a read over the circuit, and one left open is a read the connection is still holding.
+        var opened = new List<Stream>();
+
+        try
+        {
+            var assets = new List<ProofAssetUpload>();
+
+            if (await SignatureAsync() is { } signature)
+            {
+                opened.Add(signature.Content);
+                assets.Add(signature);
+            }
+
+            foreach (var photo in _photos)
+            {
+                var upload = Photo(photo);
+
+                opened.Add(upload.Content);
+                assets.Add(upload);
+            }
+
+            // Nothing is judged here. An absent signature, no photographs, too many, a disallowed
+            // type and an oversized file are all refused by CaptureProofCommandValidator, which runs
+            // whether the capture came from this panel or from the REST surface - so this screen
+            // cannot be the second, kinder definition of a valid proof (AD-9).
+            await Proofs.CaptureAsync(
+                DeliveryId,
+                new CaptureProofCommand(
+                    _recipientName,
+                    new LocationInput(_location?.Latitude, _location?.Longitude),
+                    assets),
+                _cancellation.Token);
+
+            _failures = [];
+        }
+        catch (DriveTrackException failure)
+        {
+            // Reported rather than thrown: the dialog is open over a screen that is still usable,
+            // and taking the whole circuit down for one panel would lose it.
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+        catch (Exception)
+        {
+            // The arm no other screen in this product needs, and the reason is AD-26: this is the
+            // only action whose capability calls a network port inline, before its transaction. An
+            // unreachable object store raises the SDK's own exception and an unconfigured one raises
+            // InvalidOperationException, and neither is a DriveTrackException - so without this they
+            // would escape the panel and kill the circuit, which loses the screen behind it as well.
+            //
+            // Reported as COMMON_UNEXPECTED_ERROR, which is what the REST surface answers for the
+            // same failure (AD-7): the capture did not happen, nothing committed, and the driver's
+            // next move is to try again.
+            _failures = [nameof(ErrorCode.COMMON_UNEXPECTED_ERROR)];
+
+            return;
+        }
+        finally
+        {
+            foreach (var stream in opened)
+            {
+                await stream.DisposeAsync();
+            }
+
+            _saving = false;
+        }
+
+        // Outside the try. The proof has committed, so a failure refreshing the screen afterwards is
+        // a failed read, and reporting it as a refused capture would tell a driver their evidence
+        // was lost when it was not.
+        await OnCaptured.InvokeAsync();
+    }
+
+    /// <summary>
+    /// The drawing as an upload, or null when the pad is untouched.
+    /// </summary>
+    /// <remarks>
+    /// The base64 the pad answers is decoded once, here, so the capability is handed a stream like
+    /// any other asset and nothing below this component knows an encoding was ever involved. A
+    /// <c>MemoryStream</c> rather than a browser file stream because the bytes came from a canvas
+    /// and were never a file.
+    /// </remarks>
+    private async Task<ProofAssetUpload?> SignatureAsync()
+    {
+        if (_signature is null)
+        {
+            return null;
+        }
+
+        if (await _signature.ReadPngBase64Async() is not { Length: > 0 } payload)
+        {
+            return null;
+        }
+
+        var bytes = Convert.FromBase64String(payload);
+
+        return new ProofAssetUpload(
+            ProofAssetKind.Signature,
+            "image/png",
+            bytes.LongLength,
+            new MemoryStream(bytes, writable: false));
+    }
+
+    /// <summary>
+    /// A chosen file as an upload.
+    /// </summary>
+    /// <remarks>
+    /// A file above the cap is carried as an empty stream with its real declared length, so the
+    /// validator refuses it by length and not one byte of it is ever read. Opening it first would
+    /// throw <see cref="IOException"/> out of the browser file API before the validator had a chance
+    /// to say anything at all, which is a 500 for a file the contract has a 422 for.
+    /// <para>
+    /// Internal and static so it can be asserted directly, for the reason
+    /// <c>MyDeliveries.OffersProofCapture</c> is: static rendering never reaches
+    /// <c>OnAfterRenderAsync</c> and dispatches no events, so nothing in the suite runs this panel —
+    /// and dropping the ternary would leave every test green while a driver who picked one large
+    /// photograph met "try again" instead of "this image is too big".
+    /// </para>
+    /// </remarks>
+    /// <param name="file">The file the driver picked.</param>
+    internal static ProofAssetUpload Photo(IBrowserFile file) =>
+        new(
+            ProofAssetKind.Photo,
+            file.ContentType,
+            file.Size,
+            ProofAssetRules.IsAllowedLength(file.Size)
+                ? file.OpenReadStream(ProofAssetRules.MaximumAssetBytes)
+                : Stream.Null);
+}

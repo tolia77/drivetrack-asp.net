@@ -9,6 +9,7 @@ using DriveTrack.Application.Vehicles;
 using DriveTrack.Infrastructure.Email;
 using DriveTrack.Infrastructure.Geocoding;
 using DriveTrack.Infrastructure.Identity;
+using DriveTrack.Infrastructure.Objects;
 using DriveTrack.Infrastructure.Persistence;
 using DriveTrack.Infrastructure.SideEffects;
 using Microsoft.AspNetCore.Identity;
@@ -95,6 +96,7 @@ public static class DependencyInjection
         AddIdentity(services);
         AddAuthorizationAndAccounts(services, configuration);
         AddSideEffects(services, configuration);
+        AddObjectStore(services, configuration);
 
         return services;
     }
@@ -207,6 +209,49 @@ public static class DependencyInjection
         // FR-28's read side. Scoped for the same reason as the rest: the guard inside it reads the
         // caller of the request or circuit it is serving.
         services.AddScoped<INotificationLogService, NotificationLogService>();
+
+        // FR-119 to FR-123. Scoped like every other capability - it reads the caller of the request
+        // or circuit it is serving - even though the port it calls is a singleton below.
+        services.AddScoped<IProofOfDeliveryService, ProofOfDeliveryService>();
+    }
+
+    /// <summary>
+    /// Registers AD-26's object-storage port: the settings, the eager check on them, and the Garage
+    /// adapter behind <see cref="IAssetStore"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <c>ObjectStore:ServiceUrl</c> is present and is not an absolute URL — the empty string an
+    /// <c>.env</c> predating this key forwards included — or an endpoint is configured and the
+    /// bucket or either half of the key pair is blank.
+    /// <para>
+    /// Caught here rather than at the first capture, and the reason is where the failure would
+    /// otherwise surface. This option has no usable default to fall back on: with no endpoint the
+    /// SDK resolves an Amazon one, so a blank or misspelled value does not disable the store, it
+    /// points it at a service nobody chose — and a blank bucket or key fails inside the SDK, at a
+    /// door, in a message naming no DriveTrack setting at all.
+    /// </para>
+    /// </exception>
+    private static void AddObjectStore(IServiceCollection services, IConfiguration configuration)
+    {
+        RequireAbsoluteUrl(configuration, ObjectStoreOptions.ServiceUrlConfigurationKey);
+
+        // Only once there is an endpoint. With none the store is deliberately unconfigured and
+        // GarageAssetStore says so by name at the first capture; demanding a bucket and a key pair
+        // from a deployment that has no object store would refuse to start a system that works.
+        if (!string.IsNullOrWhiteSpace(configuration[ObjectStoreOptions.ServiceUrlConfigurationKey]))
+        {
+            RequireValue(configuration, ObjectStoreOptions.BucketConfigurationKey, "bucket name");
+            RequireValue(configuration, ObjectStoreOptions.AccessKeyConfigurationKey, "access key id");
+            RequireValue(configuration, ObjectStoreOptions.SecretKeyConfigurationKey, "secret access key");
+        }
+
+        services.Configure<ObjectStoreOptions>(
+            configuration.GetSection(ObjectStoreOptions.SectionName));
+
+        // A singleton, like the two outbound ports above it. AmazonS3Client is safe for concurrent
+        // use and holds a connection pool; one per request would exhaust sockets under exactly the
+        // load a fleet of drivers uploading photographs produces.
+        services.AddSingleton<IAssetStore, GarageAssetStore>();
     }
 
     /// <summary>
@@ -292,6 +337,46 @@ public static class DependencyInjection
                 $"Configuration value '{key}' is '{value}', which is not a positive whole number of "
                     + $"{unit}. Set the '{EnvironmentSpelling(key)}' environment variable "
                     + "(see .env.example), or remove it to take the default.");
+        }
+    }
+
+    /// <summary>
+    /// Refuses a configuration value that is absent or blank, naming the key in both the spelling
+    /// the code uses and the spelling the environment does.
+    /// <para>
+    /// Unlike its siblings above, absent is refused here as well as blank. They guard values that
+    /// have a working default; this one guards values that have none, and where the consequence of
+    /// carrying on is a failure inside a third-party SDK at the first capture somebody makes.
+    /// </para>
+    /// </summary>
+    private static void RequireValue(IConfiguration configuration, string key, string what)
+    {
+        if (string.IsNullOrWhiteSpace(configuration[key]))
+        {
+            throw new InvalidOperationException(
+                $"Configuration value '{key}' is missing or blank, and an object store endpoint is "
+                    + $"configured. Set the '{EnvironmentSpelling(key)}' environment variable "
+                    + $"(see .env.example) to the {what} the store was provisioned with.");
+        }
+    }
+
+    /// <inheritdoc cref="RequirePositiveInteger" />
+    private static void RequireAbsoluteUrl(IConfiguration configuration, string key)
+    {
+        var value = configuration[key];
+
+        if (value is null)
+        {
+            return;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var parsed)
+            || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException(
+                $"Configuration value '{key}' is '{value}', which is not an absolute http or https "
+                    + $"URL. Set the '{EnvironmentSpelling(key)}' environment variable "
+                    + "(see .env.example), or remove it to leave the object store unconfigured.");
         }
     }
 

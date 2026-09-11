@@ -1,0 +1,33 @@
+/*
+    NFR-29: every palette value here resolves to a `--dt-*` token. The two figures that are not are
+    geometry - the pad's height and its full width - and NFR-29's scan deliberately does not read
+    `width` or `height`.
+
+    The height is stated because a canvas with no height collapses to nothing: there is no content
+    inside it to give the box a size, so a pad laid out by its contents would be invisible.
+*/
+
+.dt-signature {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--dt-space-2);
+}
+
+.dt-signature-canvas {
+    width: 100%;
+    height: 10rem;
+    border: var(--dt-border-width-emphasis) dashed var(--dt-border-strong);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-surface-card);
+
+    /*
+        The one line that makes the pad work on a phone. Without it a drag across the canvas is a
+        scroll gesture, the page moves under the finger and the signature is a single dot - and the
+        failure looks like a broken component rather than a browser doing exactly what it was told.
+    */
+    touch-action: none;
+
+    /* A drag on a canvas otherwise selects the surrounding text on a desktop. */
+    user-select: none;
+}

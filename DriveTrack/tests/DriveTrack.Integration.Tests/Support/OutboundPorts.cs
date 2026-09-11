@@ -23,13 +23,36 @@ namespace DriveTrack.Integration.Tests.Support;
 /// </summary>
 internal static class OutboundPorts
 {
-    /// <summary>Registers both fakes, last, so they win the resolve over the real adapters.</summary>
-    public static Action<IServiceCollection> Replace(FakeGeocoder geocoder, FakeEmailSender sender) =>
+    /// <summary>Registers the fakes, last, so they win the resolve over the real adapters.</summary>
+    /// <param name="geocoder">The geocoding port's stand-in.</param>
+    /// <param name="sender">The mail transport's stand-in.</param>
+    /// <param name="assets">
+    /// The object store's stand-in, or null to leave the real adapter registered. Null is the right
+    /// default for every suite that never captures a proof: the real adapter reaches nothing until
+    /// it is called, so registering a fake it would not use would only hide which suites depend on
+    /// the port.
+    /// </param>
+    public static Action<IServiceCollection> Replace(
+        FakeGeocoder geocoder,
+        FakeEmailSender sender,
+        FakeAssetStore? assets = null) =>
         services =>
         {
             services.AddSingleton<IGeocoder>(geocoder);
             services.AddSingleton<IEmailSender>(sender);
+
+            if (assets is not null)
+            {
+                services.AddSingleton<IAssetStore>(assets);
+            }
         };
+
+    /// <summary>
+    /// Registers an in-memory object store and nothing else, for a suite whose subject is the proof
+    /// capability rather than the side effects.
+    /// </summary>
+    public static Action<IServiceCollection> Replace(FakeAssetStore assets) =>
+        services => services.AddSingleton<IAssetStore>(assets);
 
     /// <summary>Waits for every queued side effect to finish, however it finished.</summary>
     /// <remarks>
@@ -163,6 +186,111 @@ internal sealed class FakeGeocoder : IGeocoder
         }
 
         return Task.FromResult(Matches);
+    }
+}
+
+/// <summary>
+/// AD-26's object store, answered inside the process: a dictionary of keys to bytes.
+/// <para>
+/// Garage is a container and an S3 protocol, and a suite that ran one to prove the ordering rule
+/// would be asserting against somebody else's daemon. What story 6.1 actually claims is about
+/// <em>this</em> system: that a refused capture writes nothing at all, that the bytes are written
+/// before the transaction that names them opens, and that a committed key always resolves. All
+/// three are claims about what happens on either side of the port, which is exactly what a fake can
+/// stand in for — and the real adapter's own protocol is asserted separately, against a loopback
+/// socket, in <c>ObjectStoreAdapterTests</c>.
+/// </para>
+/// <para>
+/// Written for two threads, like the two fakes above it: a capture runs on the request's thread and
+/// the test reads <see cref="Saved"/> on its own.
+/// </para>
+/// </summary>
+internal sealed class FakeAssetStore : IAssetStore
+{
+    private readonly Lock _gate = new();
+    private readonly List<SavedAsset> _saved = [];
+    private readonly Dictionary<string, byte[]> _objects = new(StringComparer.Ordinal);
+
+    /// <summary>One stored object as the store received it.</summary>
+    /// <param name="Key">The key it was minted under.</param>
+    /// <param name="ContentType">The type it was stored with.</param>
+    /// <param name="Content">The bytes, copied, so a disposed source stream cannot change them.</param>
+    internal sealed record SavedAsset(string Key, string ContentType, byte[] Content);
+
+    /// <summary>When set, every save throws it instead of succeeding.</summary>
+    /// <remarks>
+    /// This is how the "store write fails" row of the matrix is reached. The port's contract is that
+    /// a failed save throws so that nothing is committed against a key the store does not hold, and
+    /// a fake that could only succeed could not assert the half that matters.
+    /// </remarks>
+    public Exception? Failure { get; set; }
+
+    /// <summary>
+    /// When set, <see cref="OpenAsync"/> answers null for every key, whatever was saved. The "row
+    /// exists, object does not" row of the matrix, without emptying the dictionary by hand.
+    /// </summary>
+    public bool Empty { get; set; }
+
+    /// <summary>Everything handed over, in the order it was handed over.</summary>
+    public IReadOnlyList<SavedAsset> Saved
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _saved];
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<string> SaveAsync(
+        Stream content,
+        string contentType,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
+
+        // Copied rather than referenced: the caller disposes the source once the capture is done,
+        // and a test asserting on the bytes afterwards would otherwise be reading a closed stream.
+        using var buffer = new MemoryStream();
+
+        await content.CopyToAsync(buffer, cancellationToken);
+
+        var bytes = buffer.ToArray();
+        var key = "proof/" + Guid.NewGuid().ToString("N");
+
+        lock (_gate)
+        {
+            _objects[key] = bytes;
+            _saved.Add(new SavedAsset(key, contentType, bytes));
+        }
+
+        return key;
+    }
+
+    /// <inheritdoc />
+    public Task<Stream?> OpenAsync(string key, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        if (Empty)
+        {
+            return Task.FromResult<Stream?>(null);
+        }
+
+        lock (_gate)
+        {
+            return Task.FromResult<Stream?>(
+                _objects.TryGetValue(key, out var bytes)
+                    ? new MemoryStream(bytes, writable: false)
+                    : null);
+        }
     }
 }
 

@@ -551,4 +551,64 @@
   <data name="NotificationKind" xml:space="preserve">
     <value>Подія</value>
   </data>
+  <!-- FR-119 to FR-123: the proof of delivery, captured at the door and read back afterwards.
+       The two dialog headings are separate keys although they say almost the same thing: one names
+       an action being performed and the other a record being read, and folding them together would
+       tie two unrelated panels to one wording. -->
+  <data name="ProofCaptureTitle" xml:space="preserve">
+    <value>Фіксація вручення</value>
+  </data>
+  <data name="ProofViewTitle" xml:space="preserve">
+    <value>Підтвердження вручення</value>
+  </data>
+  <!-- The two row actions. Verbs rather than nouns: a button has to say what pressing it does. -->
+  <data name="ProofCapture" xml:space="preserve">
+    <value>Зафіксувати</value>
+  </data>
+  <data name="ProofOpen" xml:space="preserve">
+    <value>Підтвердження</value>
+  </data>
+  <data name="ProofRecipientName" xml:space="preserve">
+    <value>Хто отримав</value>
+  </data>
+  <data name="ProofSignature" xml:space="preserve">
+    <value>Підпис отримувача</value>
+  </data>
+  <data name="ProofPhotos" xml:space="preserve">
+    <value>Фотографії</value>
+  </data>
+  <!-- The limits, said before a driver meets them rather than after: the refusal is a round trip
+       away, and the hint is not. -->
+  <data name="ProofPhotosHint" xml:space="preserve">
+    <value>Щонайменше одна фотографія, не більше п’яти, кожна до 5 МіБ.</value>
+  </data>
+  <data name="ProofLocation" xml:space="preserve">
+    <value>Місце вручення</value>
+  </data>
+  <data name="ProofLocationPending" xml:space="preserve">
+    <value>Визначаємо місце…</value>
+  </data>
+  <!-- FR-119 records where the hand-over happened, so there is no fallback point to offer: the
+       sentence says what to do rather than pretending the capture can go ahead. -->
+  <data name="ProofLocationRefused" xml:space="preserve">
+    <value>Не вдалося визначити місце. Дозвольте доступ до геоданих і відкрийте вікно ще раз.</value>
+  </data>
+  <data name="ProofCaptureAction" xml:space="preserve">
+    <value>Зберегти підтвердження</value>
+  </data>
+  <data name="ProofCapturedAt" xml:space="preserve">
+    <value>Час вручення</value>
+  </data>
+  <!-- AD-17: shown only when the capability supplied a name, which it does for dispatch alone. -->
+  <data name="ProofCapturedBy" xml:space="preserve">
+    <value>Зафіксував</value>
+  </data>
+  <!-- The signature pad's own two strings. The canvas has no text of its own, so the label is the
+       only thing a screen reader can announce for it. -->
+  <data name="SignatureLabel" xml:space="preserve">
+    <value>Поле для підпису</value>
+  </data>
+  <data name="SignatureClear" xml:space="preserve">
+    <value>Очистити підпис</value>
+  </data>
 </root>

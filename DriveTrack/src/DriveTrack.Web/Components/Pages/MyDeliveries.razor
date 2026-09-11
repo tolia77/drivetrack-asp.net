@@ -77,6 +77,25 @@
                     @onclick="TimelineHandler(delivery)">
                 <Icon Name="IconName.Timeline" />@Localizer["Timeline"]
             </button>
+
+            @* FR-119: the capture, offered to the driver carrying the parcel and withheld from the
+               client who asked for it. Withheld, not decided - IAccessGuard.RequireAssignedDriver
+               refuses a client's capture whether or not this screen ever drew a button (FR-12). *@
+            @if (OffersProofCapture(_role, _captured.Contains(delivery.Id)))
+            {
+                <button type="button" class="btn btn-primary btn-sm dt-proof-capture"
+                        @onclick="CaptureHandler(delivery)">
+                    <Icon Name="IconName.Camera" />@Localizer["ProofCapture"]
+                </button>
+            }
+
+            @* FR-122: reading the evidence is for anyone who can see the delivery, the client
+               included. The panel answers "nothing captured yet" the same way it answers "not
+               yours", which is what stops the action disclosing anything by being pressed. *@
+            <button type="button" class="btn btn-secondary btn-sm dt-proof-open"
+                    @onclick="ProofHandler(delivery)">
+                <Icon Name="IconName.Proof" />@Localizer["ProofOpen"]
+            </button>
         </td>
     </RowTemplate>
 </DtDataTable>
@@ -99,6 +118,27 @@
     </ChildContent>
 </DtDialog>
 
+@* Built only once a row has been chosen, for the reason the timeline panel is: the screen costs no
+   proof read until somebody asks for one, and each open builds a new panel rather than reusing one
+   holding whatever the last row had. *@
+<DtDialog @ref="_captureDialog" Title="@Localizer["ProofCaptureTitle"]" OnClosed="CloseCapture">
+    <ChildContent>
+        @if (_capturing is not null)
+        {
+            <ProofCapture DeliveryId="_capturing.Id" OnCaptured="CapturedAsync" />
+        }
+    </ChildContent>
+</DtDialog>
+
+<DtDialog @ref="_proofDialog" Title="@Localizer["ProofViewTitle"]" OnClosed="CloseProof">
+    <ChildContent>
+        @if (_viewing is not null)
+        {
+            <ProofView DeliveryId="_viewing.Id" />
+        }
+    </ChildContent>
+</DtDialog>
+
 @code {
     // The screen's own lifetime. A driver who navigates away mid-load leaves a query running
     // against a pooled connection otherwise, and nothing would ever ask it to stop.
@@ -109,11 +149,35 @@
     /// <summary>The row whose history is open, or null while none is.</summary>
     private AssignedDeliverySummary? _timeline;
 
+    /// <summary>The row whose capture panel is open, or null while none is.</summary>
+    private AssignedDeliverySummary? _capturing;
+
+    /// <summary>The row whose proof is open, or null while none is.</summary>
+    private AssignedDeliverySummary? _viewing;
+
+    /// <summary>
+    /// The deliveries this screen knows carry a proof, so the capture action is withdrawn once one
+    /// has been taken.
+    /// </summary>
+    /// <remarks>
+    /// It starts empty and grows, and that is honest rather than complete: the row shape carries no
+    /// proof flag, and asking the capability once per row would be a hundred reads to draw a page.
+    /// So the button is offered until this screen has reason to believe otherwise, and the
+    /// authoritative refusal is the capability's own - a second capture is a 409 the panel shows
+    /// (FR-123), not a button that was never drawn.
+    /// </remarks>
+    private readonly HashSet<int> _captured = [];
+
     private DtDialog? _timelineDialog;
+    private DtDialog? _captureDialog;
+    private DtDialog? _proofDialog;
     private bool _loading = true;
 
     /// <summary>Whether this caller is offered the transition buttons.</summary>
     private bool _offersStatusChange;
+
+    /// <summary>The signed-in caller's role, read once the authenticated check below has passed.</summary>
+    private UserRole _role;
 
     /// <summary>
     /// Whether a role has any lifecycle action on a delivery of their own. A client never does
@@ -129,6 +193,27 @@
     /// </remarks>
     /// <param name="role">The signed-in caller's role.</param>
     internal static bool OffersStatusChange(UserRole role) => role == UserRole.Driver;
+
+    /// <summary>
+    /// Whether this caller is offered the capture action on this row: the driver carrying the
+    /// parcel, and only while the delivery has no proof (FR-119, FR-123).
+    /// <para>
+    /// A client is never offered it. FR-122 lets them read the evidence and nothing lets them make
+    /// it, so a button that could only ever be refused would be worse than no button — and
+    /// <c>IAccessGuard.RequireAssignedDriver</c> refuses their capture either way (FR-12).
+    /// </para>
+    /// </summary>
+    /// <remarks>
+    /// Internal and static so it can be asserted directly, for the reason
+    /// <see cref="OffersStatusChange"/> is: static rendering dispatches no event that could capture
+    /// anything, so the flag's effect is unreachable from a render test — and inverting it would
+    /// leave every suite green while a client was handed an action FR-90's sibling rule says is not
+    /// theirs.
+    /// </remarks>
+    /// <param name="role">The signed-in caller's role.</param>
+    /// <param name="hasProof">Whether this screen knows the delivery already carries a proof.</param>
+    internal static bool OffersProofCapture(UserRole role, bool hasProof) =>
+        role == UserRole.Driver && !hasProof;
 
     /// <summary>
     /// True when the page came back full. The query returns no total (PRD section 8 excludes one),
@@ -150,7 +235,8 @@
 
         // Read after the authenticated check: ICurrentUser.Role throws for an anonymous caller, so
         // asking outside that branch would take the screen down instead of refusing it.
-        _offersStatusChange = OffersStatusChange(Caller.Role);
+        _role = Caller.Role;
+        _offersStatusChange = OffersStatusChange(_role);
 
         await LoadAsync();
     }
@@ -174,6 +260,58 @@
     /// than reusing one holding a stale status and a half-typed note.
     /// </summary>
     private void CloseTimeline() => _timeline = null;
+
+    /// <summary>The row's capture action, bound as a delegate so no lambda has to live in markup.</summary>
+    private Func<Task> CaptureHandler(AssignedDeliverySummary delivery) =>
+        () => ShowCaptureAsync(delivery);
+
+    /// <inheritdoc cref="CaptureHandler" />
+    private Func<Task> ProofHandler(AssignedDeliverySummary delivery) =>
+        () => ShowProofAsync(delivery);
+
+    private async Task ShowCaptureAsync(AssignedDeliverySummary delivery)
+    {
+        _capturing = delivery;
+
+        if (_captureDialog is not null)
+        {
+            await _captureDialog.ShowAsync();
+        }
+    }
+
+    private async Task ShowProofAsync(AssignedDeliverySummary delivery)
+    {
+        _viewing = delivery;
+
+        if (_proofDialog is not null)
+        {
+            await _proofDialog.ShowAsync();
+        }
+    }
+
+    /// <summary>
+    /// Closes the capture dialog once a proof has committed and withdraws the action for that row.
+    /// The list is refetched too: FR-120 means the delivery can now be marked delivered with no
+    /// note, and the timeline panel behind this one reads its state from the same load.
+    /// </summary>
+    private async Task CapturedAsync()
+    {
+        if (_capturing is { } delivery)
+        {
+            _captured.Add(delivery.Id);
+        }
+
+        if (_captureDialog is not null)
+        {
+            await _captureDialog.CloseAsync();
+        }
+
+        await LoadAsync();
+    }
+
+    private void CloseCapture() => _capturing = null;
+
+    private void CloseProof() => _viewing = null;
 
     /// <inheritdoc />
     public void Dispose()

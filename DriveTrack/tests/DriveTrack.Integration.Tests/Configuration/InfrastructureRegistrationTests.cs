@@ -7,6 +7,7 @@ using DriveTrack.Infrastructure;
 using DriveTrack.Infrastructure.Email;
 using DriveTrack.Infrastructure.Geocoding;
 using DriveTrack.Infrastructure.Identity;
+using DriveTrack.Infrastructure.Objects;
 using DriveTrack.Infrastructure.Persistence;
 using DriveTrack.Infrastructure.SideEffects;
 using DriveTrack.Integration.Tests.Support;
@@ -338,6 +339,106 @@ public class InfrastructureRegistrationTests
 
         // Named the way an operator would search for it, like every other configuration failure here.
         Assert.Contains("Smtp__Host", failure.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("objects:3900")]
+    [InlineData("ftp://objects:3900")]
+    public void An_object_store_endpoint_that_is_not_an_absolute_url_throws_naming_the_variable(
+        string serviceUrl)
+    {
+        // The same trap as Jwt__LifetimeMinutes and Geocoder__TimeoutSeconds, one section over: an
+        // .env predating this key forwards the empty string, and an empty string is a value - it
+        // overrides the option's default rather than falling back to it. Here the consequence is
+        // worse than an opaque binder message: with no endpoint the SDK resolves an Amazon one, so
+        // a typo in the scheme would have a deployment signing requests to a service nobody chose.
+        var services = new ServiceCollection();
+        var configuration = BuildConfiguration(ValidConnectionString);
+        configuration[ObjectStoreOptions.ServiceUrlConfigurationKey] = serviceUrl;
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddInfrastructure(configuration, new TestHostEnvironment()));
+
+        Assert.Contains("ObjectStore:ServiceUrl", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("ObjectStore__ServiceUrl", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ObjectStoreOptions.BucketConfigurationKey, null)]
+    [InlineData(ObjectStoreOptions.BucketConfigurationKey, "   ")]
+    [InlineData(ObjectStoreOptions.AccessKeyConfigurationKey, null)]
+    [InlineData(ObjectStoreOptions.AccessKeyConfigurationKey, "   ")]
+    [InlineData(ObjectStoreOptions.SecretKeyConfigurationKey, null)]
+    [InlineData(ObjectStoreOptions.SecretKeyConfigurationKey, "   ")]
+    public void An_object_store_with_an_endpoint_but_no_bucket_or_key_throws_naming_the_variable(
+        string key,
+        string? value)
+    {
+        // The half the endpoint theory above cannot reach: a well-formed ServiceUrl passes
+        // RequireAbsoluteUrl and the other three are never looked at again until the SDK needs them.
+        // Without this the deployment starts cleanly and the first driver to capture a proof at a
+        // door is refused by a message from inside AWSSDK.S3 that names no DriveTrack setting at
+        // all - which is the one place a missing .env line must never be discovered.
+        var services = new ServiceCollection();
+        var configuration = BuildConfiguration(ValidConnectionString);
+        configuration[ObjectStoreOptions.ServiceUrlConfigurationKey] = "http://objects:3900";
+
+        // A fully configured store first, so the one key this case is about is the only thing wrong
+        // with it. Without this the bucket is blank in every case and the bucket's own refusal is
+        // the one that answers, whichever key the theory meant to blank.
+        configuration[ObjectStoreOptions.BucketConfigurationKey] = "drivetrack-proofs";
+        configuration[ObjectStoreOptions.AccessKeyConfigurationKey] = "GK0123456789abcdef01234567";
+        configuration[ObjectStoreOptions.SecretKeyConfigurationKey] = new string('0', 64);
+
+        configuration[key] = value;
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddInfrastructure(configuration, new TestHostEnvironment()));
+
+        // Both spellings, as everywhere else here: the one the code uses and the one the operator
+        // edits.
+        Assert.Contains(key, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            key.Replace(":", "__", StringComparison.Ordinal),
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_object_store_port_and_the_proof_capability_are_registered()
+    {
+        // AD-26 as a registration. The port is a singleton because the S3 client holds a connection
+        // pool and one per request exhausts sockets under exactly the load a fleet of drivers
+        // uploading photographs produces; the capability is scoped because the guard inside it reads
+        // the caller of the request or circuit it is serving.
+        var registrations = new ServiceCollection();
+        registrations.AddLogging();
+        registrations.AddInfrastructure(BuildConfiguration(ValidConnectionString), new TestHostEnvironment());
+
+        Assert.Contains(
+            registrations,
+            descriptor => descriptor.ServiceType == typeof(IAssetStore)
+                && descriptor.Lifetime == ServiceLifetime.Singleton);
+
+        Assert.Contains(
+            registrations,
+            descriptor => descriptor.ServiceType == typeof(IProofOfDeliveryService)
+                && descriptor.Lifetime == ServiceLifetime.Scoped);
+    }
+
+    [Fact]
+    public void An_object_store_region_defaults_to_the_one_Garage_signs_for()
+    {
+        // Not a preference: SigV4 signs over the region, so a client that fell back to an AWS
+        // default against a Garage node would be refused with a message mentioning no region at all.
+        var options = BuildProvider().GetRequiredService<IOptions<ObjectStoreOptions>>().Value;
+
+        Assert.Equal("garage", options.Region);
+
+        // And the endpoint has no default, for the reason the geocoder's endpoints have none.
+        Assert.Equal(string.Empty, options.ServiceUrl);
     }
 
     [Fact]

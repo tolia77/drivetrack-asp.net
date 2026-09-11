@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using DriveTrack.Application;
 using DriveTrack.Application.Authorization;
+using DriveTrack.Application.Deliveries;
 using DriveTrack.Infrastructure;
 using DriveTrack.Infrastructure.Identity;
 using DriveTrack.Infrastructure.Persistence;
@@ -20,7 +21,6 @@ using Microsoft.IdentityModel.Tokens;
 // permitted to name a DriveTrack.Infrastructure type. LayeringTests enforces that.
 
 const string CorsPolicyName = "DriveTrackCors";
-const string ApiPathPrefix = "/api";
 
 // AD-3's first step, made concrete. Two schemes, chosen by path: a browser navigating the Blazor
 // shell carries a cookie, a REST client carries a bearer token, and the policy scheme below is what
@@ -31,7 +31,23 @@ const string CookieScheme = AuthenticationSchemes.Cookie;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options =>
+    {
+        // FR-119's signature comes back from the browser as a base64 PNG, which is a single JS
+        // interop return value and therefore a single SignalR message. The default ceiling on one
+        // of those is 32 KiB, and a signature drawn on a full-width pad at a phone's device pixel
+        // ratio is comfortably larger than that - so without this line the transport closes the
+        // circuit mid-capture, and the driver loses the typed recipient, the chosen photographs
+        // and the screen behind the dialog with no message at all.
+        //
+        // Sized from ProofAssetRules rather than picked, for the reason the REST adapter's body cap
+        // is: the validator decides what a legal asset is, and a transport that refused first would
+        // be a second, stricter definition of one (AD-9). Base64 is four bytes per three, and the
+        // slack covers the JSON framing the payload travels inside.
+        options.MaximumReceiveMessageSize =
+            (ProofAssetRules.MaximumAssetBytes * 4 / 3) + (64 * 1024);
+    });
 
 // AD-19: connection string, JWT signing key, diagnostics switches and every other
 // environment-specific value arrive from configuration, which in the container means environment
@@ -88,7 +104,7 @@ var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOption
 builder.Services.AddAuthentication(SelectorScheme)
     .AddPolicyScheme(SelectorScheme, SelectorScheme, options =>
         options.ForwardDefaultSelector = context =>
-            context.Request.Path.StartsWithSegments(ApiPathPrefix)
+            MachineSurface.PrefersBearer(context.Request)
                 ? JwtBearerDefaults.AuthenticationScheme
                 : CookieScheme)
     .AddCookie(CookieScheme, options =>
@@ -105,15 +121,20 @@ builder.Services.AddAuthentication(SelectorScheme)
         options.SlidingExpiration = true;
 
         // AD-7's third suppression. This handler serves the Blazor shell as well as anything else
-        // that is not /api, so it branches: a REST path gets the envelope, a browser navigating to
-        // a protected page still gets the redirect it expects.
+        // that is not a machine surface, so it branches: a REST path and the asset route get the
+        // envelope, a browser navigating to a protected page still gets the redirect it expects.
+        //
+        // The asset route is on the envelope side even though a browser is exactly who asks for it.
+        // A redirect there is answered at status 200 with a page of HTML where an <img> expected an
+        // image, so the browser renders a broken image and nothing anywhere says why; an enveloped
+        // 401 is a status a caller - and a test - can read.
         options.Events.OnRedirectToLogin = context =>
-            context.Request.Path.StartsWithSegments(ApiPathPrefix)
+            MachineSurface.WantsEnvelope(context.Request.Path)
                 ? EnvelopeAuthenticationEvents.WriteChallengeAsync(context.HttpContext)
                 : Redirect(context);
 
         options.Events.OnRedirectToAccessDenied = context =>
-            context.Request.Path.StartsWithSegments(ApiPathPrefix)
+            MachineSurface.WantsEnvelope(context.Request.Path)
                 ? EnvelopeAuthenticationEvents.WriteForbiddenAsync(context.HttpContext)
                 : Redirect(context);
     })
@@ -223,11 +244,16 @@ app.UseRequestLocalization(new RequestLocalizationOptions
 
 app.UseCors(CorsPolicyName);
 
-// AD-7: branched onto /api so the Blazor shell keeps its HTML error and not-found pages while
-// every REST path gets the envelope - including an unmatched route, which the status-code-pages
-// middleware above would otherwise answer with HTML.
+// AD-7: branched onto the machine surfaces so the Blazor shell keeps its HTML error and not-found
+// pages while every REST path gets the envelope - including an unmatched route, which the
+// status-code-pages middleware above would otherwise answer with HTML.
+//
+// The asset route is inside the branch as well, and only its failures are affected: the endpoint's
+// success is a FileStreamHttpResult, which has already written its content type and its bytes by
+// the time the middleware's backstop looks, so the bytes are left alone. A DriveTrackException
+// thrown out of the capability, on the other hand, becomes the same envelope a REST caller gets.
 app.UseWhen(
-    context => context.Request.Path.StartsWithSegments(ApiPathPrefix),
+    context => MachineSurface.WantsEnvelope(context.Request.Path),
     branch => branch.UseMiddleware<ApiEnvelopeMiddleware>());
 
 app.UseAuthentication();
@@ -238,6 +264,36 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapControllers();
+
+// FR-122 / AD-26 / DR-14: the one way a stored proof asset's bytes reach anybody.
+//
+// A minimal-API endpoint rather than a controller action, and outside /api rather than inside it,
+// for the two reasons MachineSurface states: no MVC filter sees it, so nothing wraps an image in
+// the JSON envelope, and the scheme is chosen by the credential the caller actually presented, so
+// the same URL serves a driver's <img> tag and a REST client's bearer token.
+//
+// RequireAuthorization and nothing more: which assets *this* caller may read is IAccessGuard's
+// decision inside IProofOfDeliveryService, narrowed in the query (AD-2, AD-3), so an asset
+// belonging to another client's delivery is not found rather than refused.
+app.MapGet(
+    MachineSurface.ProofAssetPrefix + "/{assetId:int}",
+    async (int assetId, HttpContext context, IProofOfDeliveryService proofs, CancellationToken cancellationToken) =>
+    {
+        var asset = await proofs.OpenAssetAsync(assetId, cancellationToken);
+
+        // These are bytes a driver uploaded, under a type that driver declared: the allowlist
+        // checked what was *said* about the file and nothing anywhere looked inside it. Without
+        // this header a browser is free to sniff the content and act on what it finds, so a
+        // document that claims to be a PNG and is really markup would be rendered as markup, on
+        // this application's own origin, to whoever may read the proof. The allowlist narrows who
+        // can try; this is what makes the attempt worthless.
+        context.Response.Headers.XContentTypeOptions = "nosniff";
+
+        // The content type stored beside the bytes, so nothing guesses. The framework disposes the
+        // stream once the response has been written.
+        return Results.Stream(asset.Content, asset.ContentType);
+    })
+    .RequireAuthorization();
 
 // FR-6: signing out clears the cookie. A POST, so it cannot be triggered by a link or an image,
 // and on the cookie scheme by name because the selector would otherwise pick the bearer handler

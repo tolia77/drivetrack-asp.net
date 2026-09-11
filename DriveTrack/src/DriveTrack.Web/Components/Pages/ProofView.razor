@@ -1,0 +1,171 @@
+@* FR-122: the evidence, as whoever may see it reads it.
+
+   One panel for every role. What differs is whether the capturer is named, and that is not decided
+   here - the capability nulls the name for everybody but an administrator and a dispatcher (AD-17),
+   so this renders the field when it was given one and renders nothing when it was not. A component
+   that asked the caller's role would be the second place that decision lived, and the two would
+   eventually disagree.
+
+   The images are <img src="/proof-assets/{id}">. That route is authenticated and asks the capability
+   again for every single request, so a copied URL is worth nothing to anybody who may not already
+   read the proof (DR-14) - which is exactly what a presigned link would not give us.
+
+   The @@if blocks are independent rather than if/else chains: an `else` reads to NFR-14's source scan
+   as a rendered English word. *@
+@inject IProofOfDeliveryService Proofs
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IDisposable
+
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+@if (_loading)
+{
+    <p class="dt-proof-empty" role="status">@Localizer["Loading"]</p>
+}
+
+@if (_proof is { } proof)
+{
+    <dl class="dt-proof-facts">
+        <dt>@Localizer["ProofRecipientName"]</dt>
+        <dd>@proof.RecipientName</dd>
+
+        <dt>@Localizer["ProofCapturedAt"]</dt>
+        <dd>@Captured(proof)</dd>
+
+        @* Rendered only when the service supplied a name. Null means withheld, never missing: the
+           column behind it cannot be empty for an account that still exists. *@
+        @if (proof.CapturedByName is { } capturer)
+        {
+            <dt>@Localizer["ProofCapturedBy"]</dt>
+            <dd class="dt-proof-capturer">@capturer</dd>
+        }
+    </dl>
+
+    <div class="dt-proof-place">
+        <span class="form-label">@Localizer["ProofLocation"]</span>
+        @* Picker="false": this is where the hand-over happened, not a point anybody may now move. *@
+        <DtMap Value="proof.CaptureLocation.Point" Picker="false" />
+    </div>
+
+    <div class="dt-proof-assets">
+        @foreach (var asset in proof.Assets)
+        {
+            <figure class="dt-proof-asset">
+                <img class="dt-proof-image" src="@Source(asset)" alt="@Describe(asset)" />
+            </figure>
+        }
+    </div>
+}
+
+@code {
+    // The panel's own lifetime. A viewer who closes the dialog mid-load leaves a query running
+    // against a pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private ProofOfDeliveryView? _proof;
+    private IReadOnlyList<string> _failures = [];
+    private bool _loading = true;
+
+    /// <summary>
+    /// The delivery whose proof is shown, or zero before the first load. Compared against
+    /// <see cref="DeliveryId"/> so a re-render with the same parameters does not refetch, and a
+    /// dialog reopened on another delivery does.
+    /// </summary>
+    private int _loaded;
+
+    /// <summary>The delivery this panel is about.</summary>
+    [Parameter]
+    [EditorRequired]
+    public int DeliveryId { get; set; }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == DeliveryId)
+        {
+            return;
+        }
+
+        _loaded = DeliveryId;
+        _failures = [];
+        _proof = null;
+
+        await LoadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    /// <summary>
+    /// The authenticated route an image is fetched from. Built from the asset's id and nothing else:
+    /// the storage key never leaves the system, and there is no URL a browser could use without a
+    /// session (DR-14).
+    /// </summary>
+    /// <remarks>
+    /// Internal and static so it can be asserted directly. Getting the prefix wrong renders a broken
+    /// image and fails nothing - the markup is well formed, the route simply does not exist.
+    /// </remarks>
+    /// <param name="asset">The asset to fetch.</param>
+    /// <returns>A relative URL on the proof-asset route.</returns>
+    internal static string Source(ProofAssetView asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        return "/proof-assets/" + asset.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// The alternative text for an asset: what it is, in words, since the image itself carries no
+    /// text a screen reader could announce.
+    /// </summary>
+    private string Describe(ProofAssetView asset) =>
+        asset.Kind == ProofAssetKind.Signature
+            ? Localizer["ProofSignature"]
+            : Localizer["ProofPhotos"];
+
+    /// <summary>
+    /// The capture instant in local time (AD-13: storage is offset zero, and the conversion happens
+    /// here, in the presentation layer, and nowhere else).
+    /// </summary>
+    /// <remarks>
+    /// Routed through a method rather than formatted in markup, as the two delivery tables do it:
+    /// NFR-14's scan strips a Razor expression only up to its first closing bracket, so a
+    /// <c>.ToString(...)</c> tail would be left in the text node and read as a rendered English word.
+    /// </remarks>
+    private static string Captured(ProofOfDeliveryView proof) =>
+        proof.CapturedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        StateHasChanged();
+
+        try
+        {
+            _proof = await Proofs.GetAsync(DeliveryId, _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            // A delivery with no proof yet answers COMMON_NOT_FOUND, so the "nothing captured"
+            // state and the "not yours" state are one message here as they are on the wire - which
+            // is what stops this panel disclosing that somebody else's delivery exists.
+            _failures = FailureKeys.For(failure);
+            _proof = null;
+        }
+        finally
+        {
+            // In a finally so a refused read leaves the panel in its empty state rather than
+            // spinning forever, which reads to a user as a hung dialog.
+            _loading = false;
+        }
+    }
+}

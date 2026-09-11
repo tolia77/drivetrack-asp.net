@@ -88,6 +88,32 @@ public enum ErrorCode
     /// </summary>
     DELIVERY_INVALID_STATUS_TRANSITION,
 
+    /// <summary>
+    /// The delivery cannot be marked delivered: it has neither a proof nor an explanatory note
+    /// (FR-120). 409, never 422 — the payload was well formed and it is the state of the delivery
+    /// that refuses it, so the caller's next move is to capture the proof or say why there is none.
+    /// Evaluated for every caller the guard admits, with no role branch anywhere (AD-10).
+    /// </summary>
+    DELIVERY_PROOF_REQUIRED,
+
+    /// <summary>
+    /// The delivery already has a proof, and a proof is never replaced (FR-123). 409: a genuine
+    /// collision with a row that already exists, like every other 409 here.
+    /// </summary>
+    DELIVERY_PROOF_ALREADY_CAPTURED,
+
+    /// <summary>
+    /// An uploaded artefact declares a type a proof may not carry (NFR-28). 422, and reported as a
+    /// field key inside <c>COMMON_VALIDATION_FAILED</c> — it names the upload that was wrong.
+    /// </summary>
+    DELIVERY_PROOF_ASSET_TYPE_NOT_ALLOWED,
+
+    /// <summary>
+    /// An uploaded artefact is empty or above the per-asset byte cap (NFR-28). 422, reported as a
+    /// field key for the same reason as the type refusal above.
+    /// </summary>
+    DELIVERY_PROOF_ASSET_TOO_LARGE,
+
     /// <summary>PostgreSQL SQLSTATE 23505, translated in Infrastructure. 409 (AD-8).</summary>
     PERSISTENCE_UNIQUE_VIOLATION,
 

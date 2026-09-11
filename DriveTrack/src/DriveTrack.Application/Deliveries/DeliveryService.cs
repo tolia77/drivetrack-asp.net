@@ -315,15 +315,45 @@ public sealed class DeliveryService(
 
         await ValidatorExtensions.ValidateAndThrowAsync(statusValidator, command, cancellationToken);
 
-        // Epic 6's precondition on the Delivered transition (FR-120) attaches here, before the
-        // move: proof exists, or the command itself carries an explanatory note. One site, and it
-        // must not be role-branched when it lands.
         var previous = delivery.Status;
 
         // The validator has proved a status was named and that it is one the enum declares; the
         // nullable annotation exists because the wire can omit it and the command has to carry that
         // absence as far as the refusal.
         var requested = command.Status!.Value;
+
+        // FR-120, at the one site the epic reserved for it and before the move: a parcel is marked
+        // delivered on evidence, or on an explanation of why there is none.
+        //
+        // There is no role test in the condition, and its absence is the rule rather than an
+        // omission. A dispatcher closing a delivery from the board and the driver closing it at the
+        // door reach this line through the same method (AD-10), so a branch admitting one of them
+        // would be a second, unwritten lifecycle - and the "note" arm is precisely what dispatch
+        // needs when there is no proof to capture from behind a desk.
+        //
+        // Blank() rather than a null test: a note of one space satisfies "is not null" and explains
+        // nothing, and it is what an empty form field sends.
+        //
+        // The lifecycle is asked first, and the order is the point rather than an optimization.
+        // FR-120 is a precondition on a move the delivery can actually make; asked of one it cannot,
+        // it would answer "capture a proof" to a caller whose real problem is that a Pending parcel
+        // has not been picked up yet - and a caller who did as they were told would then be refused
+        // a second time, by FR-32, for the reason that applied all along. So an illegal transition
+        // is FR-32's refusal and nothing else, and NextStatuses is read rather than restated,
+        // because AD-10 declares the table exactly once.
+        if (requested == DeliveryStatus.Delivered
+            && Delivery.NextStatuses(previous).Contains(requested)
+            && Blank(command.Note) is null
+            && !await unitOfWork.ProofOfDeliveries.ExistsForDeliveryAsync(id, cancellationToken))
+        {
+            // A domain-rule failure and therefore a 409, never a 422 (AD-10): the payload named a
+            // status the system has, and what refused it is the state of the delivery. Thrown before
+            // TryChangeStatus, so nothing moved and no entry was staged.
+            throw new DomainRuleException(
+                ErrorCode.DELIVERY_PROOF_REQUIRED,
+                "A delivery is marked Delivered only once a proof of delivery has been captured, or "
+                    + "with a note explaining why there is none.");
+        }
 
         if (!delivery.TryChangeStatus(requested))
         {
