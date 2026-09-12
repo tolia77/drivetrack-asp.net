@@ -1,0 +1,80 @@
+@inject IStringLocalizer<ErrorMessages> Errors
+@inject IStringLocalizer<FieldNames> Fields
+
+@* The one place a refused action is reported on a screen (NFR-4, NFR-14).
+
+   Every form used to render this block itself, which meant the field a validator named was dropped
+   on the way to the page: eight distinct rules keyed COMMON_VALIDATION_FAILED collapsed into one
+   anonymous sentence, and a client reading it had no way to know which box to fix. The failure now
+   carries its field, and this is where the field becomes a word.
+
+   The label is emphasised ahead of the message rather than folded into it, because the two are
+   different claims: what was refused, and why.
+
+   The label is resolved into a local before the markup, and the condition then tests that local.
+   A call inside an @@if would read as rendered English to NFR-14's markup scan, which stops at the
+   first closing parenthesis. *@
+
+@foreach (var failure in Failures)
+{
+    var label = Label(failure);
+
+    <div class="alert alert-danger" role="alert">
+        @if (label is not null)
+        {
+            <strong>@label</strong><text>: </text>
+        }
+        @Errors[failure.MessageKey]
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The refusals to show, in the order the screen collected them. Empty renders nothing, which is
+    /// why a screen can bind this unconditionally instead of guarding it.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyList<ScreenFailure> Failures { get; set; } = [];
+
+    /// <summary>
+    /// The localized name of the offending input, or null when there is none to show.
+    /// <para>
+    /// Null in three cases. A failure that names no field. A field the catalogue has no entry for -
+    /// the one worth stating, because <c>IStringLocalizer</c> answers a missing key with the key
+    /// itself, so without that check a rule naming a property no form shows would put a raw CLR
+    /// name in front of a Ukrainian-speaking user (NFR-14). And a message that already opens with
+    /// the field's own name.
+    /// </para>
+    /// <para>
+    /// That third case is the common one: eight of <c>ErrorMessages</c>' sentences begin with the
+    /// name of the field they are about, because the same sentence has to stand alone as
+    /// <c>error.message</c> for a REST caller with no field beside it. Prefixing the label there
+    /// reads as a stutter - "Пароль: Пароль має містити..." - rather than as the two different
+    /// claims the label exists to separate. The label earns its place where the sentence cannot say
+    /// which box it is about, which is every rule sharing <c>COMMON_VALIDATION_FAILED</c> - the
+    /// whole reason the field travels at all (DW-8).
+    /// </para>
+    /// </summary>
+    private string? Label(ScreenFailure failure)
+    {
+        if (failure.Field is not { } field)
+        {
+            return null;
+        }
+
+        var localized = Fields[field];
+
+        if (localized.ResourceNotFound)
+        {
+            return null;
+        }
+
+        // Compared on the label's leading segment: what follows a comma is a unit or a qualifier
+        // ("Вага вантажу, кг") rather than part of the name, and the name is what stutters.
+        var name = localized.Value.Split(',')[0].Trim();
+
+        return Errors[failure.MessageKey].Value.StartsWith(name, StringComparison.CurrentCultureIgnoreCase)
+            ? null
+            : localized.Value;
+    }
+}

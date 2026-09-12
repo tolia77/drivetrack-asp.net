@@ -4,7 +4,6 @@
 @inject IDeliveryService Parcels
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 @* FR-62 to FR-67: reviews, and the three different screens the one route is for.
@@ -41,10 +40,7 @@
    in the DOM at any moment, and which one it is follows where the reader is. *@
 @if (!_formOpen)
 {
-    @foreach (var key in _failures)
-    {
-        <div class="alert alert-danger" role="alert">@Errors[key]</div>
-    }
+    <DtFailureBanner Failures="_failures" />
 }
 
 @* Offered only when there is something to review. An action whose form opens on an empty picker
@@ -201,10 +197,7 @@
            open, so a refused save is one live region announcing once. *@
         @if (_formOpen)
         {
-            @foreach (var key in _failures)
-            {
-                <div class="alert alert-danger" role="alert">@Errors[key]</div>
-            }
+            <DtFailureBanner Failures="_failures" />
         }
 
         @* Only when writing a new one. A review is keyed one-to-one on its delivery, so moving an
@@ -282,7 +275,7 @@
     private IReadOnlyList<AuthoredReviewSummary>? _mine;
     private IReadOnlyList<ReviewSummary>? _all;
     private IReadOnlyList<AssignedDeliverySummary> _reviewable = [];
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
 
     private int? _editingId;
     private int? _pendingDelete;

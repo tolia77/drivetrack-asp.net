@@ -19,7 +19,6 @@
 @inject IVehicleService Fleet
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["DriversTitle"]</PageTitle>
@@ -30,10 +29,7 @@
 
 @* NFR-3: the message is the localized string for the code the service threw, resolved through the
    same catalogue the REST envelope uses. Nothing an exception carries reaches this page. *@
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 <div class="row g-3 align-items-end mb-3">
     <div class="col-sm">
@@ -117,10 +113,7 @@
            behind the backdrop: a refusal rendered only up there is a message nobody can see,
            and the form would simply fail to close. The page-level copy still carries the
            refusals raised with no dialog open - a delete, above all. *@
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
 
         <EditForm id="driver-form" Model="_form" OnValidSubmit="SaveAsync">
             @* A parse failure from an input the framework could not read lands on the
@@ -199,7 +192,7 @@
 @code {
     private IReadOnlyList<DriverSummary> _drivers = [];
     private IReadOnlyList<VehicleChoice> _vehicleChoices = [];
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private DriverForm _form = new();
     private DriverSummary? _pendingDeletion;
     private DtDialog? _formDialog;

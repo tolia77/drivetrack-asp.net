@@ -171,7 +171,12 @@ public sealed class ChatHub(IChatService chat, HubCaller caller) : Hub
     /// than a generic one, and nothing but a key crosses the wire — a <c>HubException</c>'s message
     /// reaches the browser verbatim, and an exception message is for logs (NFR-3).
     /// </para>
+    /// <para>
+    /// Only the message key: a <c>HubException</c> carries one string, so the field name a screen
+    /// banner would show has nowhere to go here. That is the contract, not an omission — the one
+    /// command this hub takes has a single field.
+    /// </para>
     /// </summary>
     private static HubException Translate(DriveTrackException failure) =>
-        new(FailureKeys.For(failure)[0]);
+        new(FailureKeys.For(failure)[0].MessageKey);
 }

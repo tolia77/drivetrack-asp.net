@@ -3,7 +3,6 @@
 @inject IUserService Users
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 @* FR-5 / FR-87 / FR-88 / FR-92: what a signed-in user of any role reads about themselves, and the
@@ -29,10 +28,7 @@
 
 @* Rendered at page level as well as inside each dialog: a refusal the user can act on has to be
    visible whether the dialog is still open or has already been dismissed. *@
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 @if (_profile is null)
 {
@@ -107,10 +103,7 @@
         @* Repeated inside the dialog, not only at the top of the page: a native <dialog> opened with
            showModal() sits in the top layer with everything behind it inert, so a banner rendered up
            there is invisible to the user who just pressed Save and got a 422. *@
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
         <div class="mb-3">
             <label class="form-label" for="profile-first-name">@Localizer["FirstName"]</label>
             <input id="profile-first-name" class="form-control" @bind="_form.FirstName" />
@@ -150,10 +143,7 @@
 
 <DtDialog @ref="_passwordDialog" Title="@Localizer["ChangePasswordTitle"]">
     <ChildContent>
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
         <div class="mb-3">
             <label class="form-label" for="profile-current-password">@Localizer["CurrentPassword"]</label>
             <input id="profile-current-password" type="password" autocomplete="current-password"
@@ -186,10 +176,7 @@
 
 <DtDialog @ref="_emailDialog" Title="@Localizer["ChangeEmailTitle"]">
     <ChildContent>
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
         <div class="mb-3">
             <label class="form-label" for="profile-email">@Localizer["Email"]</label>
             <input id="profile-email" type="email" class="form-control" @bind="_form.Email" />
@@ -215,7 +202,7 @@
     private DtDialog? _emailDialog;
 
     private UserProfile? _profile;
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private bool _isClient;
 
     // Three flags rather than one, because these are three independent dialogs: a single shared

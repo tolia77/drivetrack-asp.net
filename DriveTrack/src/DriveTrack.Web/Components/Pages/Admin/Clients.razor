@@ -3,7 +3,6 @@
 @inject IClientAdministrationService Roster
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 @* FR-46 / FR-47 / FR-48: the client roster, and the two operations an administrator performs on it.
@@ -21,10 +20,7 @@
 
 <h1>@Localizer["ClientsTitle"]</h1>
 
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 <DtDataTable TItem="ClientAccount" Items="_clients" IsLoading="_isLoading">
     <HeaderTemplate>
@@ -68,10 +64,7 @@
         @* Repeated inside the dialog, not only at the top of the page: a native <dialog> opened with
            showModal() sits in the top layer with everything behind it inert, so a banner rendered up
            there is invisible to the administrator who just pressed Save and got a 422. *@
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
         <div class="mb-3">
             <label class="form-label" for="client-first-name">@Localizer["FirstName"]</label>
             <input id="client-first-name" class="form-control" @bind="_form.FirstName" />
@@ -128,7 +121,7 @@
 
     private IReadOnlyList<ClientAccount>? _clients;
     private ClientAccount? _selected;
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private bool _isLoading = true;
     private bool _isAdmin;
 

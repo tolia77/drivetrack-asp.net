@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    NFR-14: the name of an input, in Ukrainian, keyed by the CLR property a validator names when it
+    refuses one. Read at run time through IStringLocalizer<FieldNames> by DtFailureBanner, so the
+    banner can say which field was refused instead of leaving a shared message to name nothing.
+
+    Where a form already labels the same input, the wording here is that label's, word for word: a
+    banner that calls a box something the label above it does not is two names for one input.
+  -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Assets" xml:space="preserve">
+    <value>Фотографії</value>
+  </data>
+  <data name="CapacityKg" xml:space="preserve">
+    <value>Вантажопідйомність, кг</value>
+  </data>
+  <data name="CaptureLocation" xml:space="preserve">
+    <value>Місце вручення</value>
+  </data>
+  <data name="CurrentPassword" xml:space="preserve">
+    <value>Поточний пароль</value>
+  </data>
+  <data name="DeliveryNotes" xml:space="preserve">
+    <value>Примітки</value>
+  </data>
+  <data name="Dropoff" xml:space="preserve">
+    <value>Місце доставляння</value>
+  </data>
+  <data name="Email" xml:space="preserve">
+    <value>Електронна пошта</value>
+  </data>
+  <data name="EndedAt" xml:space="preserve">
+    <value>Кінець зміни</value>
+  </data>
+  <data name="FirstName" xml:space="preserve">
+    <value>Ім’я</value>
+  </data>
+  <data name="LastName" xml:space="preserve">
+    <value>Прізвище</value>
+  </data>
+  <data name="LicenseNumber" xml:space="preserve">
+    <value>Номер посвідчення водія</value>
+  </data>
+  <data name="LicensePlate" xml:space="preserve">
+    <value>Номерний знак</value>
+  </data>
+  <data name="Limit" xml:space="preserve">
+    <value>Кількість записів</value>
+  </data>
+  <data name="Mileage" xml:space="preserve">
+    <value>Пробіг, км</value>
+  </data>
+  <data name="Model" xml:space="preserve">
+    <value>Модель</value>
+  </data>
+  <data name="NewPassword" xml:space="preserve">
+    <value>Новий пароль</value>
+  </data>
+  <data name="NewPasswordConfirmation" xml:space="preserve">
+    <value>Підтвердження нового пароля</value>
+  </data>
+  <data name="Note" xml:space="preserve">
+    <value>Коментар</value>
+  </data>
+  <data name="Offset" xml:space="preserve">
+    <value>Зміщення</value>
+  </data>
+  <data name="PackageDetails" xml:space="preserve">
+    <value>Опис вантажу</value>
+  </data>
+  <data name="PackageWeightKg" xml:space="preserve">
+    <value>Вага вантажу, кг</value>
+  </data>
+  <data name="Password" xml:space="preserve">
+    <value>Пароль</value>
+  </data>
+  <data name="PasswordConfirmation" xml:space="preserve">
+    <value>Підтвердження пароля</value>
+  </data>
+  <data name="PhoneNumber" xml:space="preserve">
+    <value>Номер телефону</value>
+  </data>
+  <data name="Pickup" xml:space="preserve">
+    <value>Місце забирання</value>
+  </data>
+  <data name="Query" xml:space="preserve">
+    <value>Пошук за адресою</value>
+  </data>
+  <data name="Rating" xml:space="preserve">
+    <value>Оцінка</value>
+  </data>
+  <data name="RecipientName" xml:space="preserve">
+    <value>Хто отримав</value>
+  </data>
+  <data name="StartedAt" xml:space="preserve">
+    <value>Початок зміни</value>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>Стан</value>
+  </data>
+  <data name="Text" xml:space="preserve">
+    <value>Текст відгуку</value>
+  </data>
+  <data name="WindowLatestAt" xml:space="preserve">
+    <value>Прибути не пізніше</value>
+  </data>
+</root>

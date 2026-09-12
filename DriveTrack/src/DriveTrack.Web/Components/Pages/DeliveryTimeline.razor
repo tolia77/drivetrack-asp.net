@@ -16,15 +16,11 @@
    concerned. *@
 @inject IDeliveryService Timeline
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 @* NFR-3: a refusal resolves through the same catalogue the REST envelope uses, so the dialog and
    the wire cannot disagree about what went wrong. *@
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 @if (_loading)
 {
@@ -142,7 +138,7 @@
     private readonly string _noteFieldId = $"dt-timeline-note-{Guid.NewGuid():N}";
 
     private IReadOnlyList<TimelineEntryView> _entries = [];
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private string? _note;
     private bool _loading = true;
 

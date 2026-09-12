@@ -3,7 +3,6 @@
 @inject INotificationLogService Log
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 @* FR-28: the row an administrator can read.
@@ -29,10 +28,7 @@
     <Icon Name="IconName.Notifications" />@Localizer["NotificationsTitle"]
 </h1>
 
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 <DtDataTable TItem="NotificationAttemptSummary"
              Items="_attempts"
@@ -81,7 +77,7 @@
 
 @code {
     private IReadOnlyList<NotificationAttemptSummary>? _attempts;
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private bool _isLoading = true;
 
     protected override async Task OnInitializedAsync()

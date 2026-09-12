@@ -696,19 +696,27 @@ public class DeliveryScreenTests
         // The 422 a query under three characters earns. The screen renders these keys through the
         // same catalogue the REST envelope uses (NFR-3), and the box has to come back out of its
         // busy state or the button stays disabled and reads as a hung screen.
+        //
+        // The refusal is left on the box rather than returned (DW-41): a caller handed it can put it
+        // anywhere, and where it used to be put was the screen's one failure field, which the submit
+        // path also writes.
         var form = new DeliveryForm();
 
-        var keys = await form.PickupSearch.RunAsync(
+        await form.PickupSearch.RunAsync(
             (_, _) => throw new ValidationException(
                 ErrorCode.COMMON_VALIDATION_FAILED,
                 "Too short.",
                 []),
             TestContext.Current.CancellationToken);
 
-        Assert.NotEmpty(keys);
+        Assert.NotEmpty(form.PickupSearch.Failures);
         Assert.False(form.PickupSearch.IsBusy);
-        Assert.True(form.PickupSearch.FoundNothing);
         Assert.Empty(form.PickupSearch.Matches);
+
+        // And it is not also reported as a search that found nothing. The box's banner renders
+        // directly above that line, so both at once would answer one click with two different
+        // sentences - "this is why it was refused" and "there was nothing to find".
+        Assert.False(form.PickupSearch.FoundNothing);
     }
 
     [Fact]

@@ -20,7 +20,6 @@
 @inject IClientAdministrationService ClientRoster
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["DeliveriesTitle"]</PageTitle>
@@ -31,10 +30,7 @@
 
 @* FR-29 and FR-103 arrive here: a missing driver, a missing client and an overloaded vehicle each
    resolve through the same catalogue the REST envelope uses, so the two cannot disagree (NFR-3). *@
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 @* NFR-27 keeps paging, and this screen asks for the first page and filters it in the browser - so
    past a full page the rest is neither shown nor findable. Saying so is the difference between a
@@ -282,10 +278,7 @@
         @* A second copy of the banner, deliberately. A DtDialog opens with showModal(), so
            everything outside it is inert behind the backdrop: a refusal rendered only at page level
            is a form that fails to close and says nothing. *@
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
 
         @* FR-15 and FR-104: a point is set by clicking the map, or by searching for an address and
            choosing one of the answers. Both end at the same assignment - the chosen match writes the
@@ -325,6 +318,10 @@
                 </button>
             </div>
             <div class="form-text">@Localizer["AddressSearchHint"]</div>
+            @* The box's own banner, under the box it is about (DW-41). The dialog's banner above
+               belongs to Save and Delete, and a search that writes into it is a search that can
+               erase a refusal nobody has read. *@
+            <DtFailureBanner Failures="_form.PickupSearch.Failures" />
             @if (_form.PickupSearch.FoundNothing)
             {
                 @* role="status", like the timeline's empty line: "the search found nothing" is the
@@ -361,6 +358,8 @@
                 </button>
             </div>
             <div class="form-text">@Localizer["AddressSearchHint"]</div>
+            @* See the pickup box above. *@
+            <DtFailureBanner Failures="_form.DropoffSearch.Failures" />
             @if (_form.DropoffSearch.FoundNothing)
             {
                 @* See the pickup box above. *@
@@ -526,7 +525,11 @@
     private IReadOnlyList<DriverSummary> _drivers = [];
     private IReadOnlyList<ClientAccount> _clients = [];
     private IReadOnlyList<VehicleSummary> _vehicles = [];
-    private IReadOnlyList<string> _failures = [];
+    /// <summary>
+    /// Why the last save or delete was refused. Not the address boxes' — each of those keeps its
+    /// own (DW-41), so a search that succeeds cannot clear a refusal still on screen.
+    /// </summary>
+    private IReadOnlyList<ScreenFailure> _failures = [];
 
     private DeliveryForm _form = new();
     private DeliverySummary? _pendingDeletion;
@@ -819,9 +822,13 @@
     /// dropoff box. The three-character floor is the service's, not this screen's, and is
     /// deliberately not repeated here: a rule stated twice is a rule that can disagree with itself,
     /// and the hint under the box is what tells the dispatcher about it beforehand.
+    /// <para>
+    /// Nothing is assigned here, and that is DW-41: the box keeps its own failures, so a search
+    /// that succeeds cannot clear a save refusal the dispatcher has not read - nor the other box's.
+    /// </para>
     /// </remarks>
-    private Func<Task> Search(PlaceSearch search) => async () =>
-        _failures = await search.RunAsync(Dispatch.SearchPlacesAsync, CircuitToken);
+    private Func<Task> Search(PlaceSearch search) =>
+        () => search.RunAsync(Dispatch.SearchPlacesAsync, CircuitToken);
 
     /// <summary>
     /// The same action on Enter, which is the gesture a search box invites. Anything else typed in
@@ -842,7 +849,7 @@
     {
         if (args.Key == "Enter" && !search.IsBusy)
         {
-            _failures = await search.RunAsync(Dispatch.SearchPlacesAsync, CircuitToken);
+            await search.RunAsync(Dispatch.SearchPlacesAsync, CircuitToken);
         }
     };
 
@@ -1247,17 +1254,40 @@
         public bool HasSearched { get; private set; }
 
         /// <summary>
+        /// Why the last search was refused, or empty when it was not. This box's own sink, and the
+        /// whole of DW-41.
+        /// <para>
+        /// It used to be the screen's single <c>_failures</c> field, which the submit path also
+        /// writes: a successful address search then silently erased a refusal the client had not
+        /// read yet, and the two address boxes erased each other's. A box that holds its own answer
+        /// cannot do that to anybody else's.
+        /// </para>
+        /// </summary>
+        public IReadOnlyList<ScreenFailure> Failures { get; private set; } = [];
+
+        /// <summary>
         /// True when a search has run and matched nothing — which is a different state from "no
         /// search has run yet", and the only one of the two with something to say.
         /// </summary>
-        public bool FoundNothing => HasSearched && Matches.Count == 0;
+        /// <remarks>
+        /// A refusal empties <see cref="Matches"/> too, so without the third clause a refused
+        /// search would be a found-nothing search as well - and the box's own banner sits directly
+        /// above this line, telling a dispatcher two different things about one click.
+        /// </remarks>
+        public bool FoundNothing => HasSearched && Matches.Count == 0 && Failures.Count == 0;
 
         /// <summary>
-        /// Runs the search, and answers the failure keys to render — empty when it succeeded.
+        /// Runs the search, leaving the answer in <see cref="Matches"/> and any refusal in
+        /// <see cref="Failures"/>.
         /// </summary>
+        /// <remarks>
+        /// Returns <see cref="Task"/> rather than the failures, deliberately: a caller that is
+        /// handed them can put them anywhere, and where they used to be put is what DW-41 is about.
+        /// With nothing to assign, a search can only ever write this box's own sink.
+        /// </remarks>
         /// <param name="search">The capability's search method.</param>
         /// <param name="cancellationToken">The screen's own token.</param>
-        public async Task<IReadOnlyList<string>> RunAsync(
+        public async Task RunAsync(
             Func<SearchPlacesQuery, CancellationToken, Task<IReadOnlyList<PlaceMatch>>> search,
             CancellationToken cancellationToken)
         {
@@ -1272,13 +1302,14 @@
             {
                 Matches = await search(new SearchPlacesQuery(Query), cancellationToken);
 
-                return [];
+                // Cleared only on the way out of a successful lookup, so a refusal stays on screen
+                // until this box itself has something better to say.
+                Failures = [];
             }
             catch (DriveTrackException failure)
             {
                 Matches = [];
-
-                return FailureKeys.For(failure);
+                Failures = FailureKeys.For(failure);
             }
             finally
             {

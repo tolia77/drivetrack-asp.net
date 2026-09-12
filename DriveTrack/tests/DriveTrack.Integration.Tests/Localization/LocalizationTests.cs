@@ -25,7 +25,8 @@ public class LocalizationTests(PostgresFixture postgres)
 {
     private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");
 
-    private static readonly string[] ResourceFiles = ["ErrorMessages.resx", "UiText.resx"];
+    private static readonly string[] ResourceFiles =
+        ["ErrorMessages.resx", "FieldNames.resx", "UiText.resx"];
 
     [Fact]
     public async Task An_Accept_Language_header_cannot_negotiate_the_culture_away()
@@ -73,6 +74,7 @@ public class LocalizationTests(PostgresFixture postgres)
 
     [Theory]
     [InlineData("ErrorMessages.resx")]
+    [InlineData("FieldNames.resx")]
     [InlineData("UiText.resx")]
     public void Every_resource_value_is_written_in_Ukrainian(string fileName)
     {

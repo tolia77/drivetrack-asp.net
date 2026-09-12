@@ -21,7 +21,6 @@
 @inject ICurrentUser Caller
 @inject TimeProvider Clock
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["ShiftsTitle"]</PageTitle>
@@ -34,10 +33,7 @@
    both resolve through the same catalogue the REST envelope uses, so the two cannot disagree
    (NFR-3). Rendered at page level as well as inside the dialog - a refused delete is raised with no
    dialog open and would otherwise have nowhere to appear. *@
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 <div class="row g-3 align-items-end mb-3">
     <div class="col-sm">
@@ -113,10 +109,7 @@
            DtDialog opens with showModal(), so everything outside it is in the inert layer behind
            the backdrop: a window that runs backwards refused with the message only up there is a
            form that fails to close and says nothing. *@
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
 
         <EditForm id="shift-form" Model="_form" OnValidSubmit="SaveAsync">
             @* Clearing a date field leaves a parse failure on the EditContext, and OnValidSubmit
@@ -183,7 +176,7 @@
 @code {
     private IReadOnlyList<ShiftSummary> _shifts = [];
     private IReadOnlyList<DriverSummary> _drivers = [];
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private ShiftForm _form = new();
     private ShiftSummary? _pendingDeletion;
     private DtDialog? _formDialog;
@@ -367,7 +360,7 @@
                 // sentence answering a question nobody asked.
                 if (_form.DriverId is not { } driverId)
                 {
-                    _failures = [nameof(ErrorCode.COMMON_VALIDATION_FAILED)];
+                    _failures = [new ScreenFailure(null, nameof(ErrorCode.COMMON_VALIDATION_FAILED))];
 
                     return;
                 }
