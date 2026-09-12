@@ -281,7 +281,11 @@
             </EditForm>
         </ChildContent>
         <Actions>
-            <button type="submit" form="request-form" class="btn btn-primary dt-request-submit">
+            @* Disabled while a request is in flight: the circuit yields at the await, so a second
+               click would ask for a second, identical Pending delivery, and there is no dedupe
+               anywhere downstream to undo one that got through. *@
+            <button type="submit" form="request-form" class="btn btn-primary dt-request-submit"
+                    disabled="@_saving">
                 <Icon Name="IconName.Confirm" />@Localizer["RequestDeliverySubmit"]
             </button>
             <button type="button" class="btn btn-secondary" @onclick="CloseRequestAsync">
@@ -330,6 +334,14 @@
     private IReadOnlyList<string> _failures = [];
 
     private bool _loading = true;
+
+    /// <summary>
+    /// True while a request is in flight, which is what disables the submit button for as long as
+    /// it lasts. A delivery carries no natural key the way a vehicle carries a licence plate, so
+    /// nothing downstream would recognise the second click's row as a repeat of the first: the
+    /// client would simply have asked for two identical Pending deliveries.
+    /// </summary>
+    private bool _saving;
 
     /// <summary>Whether this caller is offered the transition buttons.</summary>
     private bool _offersStatusChange;
@@ -450,6 +462,16 @@
     /// </remarks>
     private async Task SubmitRequestAsync()
     {
+        if (_saving)
+        {
+            return;
+        }
+
+        // Set before the await and cleared in the finally: the button is disabled from the moment
+        // the first click is handled until the server has answered, so a second click has nothing
+        // to act on.
+        _saving = true;
+
         try
         {
             await Mine.RequestAsync(_request.ToCommand(), CircuitToken);
@@ -463,6 +485,10 @@
             _failures = FailureKeys.For(failure);
 
             return;
+        }
+        finally
+        {
+            _saving = false;
         }
 
         // Outside the try, deliberately. The request has committed, so a failure refreshing the

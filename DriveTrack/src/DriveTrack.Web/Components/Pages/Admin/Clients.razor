@@ -103,7 +103,10 @@
         </div>
     </ChildContent>
     <Actions>
-        <button type="button" class="btn btn-primary dt-client-save" @onclick="SaveAsync">
+        @* Disabled while a save is in flight: the circuit yields at the await, so a second click
+           would send the same edit again. *@
+        <button type="button" class="btn btn-primary dt-client-save" disabled="@_saving"
+                @onclick="SaveAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
         <button type="button" class="btn btn-secondary dt-client-cancel" @onclick="CancelEditAsync">
@@ -128,6 +131,13 @@
     private IReadOnlyList<string> _failures = [];
     private bool _isLoading = true;
     private bool _isAdmin;
+
+    /// <summary>
+    /// True while a save is in flight, which is what disables the save button for as long as it
+    /// lasts. The circuit yields at the await, so without it a second click would send the same
+    /// edit again.
+    /// </summary>
+    private bool _saving;
 
     protected override async Task OnInitializedAsync()
     {
@@ -205,6 +215,16 @@
             return;
         }
 
+        if (_saving)
+        {
+            return;
+        }
+
+        // Set before the await and cleared in the finally: the button is disabled from the moment
+        // the first click is handled until the server has answered, so a second click has nothing
+        // to act on.
+        _saving = true;
+
         try
         {
             await Roster.UpdateAsync(_selected.UserId, _form.ToCommand(), CircuitToken);
@@ -217,6 +237,10 @@
             _failures = FailureKeys.For(failure);
 
             return;
+        }
+        finally
+        {
+            _saving = false;
         }
 
         // Cleared on the way out, not only when a dialog opens: the banner is rendered at page

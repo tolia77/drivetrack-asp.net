@@ -105,7 +105,15 @@
        in the browser rather than costing a refused round trip to be told the same thing. *@
     <textarea id="@_noteFieldId" class="form-control"
               maxlength="@TimelineEntry.NoteMaximumLength" @bind="_note"></textarea>
-    <button type="button" class="btn btn-primary btn-sm dt-timeline-add-note" @onclick="AddNoteAsync">
+    @* Disabled while a note is in flight: the circuit yields at the await, so a second click would
+       write the same note onto the timeline twice.
+       And while the reload that follows one is in flight, which no other screen needs: every other
+       handler closes its dialog before refetching, and this panel stays on screen with its box
+       already emptied. Without `_loading` the button comes back enabled the moment the finally
+       clears the flag, and a click landing in that window posts the now-null note - bannering a
+       refusal over a note that saved. *@
+    <button type="button" class="btn btn-primary btn-sm dt-timeline-add-note"
+            disabled="@(_addingNote || _loading)" @onclick="AddNoteAsync">
         <Icon Name="IconName.Create" />@Localizer["AddNote"]
     </button>
 </div>
@@ -137,6 +145,14 @@
     private IReadOnlyList<string> _failures = [];
     private string? _note;
     private bool _loading = true;
+
+    /// <summary>
+    /// True while a note is in flight, which is what disables the add-note button for as long as it
+    /// lasts. The circuit yields at the await, so without it a second click would write the same
+    /// note onto the timeline twice. The status actions below are not covered: they are not a form
+    /// submit, and a repeated transition is refused by the capability rather than duplicated.
+    /// </summary>
+    private bool _addingNote;
 
     /// <summary>
     /// The delivery whose history is loaded, or zero before the first load. Compared against
@@ -284,6 +300,16 @@
 
     private async Task AddNoteAsync()
     {
+        if (_addingNote)
+        {
+            return;
+        }
+
+        // Set before the await and cleared in the finally: the button is disabled from the moment
+        // the first click is handled until the server has answered, so a second click has nothing
+        // to act on.
+        _addingNote = true;
+
         try
         {
             await Timeline.AddNoteAsync(
@@ -299,6 +325,10 @@
             _failures = FailureKeys.For(failure);
 
             return;
+        }
+        finally
+        {
+            _addingNote = false;
         }
 
         // Outside the try. The entry has committed, so a failure refreshing the panel afterwards is

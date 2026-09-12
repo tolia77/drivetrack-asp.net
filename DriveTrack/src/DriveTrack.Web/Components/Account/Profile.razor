@@ -135,7 +135,11 @@
         @* The handler is a method rather than a lambda in the attribute: a `=>` here would close the
            tag as far as NFR-14's markup scan is concerned, and everything after it would be read as
            rendered English. *@
-        <button type="button" class="btn btn-primary dt-profile-save" @onclick="SaveProfileAsync">
+        @* Disabled while this save is in flight, and only this one: the circuit yields at the
+           await, so a second click would dispatch a second write. Each dialog carries its own
+           flag, so a save here leaves the other two dialogs alone. *@
+        <button type="button" class="btn btn-primary dt-profile-save" disabled="@_savingProfile"
+                @onclick="SaveProfileAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
         <button type="button" class="btn btn-secondary dt-profile-cancel" @onclick="CloseEditAsync">
@@ -167,7 +171,11 @@
         </div>
     </ChildContent>
     <Actions>
-        <button type="button" class="btn btn-primary dt-password-save" @onclick="SavePasswordAsync">
+        @* The double-click that misreports rather than merely duplicating: the second click sends
+           the current password the first has already replaced, and the user is told their change
+           failed when it did not. *@
+        <button type="button" class="btn btn-primary dt-password-save" disabled="@_savingPassword"
+                @onclick="SavePasswordAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
         <button type="button" class="btn btn-secondary dt-password-cancel" @onclick="ClosePasswordAsync">
@@ -188,7 +196,9 @@
         </div>
     </ChildContent>
     <Actions>
-        <button type="button" class="btn btn-primary dt-email-save" @onclick="SaveEmailAsync">
+        @* Disabled while this save is in flight, for the same reason as the other two dialogs. *@
+        <button type="button" class="btn btn-primary dt-email-save" disabled="@_savingEmail"
+                @onclick="SaveEmailAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
         <button type="button" class="btn btn-secondary dt-email-cancel" @onclick="CloseEmailAsync">
@@ -207,6 +217,15 @@
     private UserProfile? _profile;
     private IReadOnlyList<string> _failures = [];
     private bool _isClient;
+
+    // Three flags rather than one, because these are three independent dialogs: a single shared
+    // flag would grey out the save in a dialog the user is not even in. The password one is the
+    // case that misreports rather than merely duplicating - the second click sends the current
+    // password the first click has already changed, so a change that succeeded comes back as
+    // AUTH_CURRENT_PASSWORD_INCORRECT.
+    private bool _savingProfile;
+    private bool _savingPassword;
+    private bool _savingEmail;
 
     protected override async Task OnInitializedAsync()
     {
@@ -280,6 +299,16 @@
 
     private async Task SaveProfileAsync()
     {
+        if (_savingProfile)
+        {
+            return;
+        }
+
+        // Set before the await and cleared in the finally: the button is disabled from the moment
+        // the first click is handled until the server has answered, so a second click has nothing
+        // to act on.
+        _savingProfile = true;
+
         try
         {
             await Users.UpdateProfileAsync(
@@ -297,6 +326,10 @@
 
             return;
         }
+        finally
+        {
+            _savingProfile = false;
+        }
 
         // Cleared on the way out, not only when a dialog opens: the banner is rendered at page level
         // as well as inside the dialog, so a refused attempt that is then corrected and accepted
@@ -313,6 +346,16 @@
 
     private async Task SavePasswordAsync()
     {
+        if (_savingPassword)
+        {
+            return;
+        }
+
+        // Set before the await and cleared in the finally. Without it the second click sends the
+        // current password the first click has already changed, and a change that succeeded is
+        // reported back as AUTH_CURRENT_PASSWORD_INCORRECT.
+        _savingPassword = true;
+
         try
         {
             await Users.ChangePasswordAsync(
@@ -332,6 +375,10 @@
 
             return;
         }
+        finally
+        {
+            _savingPassword = false;
+        }
 
         ClearPasswords();
         _failures = [];
@@ -345,6 +392,16 @@
 
     private async Task SaveEmailAsync()
     {
+        if (_savingEmail)
+        {
+            return;
+        }
+
+        // Set before the await and cleared in the finally: the button is disabled from the moment
+        // the first click is handled until the server has answered, so a second click has nothing
+        // to act on.
+        _savingEmail = true;
+
         try
         {
             await Users.ChangeEmailAsync(
@@ -357,6 +414,10 @@
             _failures = FailureKeys.For(failure);
 
             return;
+        }
+        finally
+        {
+            _savingEmail = false;
         }
 
         _failures = [];
