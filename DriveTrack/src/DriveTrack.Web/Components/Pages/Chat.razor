@@ -3,7 +3,6 @@
 @inject ICurrentUser Caller
 @inject IJSRuntime JS
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @implements IAsyncDisposable
 
 @* FR-68 to FR-76: the one chat screen, for both of its participants.
@@ -35,10 +34,7 @@
     <Icon Name="IconName.Chat" />@Localizer["ChatTitle"]
 </h1>
 
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 @if (!_isParticipant)
 {
@@ -144,7 +140,7 @@
 
     private IReadOnlyList<ChatThreadSummaryView> _threads = [];
     private ChatThreadView? _thread;
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private string? _draft;
     private bool _sending;
 
@@ -216,7 +212,7 @@
         }
         catch (JSException failure)
         {
-            _failures = [KeyOf(failure)];
+            _failures = [new ScreenFailure(null, KeyOf(failure))];
         }
 
         StateHasChanged();
@@ -312,7 +308,7 @@
             // it on screen would render a conversation this connection no longer receives - and
             // SendAsync would go on posting into it.
             _thread = null;
-            _failures = [KeyOf(failure)];
+            _failures = [new ScreenFailure(null, KeyOf(failure))];
 
             StateHasChanged();
 
@@ -346,7 +342,7 @@
         {
             // The draft stays in the box: a message the server refused for being too long is a
             // message the sender is being asked to shorten, not one to make them retype.
-            _failures = [KeyOf(failure)];
+            _failures = [new ScreenFailure(null, KeyOf(failure))];
 
             return;
         }

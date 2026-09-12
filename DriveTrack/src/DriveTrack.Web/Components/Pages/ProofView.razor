@@ -14,13 +14,9 @@
    as a rendered English word. *@
 @inject IProofOfDeliveryService Proofs
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 @if (_loading)
 {
@@ -63,7 +59,7 @@
 
 @code {
     private ProofOfDeliveryView? _proof;
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private bool _loading = true;
 
     /// <summary>

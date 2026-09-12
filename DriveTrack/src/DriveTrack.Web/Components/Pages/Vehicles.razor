@@ -17,7 +17,6 @@
 @inject IVehicleService Fleet
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["VehiclesTitle"]</PageTitle>
@@ -29,10 +28,7 @@
 @* FR-43's refusal arrives here: the localized FLEET_VEHICLE_IN_USE message tells the dispatcher to
    unassign the driver first, which is a way out the original system did not have. Resolved through
    the same catalogue the REST envelope uses, so the two cannot disagree (NFR-3). *@
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 <div class="row g-3 align-items-end mb-3">
     <div class="col-sm">
@@ -94,10 +90,7 @@
            form that fails to close and says nothing, which is not FR-41's "clear message".
            The page-level copy still carries the refusals raised with no dialog open - FR-43's
            held-vehicle delete, above all. *@
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
 
         <EditForm id="vehicle-form" Model="_form" OnValidSubmit="SaveAsync">
             @* Clearing a number or a date field leaves a parse failure on the EditContext, and
@@ -161,7 +154,7 @@
 
 @code {
     private IReadOnlyList<VehicleSummary> _vehicles = [];
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private VehicleForm _form = new();
     private VehicleSummary? _pendingDeletion;
     private DtDialog? _formDialog;

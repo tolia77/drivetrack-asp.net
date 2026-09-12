@@ -18,14 +18,10 @@
 @inject IProofOfDeliveryService Proofs
 @inject IJSRuntime JS
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 @implements IAsyncDisposable
 
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 <div class="dt-proof-form">
     <div>
@@ -92,7 +88,7 @@
     private readonly string _photosFieldId = $"dt-proof-photos-{Guid.NewGuid():N}";
 
     private IReadOnlyList<IBrowserFile> _photos = [];
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private DtSignaturePad? _signature;
     private IJSObjectReference? _module;
     private MapLocation? _location;
@@ -250,7 +246,7 @@
             // Reported as COMMON_UNEXPECTED_ERROR, which is what the REST surface answers for the
             // same failure (AD-7): the capture did not happen, nothing committed, and the driver's
             // next move is to try again.
-            _failures = [nameof(ErrorCode.COMMON_UNEXPECTED_ERROR)];
+            _failures = [new ScreenFailure(null, nameof(ErrorCode.COMMON_UNEXPECTED_ERROR))];
 
             return;
         }

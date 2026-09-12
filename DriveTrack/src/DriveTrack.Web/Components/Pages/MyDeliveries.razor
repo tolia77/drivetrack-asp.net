@@ -30,7 +30,6 @@
 @inject IDeliveryService Mine
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @* The dispatch board's address box, reused rather than copied. It is framework-free and takes its
    search delegate as a parameter precisely so a second screen can drive it, and FR-104's rule about
    which box fills which point is one rule however many forms ask it. Aliased because `Deliveries`
@@ -179,10 +178,7 @@
         <ChildContent>
             @* Inside the dialog, deliberately. A DtDialog opens with showModal(), so a refusal
                rendered at page level would sit behind the backdrop and say nothing. *@
-            @foreach (var key in _failures)
-            {
-                <div class="alert alert-danger" role="alert">@Errors[key]</div>
-            }
+            <DtFailureBanner Failures="_failures" />
 
             <div class="mb-3">
                 <label class="form-label" for="request-pickup-search">@Localizer["AddressSearch"]</label>
@@ -198,6 +194,10 @@
                     </button>
                 </div>
                 <div class="form-text">@Localizer["AddressSearchHint"]</div>
+                @* The box's own banner, under the box it is about (DW-41). The dialog's banner above
+                   belongs to the request itself, and a search that writes into it is a search that
+                   can erase a refusal nobody has read. *@
+                <DtFailureBanner Failures="_request.PickupSearch.Failures" />
                 @if (_request.PickupSearch.FoundNothing)
                 {
                     <div class="form-text dt-request-pickup-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
@@ -233,6 +233,8 @@
                     </button>
                 </div>
                 <div class="form-text">@Localizer["AddressSearchHint"]</div>
+                @* See the pickup box above. *@
+                <DtFailureBanner Failures="_request.DropoffSearch.Failures" />
                 @if (_request.DropoffSearch.FoundNothing)
                 {
                     <div class="form-text dt-request-dropoff-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
@@ -330,8 +332,12 @@
     /// <summary>What the request dialog is holding. Replaced on each open rather than cleared.</summary>
     private RequestForm _request = new();
 
-    /// <summary>The resource keys of the last refusal, rendered inside the request dialog.</summary>
-    private IReadOnlyList<string> _failures = [];
+    /// <summary>
+    /// Why the last request submission was refused, rendered inside the request dialog. Not the
+    /// address boxes' — each of those keeps its own (DW-41), so a search that succeeds cannot clear
+    /// a refusal still on screen.
+    /// </summary>
+    private IReadOnlyList<ScreenFailure> _failures = [];
 
     private bool _loading = true;
 
@@ -510,10 +516,14 @@
     /// it rendered the list from and there is no second place the pickup handler could be wired to
     /// the dropoff box. The three-character floor is the capability's and is deliberately not
     /// repeated here; the hint under the box is what tells the client about it beforehand.
+    /// <para>
+    /// Nothing is assigned here, and that is DW-41: the box keeps its own failures, so a search that
+    /// succeeds cannot clear a submit refusal the client has not read - nor the other box's.
+    /// </para>
     /// </remarks>
     /// <param name="search">The box being searched with.</param>
-    private Func<Task> Search(PlaceSearch search) => async () =>
-        _failures = await search.RunAsync(Mine.SearchPlacesAsync, CircuitToken);
+    private Func<Task> Search(PlaceSearch search) =>
+        () => search.RunAsync(Mine.SearchPlacesAsync, CircuitToken);
 
     /// <summary>
     /// The same action on Enter, which is the gesture a search box invites. Anything else typed
@@ -530,7 +540,7 @@
     {
         if (args.Key == "Enter" && !search.IsBusy)
         {
-            _failures = await search.RunAsync(Mine.SearchPlacesAsync, CircuitToken);
+            await search.RunAsync(Mine.SearchPlacesAsync, CircuitToken);
         }
     };
 

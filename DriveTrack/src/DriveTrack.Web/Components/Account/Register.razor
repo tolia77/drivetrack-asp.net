@@ -7,17 +7,13 @@
 @attribute [AllowAnonymous]
 @inject IUserService Users
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inject NavigationManager Navigation
 
 <PageTitle>@Localizer["RegisterTitle"]</PageTitle>
 
 <h1>@Localizer["RegisterTitle"]</h1>
 
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 <EditForm Model="Form!" FormName="register" OnValidSubmit="SubmitAsync">
     <div class="mb-3">
@@ -65,7 +61,7 @@
     // property's name. Different names on the two sides bind nothing, silently.
     protected override void OnInitialized() => Form ??= new RegisterInput();
 
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
 
     private async Task SubmitAsync()
     {

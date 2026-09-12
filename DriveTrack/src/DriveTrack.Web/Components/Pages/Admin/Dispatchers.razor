@@ -3,7 +3,6 @@
 @inject IDispatcherAdministrationService Roster
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@inject IStringLocalizer<ErrorMessages> Errors
 @inherits CircuitScopedComponent
 
 @* FR-49 / FR-50: dispatcher accounts, and the first surface in the system that can make one - until
@@ -17,10 +16,7 @@
 
 <h1>@Localizer["DispatchersTitle"]</h1>
 
-@foreach (var key in _failures)
-{
-    <div class="alert alert-danger" role="alert">@Errors[key]</div>
-}
+<DtFailureBanner Failures="_failures" />
 
 <p>
     <button type="button" class="btn btn-success dt-dispatcher-new" @onclick="ShowCreateAsync">
@@ -55,10 +51,7 @@
         @* Repeated inside the dialog, not only at the top of the page: a native <dialog> opened with
            showModal() sits in the top layer with everything behind it inert, so a banner rendered up
            there is invisible to the administrator who just pressed Create and got a 409. *@
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
         <div class="mb-3">
             <label class="form-label" for="new-dispatcher-first-name">@Localizer["FirstName"]</label>
             <input id="new-dispatcher-first-name" class="form-control" @bind="_createForm.FirstName" />
@@ -104,10 +97,7 @@
     <ChildContent>
         @* Same reason as the create dialog above: the page behind a modal is inert, so a refusal has
            to appear where the administrator is looking. *@
-        @foreach (var key in _failures)
-        {
-            <div class="alert alert-danger" role="alert">@Errors[key]</div>
-        }
+        <DtFailureBanner Failures="_failures" />
         <div class="mb-3">
             <label class="form-label" for="dispatcher-first-name">@Localizer["FirstName"]</label>
             <input id="dispatcher-first-name" class="form-control" @bind="_editForm.FirstName" />
@@ -151,7 +141,7 @@
 
     private IReadOnlyList<DispatcherAccount>? _dispatchers;
     private DispatcherAccount? _selected;
-    private IReadOnlyList<string> _failures = [];
+    private IReadOnlyList<ScreenFailure> _failures = [];
     private bool _isLoading = true;
 
     /// <summary>
