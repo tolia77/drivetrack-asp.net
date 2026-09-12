@@ -159,7 +159,10 @@
         </EditForm>
     </ChildContent>
     <Actions>
-        <button type="submit" form="my-shift-form" class="btn btn-primary dt-shift-save">
+        @* Disabled while a save is in flight: the circuit yields at the await, so a second click
+           would send the same correction again. *@
+        <button type="submit" form="my-shift-form" class="btn btn-primary dt-shift-save"
+                disabled="@_saving">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
         <button type="button" class="btn btn-secondary dt-shift-cancel" @onclick="CloseFormAsync">
@@ -184,6 +187,13 @@
     private DtDialog? _formDialog;
     private DtConfirmDialog? _deleteDialog;
     private bool _loading = true;
+
+    /// <summary>
+    /// True while a save is in flight, which is what disables the submit button for as long as it
+    /// lasts. The circuit yields at the await, so without it a second click would send the same
+    /// correction again.
+    /// </summary>
+    private bool _saving;
 
     /// <summary>
     /// The caller's open shift, or null when they are off duty.
@@ -338,6 +348,16 @@
             return;
         }
 
+        if (_saving)
+        {
+            return;
+        }
+
+        // Set before the await and cleared in the finally: the button is disabled from the moment
+        // the first click is handled until the server has answered, so a second click has nothing
+        // to act on.
+        _saving = true;
+
         try
         {
             await Duty.UpdateAsync(shiftId, _form.AsUpdate(), CircuitToken);
@@ -351,6 +371,10 @@
             _failures = FailureKeys.For(failure);
 
             return;
+        }
+        finally
+        {
+            _saving = false;
         }
 
         // Outside the try, deliberately. The write has committed, so a failure refreshing the list
