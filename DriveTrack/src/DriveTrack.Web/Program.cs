@@ -65,7 +65,17 @@ builder.Services.AddApplication();
 builder.Services.AddLocalization();
 
 // AD-7: the REST adapter. Every controller outcome and every failure leaves in one envelope.
-builder.Services.AddControllers(options => options.Filters.Add<EnvelopeResultFilter>())
+builder.Services.AddControllers(options =>
+    {
+        // The other half of Suppression 1 below: with SuppressModelStateInvalidFilter on, a body
+        // that fails to bind does not short-circuit - the argument is omitted and the action runs
+        // with a null command, turning the caller's malformed bytes into a 500. This refuses it as
+        // 422 before the action, and nothing else in the pipeline can: only the filter pipeline
+        // sees which parameters bound and from where.
+        options.Filters.Add<RequestBodyBindingFilter>();
+
+        options.Filters.Add<EnvelopeResultFilter>();
+    })
     .ConfigureApiBehaviorOptions(options =>
     {
         // Suppression 1: no automatic 400 ProblemDetails on invalid model state. Validation is
