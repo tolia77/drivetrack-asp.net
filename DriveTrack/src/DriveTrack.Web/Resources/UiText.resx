@@ -558,6 +558,9 @@
   <data name="NotificationsEmpty" xml:space="preserve">
     <value>Жодного сповіщення ще не надсилалося.</value>
   </data>
+  <data name="NotificationsTruncated" xml:space="preserve">
+    <value>Показано лише першу сторінку: спроб надсилання може бути більше, ніж вміщує цей список.</value>
+  </data>
   <data name="NotificationDelivery" xml:space="preserve">
     <value>Доставка</value>
   </data>

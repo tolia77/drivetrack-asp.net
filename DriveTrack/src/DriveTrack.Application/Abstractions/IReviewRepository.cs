@@ -12,7 +12,7 @@ public interface IReviewRepository
     Task<Review?> GetByIdAsync(int id, CancellationToken cancellationToken);
 
     /// <summary>
-    /// One page of reviews, oldest first, narrowed to the rows the caller may see (FR-63, FR-64,
+    /// One page of reviews, newest first, narrowed to the rows the caller may see (FR-63, FR-64,
     /// NFR-27).
     /// </summary>
     /// <remarks>
@@ -21,9 +21,11 @@ public interface IReviewRepository
     /// outside the first hundred, and no amount of paging further finds them. The narrowing has to
     /// be part of the query, so it is part of the signature.
     /// <para>
-    /// "Oldest first" is the row id ascending, for the reason <see cref="IDeliveryRepository"/>
+    /// "Newest first" is the row id descending, for the reason <see cref="IDeliveryRepository"/>
     /// gives: the id comes from a sequence, so it is insertion order, and insertion order is
-    /// creation order for every row this system writes.
+    /// creation order for every row this system writes. Newest rather than oldest for the reason it
+    /// gives too — nobody pages past the first page, so ascending put the reviews just written
+    /// where no moderator would reach them.
     /// </para>
     /// </remarks>
     /// <param name="scope">The guard's answer to "whose rows may this caller see".</param>

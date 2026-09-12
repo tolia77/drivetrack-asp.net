@@ -47,7 +47,10 @@ public class DeliveryDisclosureTests(PostgresFixture postgres)
 
         var rows = await MineAsync(client, driver.Token, query: string.Empty, cancellationToken);
 
-        Assert.Equal(mine, rows.Select(row => row.GetProperty("id").GetInt32()).ToArray());
+        // Newest first, so the driver's most recent assignment is the row they are shown first.
+        Assert.Equal(
+            Enumerable.Reverse(mine),
+            rows.Select(row => row.GetProperty("id").GetInt32()).ToArray());
     }
 
     [Fact]
@@ -123,9 +126,13 @@ public class DeliveryDisclosureTests(PostgresFixture postgres)
     [Fact]
     public async Task A_page_is_scoped_in_the_query_rather_than_filtered_after_it()
     {
-        // AD-3's rule, and the defect it exists to make unrepresentable. Ninety deliveries belong
-        // to nobody and the last ten to this driver; a page fetched unscoped and filtered afterwards
-        // answers an empty first page, and no amount of paging further finds them.
+        // AD-3's rule, and the defect it exists to make unrepresentable. Ten deliveries belong to
+        // this driver and the ninety after them to nobody; a page fetched unscoped and filtered
+        // afterwards answers an empty first page, and no amount of paging further finds them.
+        //
+        // The driver's ten are seeded first on purpose. The list reads newest first, so seeding them
+        // last would put them on the unscoped first page too and a post-filter would pass - the
+        // order the rows go in is what keeps this test able to fail.
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var factory = await FleetApi.CreateAsync(postgres.ConnectionString, cancellationToken);
         using var client = factory.CreateClient();
@@ -138,16 +145,16 @@ public class DeliveryDisclosureTests(PostgresFixture postgres)
         await using (var context = await factory.Database.ContextFactory
                          .CreateDbContextAsync(cancellationToken))
         {
-            for (var index = 0; index < 90; index++)
+            for (var index = 0; index < 10; index++)
             {
-                context.Deliveries.Add(Seed.NewDelivery());
+                context.Deliveries.Add(Seed.NewDelivery(driverId: new DriverId(driver.DriverId)));
             }
 
             await context.SaveChangesAsync(cancellationToken);
 
-            for (var index = 0; index < 10; index++)
+            for (var index = 0; index < 90; index++)
             {
-                context.Deliveries.Add(Seed.NewDelivery(driverId: new DriverId(driver.DriverId)));
+                context.Deliveries.Add(Seed.NewDelivery());
             }
 
             await context.SaveChangesAsync(cancellationToken);

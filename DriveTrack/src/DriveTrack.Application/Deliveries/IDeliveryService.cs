@@ -14,7 +14,7 @@ namespace DriveTrack.Application.Deliveries;
 public interface IDeliveryService
 {
     /// <summary>
-    /// One page of every delivery, oldest first, with both parties named (FR-18). Dispatcher or
+    /// One page of every delivery, newest first, with both parties named (FR-18). Dispatcher or
     /// admin; a driver or a client is refused rather than quietly narrowed.
     /// </summary>
     /// <exception cref="Common.ForbiddenException">The caller runs neither dispatch nor the system.</exception>

@@ -397,7 +397,7 @@ public class DeliveryManagementTests(PostgresFixture postgres)
     // =====================================================================================
 
     [Fact]
-    public async Task The_list_answers_every_delivery_oldest_first()
+    public async Task The_list_answers_every_delivery_newest_first()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var factory = await FleetApi.CreateAsync(postgres.ConnectionString, cancellationToken);
@@ -419,7 +419,12 @@ public class DeliveryManagementTests(PostgresFixture postgres)
 
         // Explicitly ordered rather than left to the database: an unordered OFFSET is a page that
         // can repeat and skip rows between requests.
-        Assert.Equal(new[] { first, second, third }, ids);
+        //
+        // Newest first, and that is the fix rather than a preference: nobody pages past the first
+        // hundred, so an ascending order put a delivery just opened on a page dispatch never asked
+        // for. The board still draws what it fetched oldest first - which rows arrive and the order
+        // they are drawn in are different questions.
+        Assert.Equal(new[] { third, second, first }, ids);
     }
 
     [Theory]

@@ -1,5 +1,6 @@
 using System.Net;
 using DriveTrack.Application.Common;
+using DriveTrack.Application.Reviews;
 using DriveTrack.Domain.Deliveries;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Domain.Reviews;
@@ -732,13 +733,17 @@ public class ReviewTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task The_list_answers_every_review_oldest_first()
+    public async Task The_list_answers_every_review_newest_first()
     {
         // The twin of the delivery board's ordering test, and the reason it is not merely a
-        // restatement of the seed order: the middle review is edited after all three are written.
-        // PostgreSQL answers an UPDATE by writing a new row version rather than by changing the old
-        // one in place, so a read with no ORDER BY hands the edited row back last - and deleting
-        // the OrderBy would show up here as 1, 3, 2 instead of passing on insertion order.
+        // restatement of the reversed seed order: the middle review is edited after all three are
+        // written. PostgreSQL answers an UPDATE by writing a new row version rather than by changing
+        // the old one in place, so a read with no ORDER BY hands the edited row back last - and
+        // deleting the OrderByDescending would show up here as 1, 3, 2 instead of 3, 2, 1.
+        //
+        // Newest first, and that is the fix rather than a preference: nobody pages past the first
+        // hundred, so an ascending order put the reviews just written on a page a moderator never
+        // asked for.
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var factory = await FleetApi.CreateAsync(postgres.ConnectionString, cancellationToken);
         using var client = factory.CreateClient();
@@ -768,7 +773,7 @@ public class ReviewTests(PostgresFixture postgres)
             .Select(row => row.GetProperty("id").GetInt32())
             .ToArray();
 
-        Assert.Equal(written, ids);
+        Assert.Equal(Enumerable.Reverse(written), ids);
 
         // The author's own list reads through the same repository method, so it is ordered by the
         // same line - and would lose its ordering with it.
@@ -796,7 +801,49 @@ public class ReviewTests(PostgresFixture postgres)
             .Select(row => row.GetProperty("id").GetInt32())
             .ToArray();
 
-        Assert.Equal(mine, ownIds);
+        Assert.Equal(Enumerable.Reverse(mine), ownIds);
+    }
+
+    [Fact]
+    public async Task A_review_written_past_the_first_page_is_still_the_first_row_a_moderator_sees()
+    {
+        // DW-46 at the surface that matters. The ordering test above orders three rows, so it would
+        // pass on a list of any size; this one crosses the default page boundary, which is where the
+        // defect actually lived: nobody pages past the first page, so with an ascending order the
+        // newest review sat on a page no moderator would ever ask for. One more than a full page is
+        // the smallest seed that can tell the two orders apart.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var factory = await FleetApi.CreateAsync(postgres.ConnectionString, cancellationToken);
+        using var client = factory.CreateClient();
+
+        var dispatcher = await DeliveryApi.DispatcherAsync(factory, client, cancellationToken);
+
+        var written = new List<int>();
+
+        // Seeded through the context rather than over HTTP: writing a review means carrying a parcel
+        // end to end, and a page of those would make this a test of the endpoint's throughput.
+        await using (var context = await factory.Database.ContextFactory
+                         .CreateDbContextAsync(cancellationToken))
+        {
+            var author = (await Seed.ClientAsync(context, cancellationToken)).Id;
+
+            written.AddRange(await ReviewDisclosureTests.SeedReviewsAsync(
+                context, author, ListReviewsQueryValidator.MaximumLimit + 1, cancellationToken));
+        }
+
+        // No query string: the moderation list's own default page, which is the only page anybody
+        // fetches.
+        var ids = (await ReviewApi.RowsAsync(
+                await ReviewApi.ListAsync(client, dispatcher, cancellationToken),
+                cancellationToken))
+            .Select(row => row.GetProperty("id").GetInt32())
+            .ToArray();
+
+        // Exactly one page, and the review written last is the row at the top of it. The one left
+        // over is the oldest, which is the row that may fall off.
+        Assert.Equal(ListReviewsQueryValidator.MaximumLimit, ids.Length);
+        Assert.Equal(written[^1], ids[0]);
+        Assert.DoesNotContain(written[0], ids);
     }
 
     /// <summary>

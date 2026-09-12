@@ -65,6 +65,16 @@ public class NotificationScreenTests
 
         Assert.Contains(Attempts[0].Error!, text, StringComparison.Ordinal);
 
+        // Drawn in the order the log handed them, which is the whole of what newest-first buys an
+        // administrator: the repository orders the page and this screen adds no sort of its own, so
+        // the newest attempt is the first row. The sibling dispatch board does re-sort what it
+        // fetches, so "the table draws the list it was given" is a property of this screen rather
+        // than of the shared table, and nothing else here would notice a sort arriving.
+        Assert.True(
+            text.IndexOf(Attempts[0].Recipient, StringComparison.Ordinal)
+                < text.IndexOf(Attempts[1].Recipient, StringComparison.Ordinal),
+            "The newest attempt is not the first row on the screen.");
+
         // One of each outcome, each as a word rather than as the enum member the column holds
         // (AD-18, AD-21). The member names are the thing that must not be on the screen.
         Assert.Equal(1, SharedMarkup.Occurrences(html, "dt-notification-sent"));
@@ -140,6 +150,60 @@ public class NotificationScreenTests
         }
     }
 
+    [Theory]
+    [InlineData(ListNotificationAttemptsQueryValidator.MaximumLimit, 1)]
+    [InlineData(ListNotificationAttemptsQueryValidator.MaximumLimit - 1, 0)]
+    public async Task A_full_page_says_there_may_be_more_and_a_short_one_does_not(
+        int rows,
+        int banners)
+    {
+        // NFR-27 bounds the read, and this is the other half of bounding it: the log grows by a row
+        // per status change per delivery, so past a full page the older attempts are off the screen
+        // with nothing saying so. A full page is all this screen can know - the query answers no
+        // total (PRD section 8 excludes one) - so "there may be more" is the honest claim.
+        var html = await RenderAsync(Page(rows));
+
+        Assert.Equal(rows, SharedMarkup.Occurrences(html, "dt-table-row"));
+
+        // alert-warning is this banner alone: the failure banner above it is alert-danger.
+        Assert.Equal(banners, SharedMarkup.Occurrences(html, "alert-warning"));
+
+        if (banners == 0)
+        {
+            return;
+        }
+
+        // NFR-14: the sentence is the catalogue's, not a key that resolved to its own name.
+        var text = SharedMarkup.TextOf(SharedMarkup.ElementWithClass(html, "div", "alert-warning"));
+
+        Assert.True(SharedMarkup.IsUkrainian(text), $"The truncation banner reads '{text}'.");
+        Assert.False(SharedMarkup.HasLatinWord(text), $"The truncation banner reads '{text}'.");
+    }
+
+    [Fact]
+    public async Task The_screen_asks_for_the_first_page_at_the_validator_s_own_maximum()
+    {
+        // The page the screen asks for is not observable in its markup, so without this nothing
+        // holds it to the number the banner is compared against. A smaller limit would render fewer
+        // rows with IsTruncated still measuring against MaximumLimit - a screen silently hiding
+        // attempts while claiming there are no more - and a larger one would make the real
+        // validator refuse every administrator. Both leave every other test here green.
+        var log = new StubLog(Attempts);
+
+        await ComponentRenderer.RenderAsync<Web.Components.Pages.Admin.Notifications>(
+            parameters: null,
+            configureServices: services =>
+            {
+                services.AddSingleton<ICurrentUser>(new StubCaller());
+                services.AddSingleton<INotificationLogService>(log);
+            });
+
+        var asked = Assert.IsType<ListNotificationAttemptsQuery>(log.Asked);
+
+        Assert.Equal(0, asked.Offset);
+        Assert.Equal(ListNotificationAttemptsQueryValidator.MaximumLimit, asked.Limit);
+    }
+
     [Fact]
     public void The_screen_takes_no_authorization_decision_of_its_own()
     {
@@ -156,6 +220,19 @@ public class NotificationScreenTests
         Assert.DoesNotContain("<AuthorizeView", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("[Authorize(Roles", markup, StringComparison.Ordinal);
     }
+
+    /// <summary>A page of <paramref name="rows"/> attempts, each distinct enough to be its own row.</summary>
+    private static NotificationAttemptSummary[] Page(int rows) =>
+        [
+            .. Enumerable.Range(1, rows).Select(index => new NotificationAttemptSummary(
+                index,
+                index,
+                NotificationKind.StatusChange,
+                $"client{index}@drivetrack.test",
+                Noon,
+                NotificationOutcome.Sent,
+                null)),
+        ];
 
     private static Task<string> RenderAsync(IReadOnlyList<NotificationAttemptSummary> attempts) =>
         ComponentRenderer.RenderAsync<Web.Components.Pages.Admin.Notifications>(
@@ -180,13 +257,21 @@ public class NotificationScreenTests
         public ClientId? ClientId => null;
     }
 
-    /// <summary>The log, answered without a database.</summary>
+    /// <summary>The log, answered without a database, remembering what it was asked for.</summary>
     private sealed class StubLog(IReadOnlyList<NotificationAttemptSummary> attempts)
         : INotificationLogService
     {
+        /// <summary>The page the screen asked for, or null until it has asked.</summary>
+        public ListNotificationAttemptsQuery? Asked { get; private set; }
+
         public Task<IReadOnlyList<NotificationAttemptSummary>> ListAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult(attempts);
+            ListNotificationAttemptsQuery query,
+            CancellationToken cancellationToken)
+        {
+            Asked = query;
+
+            return Task.FromResult(attempts);
+        }
     }
 
     /// <summary>
@@ -196,6 +281,7 @@ public class NotificationScreenTests
     private sealed class NeverAnswers : INotificationLogService
     {
         public Task<IReadOnlyList<NotificationAttemptSummary>> ListAsync(
+            ListNotificationAttemptsQuery query,
             CancellationToken cancellationToken) =>
             new TaskCompletionSource<IReadOnlyList<NotificationAttemptSummary>>().Task;
     }

@@ -28,9 +28,21 @@ namespace DriveTrack.Web.Api;
 [Authorize]
 public sealed class NotificationsController(INotificationLogService notifications) : ControllerBase
 {
-    /// <summary>Every notification attempt, newest first (FR-28).</summary>
+    /// <summary>
+    /// One page of notification attempts, newest first (FR-28). Defaults to the first hundred.
+    /// </summary>
+    /// <remarks>
+    /// The two parameters are nullable so an omitted one takes the default here rather than binding
+    /// to zero — a limit of zero is a refusal, and "I did not say" must not mean "give me nothing".
+    /// </remarks>
     [HttpGet]
     public Task<IReadOnlyList<NotificationAttemptSummary>> ListAsync(
+        [FromQuery] int? offset,
+        [FromQuery] int? limit,
         CancellationToken cancellationToken) =>
-        notifications.ListAsync(cancellationToken);
+        notifications.ListAsync(
+            new ListNotificationAttemptsQuery(
+                offset ?? 0,
+                limit ?? ListNotificationAttemptsQueryValidator.MaximumLimit),
+            cancellationToken);
 }

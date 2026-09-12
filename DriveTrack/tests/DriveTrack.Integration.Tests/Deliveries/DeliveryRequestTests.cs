@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Application.Common;
+using DriveTrack.Application.Deliveries;
 using DriveTrack.Domain.Deliveries;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Integration.Tests.Fleet;
@@ -524,6 +525,94 @@ public class DeliveryRequestTests(PostgresFixture postgres)
                 "Петренко",
                 row.GetProperty("client").GetProperty("name").GetString()!,
                 StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task A_client_already_holding_a_full_page_still_sees_the_request_they_just_made()
+    {
+        // FR-91 past the point where the list stops fitting. The screen fetches one page of a
+        // hundred and has no pager, so which end of the table that page is taken from decides
+        // whether a request can be confirmed at all: ordered oldest first, a client holding a full
+        // page posted a delivery and was answered with a list that could not contain it - a
+        // confirmation screen that silently omits the thing it is confirming.
+        //
+        // A hundred existing rows, not ninety-nine: the new request makes a hundred and one, so the
+        // page cannot hold them all and the ordering is the only thing that puts it on screen.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var factory = await FleetApi.CreateAsync(postgres.ConnectionString, cancellationToken);
+        using var client = factory.CreateClient();
+
+        var dispatcher = await DeliveryApi.DispatcherAsync(factory, client, cancellationToken);
+        var requester = await DeliveryApi.ClientAsync(client, dispatcher, cancellationToken);
+
+        // Seeded through the context rather than over HTTP: a hundred requests, each with its
+        // address resolution drained through the real runner, would make this a test of the
+        // endpoint's throughput. What is under test is which end of the table the page comes from.
+        await using (var context = await factory.Database.ContextFactory
+                         .CreateDbContextAsync(cancellationToken))
+        {
+            for (var index = 0; index < ListDeliveriesQueryValidator.MaximumLimit; index++)
+            {
+                context.Deliveries.Add(Seed.NewDelivery(clientId: new ClientId(requester.ClientId)));
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        int requested;
+
+        using (var created = await DeliveryApi.RequestAsync(
+                   client, requester.Token, DeliveryApi.NewRequest(), cancellationToken))
+        {
+            Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+
+            requested = (await FleetApi.DataAsync(created, cancellationToken))
+                .GetProperty("id")
+                .GetInt32();
+        }
+
+        // No query string, because the screen sends none: this is the page /my-deliveries opens on.
+        using (var mine = await FleetApi.SendAsync(
+                   client,
+                   HttpMethod.Get,
+                   "/api/deliveries/mine",
+                   requester.Token,
+                   body: null,
+                   cancellationToken))
+        {
+            Assert.Equal(HttpStatusCode.OK, mine.StatusCode);
+
+            var ids = (await FleetApi.DataAsync(mine, cancellationToken))
+                .EnumerateArray()
+                .Select(row => row.GetProperty("id").GetInt32())
+                .ToArray();
+
+            // Still one page - the cap is preserved, not raised (NFR-27, PRD section 8).
+            Assert.Equal(ListDeliveriesQueryValidator.MaximumLimit, ids.Length);
+
+            // And the row just created is the first one, rather than the one that fell off the end.
+            Assert.Equal(requested, ids[0]);
+        }
+
+        // The dispatch board reads the same way, which is the other screen a request has to reach:
+        // a request landing past the board's page is a request dispatch never sees.
+        using (var board = await FleetApi.SendAsync(
+                   client,
+                   HttpMethod.Get,
+                   "/api/deliveries",
+                   dispatcher,
+                   body: null,
+                   cancellationToken))
+        {
+            Assert.Equal(HttpStatusCode.OK, board.StatusCode);
+
+            var ids = (await FleetApi.DataAsync(board, cancellationToken))
+                .EnumerateArray()
+                .Select(row => row.GetProperty("id").GetInt32())
+                .ToArray();
+
+            Assert.Equal(requested, ids[0]);
         }
     }
 

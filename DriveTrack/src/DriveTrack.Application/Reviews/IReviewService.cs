@@ -63,7 +63,7 @@ public interface IReviewService
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// One page of every review, oldest first, with both parties to the delivery named (FR-64).
+    /// One page of every review, newest first, with both parties to the delivery named (FR-64).
     /// Dispatcher or admin; a client reads their own through <see cref="ListMineAsync"/> and a
     /// driver is refused outright.
     /// </summary>

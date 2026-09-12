@@ -11,9 +11,14 @@ namespace DriveTrack.Application.Notifications;
 public interface INotificationLogService
 {
     /// <summary>
-    /// Every attempt, newest first. Administrators only, decided by <c>IAccessGuard</c> inside the
-    /// implementation (AD-2).
+    /// One page of attempts, newest first. Administrators only, decided by <c>IAccessGuard</c>
+    /// inside the implementation (AD-2).
     /// </summary>
+    /// <param name="query">The page asked for (NFR-27).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task<IReadOnlyList<NotificationAttemptSummary>> ListAsync(CancellationToken cancellationToken);
+    /// <exception cref="Common.ForbiddenException">The caller does not run the system; the log is an administrator's alone, and a dispatcher is refused it.</exception>
+    /// <exception cref="Common.ValidationException">The paging parameters are out of range (NFR-27).</exception>
+    Task<IReadOnlyList<NotificationAttemptSummary>> ListAsync(
+        ListNotificationAttemptsQuery query,
+        CancellationToken cancellationToken);
 }

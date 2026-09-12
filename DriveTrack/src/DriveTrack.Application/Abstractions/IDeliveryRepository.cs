@@ -38,14 +38,21 @@ public interface IDeliveryRepository
     Task<Delivery?> FindVisibleAsync(int id, AccessScope scope, CancellationToken cancellationToken);
 
     /// <summary>
-    /// One page of deliveries, oldest first, narrowed to the rows the caller may see (FR-18, FR-25,
+    /// One page of deliveries, newest first, narrowed to the rows the caller may see (FR-18, FR-25,
     /// NFR-27).
     /// </summary>
     /// <remarks>
-    /// "Oldest first" is the row id ascending, not <see cref="Delivery.CreatedAt"/>: the id comes
+    /// "Newest first" is the row id descending, not <see cref="Delivery.CreatedAt"/>: the id comes
     /// from a sequence, so it is insertion order, and insertion order is creation order for every
     /// row this system writes. Ordering by the timestamp instead would need a tie-break and an
     /// index for no change in the answer.
+    /// <para>
+    /// Newest rather than oldest because nobody pages past the first page. Ascending put the rows
+    /// just written on the last page, so a client holding a full page never saw the delivery they
+    /// had just asked for and a request landing past the board's page was invisible to dispatch.
+    /// Which rows are fetched and the order a screen draws them in are different questions: the
+    /// dispatch board re-sorts the page it was given.
+    /// </para>
     /// <para>
     /// There is no overload without <paramref name="scope"/>, and AD-3 is why: a page fetched
     /// unscoped and filtered afterwards answers an empty page for a driver whose rows fall outside

@@ -41,10 +41,16 @@ internal sealed class EfReviewRepository(AppDbContext context) : IReviewReposito
                 .Any(delivery => delivery.Id == review.DeliveryId && delivery.DriverId == driverId));
         }
 
-        // Ordered explicitly: PostgreSQL is free to return rows in any order without an ORDER BY,
-        // and an unordered OFFSET is a page that can repeat and skip rows between requests.
+        // Newest first, and ordered explicitly: PostgreSQL is free to return rows in any order
+        // without an ORDER BY, and an unordered OFFSET is a page that can repeat and skip rows
+        // between requests.
+        //
+        // Descending rather than ascending, because nobody pages past the first hundred. Ascending
+        // put the newest rows on the last page, so a moderator of a product with more than a page
+        // of reviews never reached the ones just written - a row nobody can reach is the defect. The
+        // id is a total order on its own here, so no tie-break is needed.
         return await rows
-            .OrderBy(review => review.Id)
+            .OrderByDescending(review => review.Id)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken);

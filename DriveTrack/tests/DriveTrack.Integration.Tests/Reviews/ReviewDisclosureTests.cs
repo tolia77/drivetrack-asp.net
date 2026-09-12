@@ -154,17 +154,22 @@ public class ReviewDisclosureTests(PostgresFixture postgres)
         {
             var stranger = (await Seed.ClientAsync(context, cancellationToken)).Id;
 
-            await SeedReviewsAsync(context, stranger, 120, cancellationToken);
+            // The author's three go in first, and the order is what keeps this test able to fail:
+            // the lists read newest first, so seeding them last would put them on the unscoped first
+            // page and a post-filter would pass. Written first, they are the oldest rows in the
+            // table and a hundred and twenty of somebody else's stand between them and page one.
             mine.AddRange(await SeedReviewsAsync(
                 context, new ClientId(author.ClientId), 3, cancellationToken));
+
+            await SeedReviewsAsync(context, stranger, 120, cancellationToken);
         }
 
         var first = await IdsAsync(
             await ReviewApi.ListMineAsync(client, author.Token, cancellationToken, "?offset=0&limit=2"),
             cancellationToken);
 
-        // The author's own first two, rather than nothing at all.
-        Assert.Equal(mine.Take(2), first);
+        // The author's own newest two, rather than nothing at all.
+        Assert.Equal(Enumerable.Reverse(mine).Take(2), first);
 
         // And the offset counts the author's rows, not everybody's: a second page of one row, not
         // an empty one and not somebody else's.
@@ -172,23 +177,32 @@ public class ReviewDisclosureTests(PostgresFixture postgres)
             await ReviewApi.ListMineAsync(client, author.Token, cancellationToken, "?offset=2&limit=2"),
             cancellationToken);
 
-        Assert.Equal(mine.Skip(2), second);
+        Assert.Equal(Enumerable.Reverse(mine).Skip(2), second);
 
         // The moderation list pages over the same repository read, and its offset has to reach the
-        // database too: the author's three rows are the hundred and twenty-first onward, so a route
-        // that ignored the offset would answer the stranger's first rows here.
+        // database too: reading newest first, the stranger's hundred and twenty come before the
+        // author's three, so a route that ignored the offset would answer the stranger's rows here.
         var moderated = await IdsAsync(
             await ReviewApi.ListAsync(client, dispatcher, cancellationToken, "?offset=120&limit=100"),
             cancellationToken);
 
-        Assert.Equal(mine, moderated);
+        Assert.Equal(Enumerable.Reverse(mine), moderated);
     }
 
     /// <summary>
     /// Saves <paramref name="count"/> reviews written by one client, each on a delivery of its own
     /// (DR-6), and answers their row ids in the order they were written.
+    /// <para>
+    /// Write order, not read order: the review lists answer newest first, so a caller comparing
+    /// against a page reverses what this returns.
+    /// </para>
+    /// <para>
+    /// Internal rather than private because <c>ReviewTests</c> needs it too: crossing the default
+    /// page boundary takes more reviews than writing them over HTTP is worth, and two copies of
+    /// this would be two places for the seeding order to drift from what the tests assume.
+    /// </para>
     /// </summary>
-    private static async Task<IReadOnlyList<int>> SeedReviewsAsync(
+    internal static async Task<IReadOnlyList<int>> SeedReviewsAsync(
         AppDbContext context,
         ClientId clientId,
         int count,

@@ -63,10 +63,17 @@ internal sealed class EfDeliveryRepository(AppDbContext context) : IDeliveryRepo
             rows = rows.Where(delivery => delivery.ClientId == clientId);
         }
 
-        // Ordered explicitly: PostgreSQL is free to return rows in any order without an ORDER BY,
-        // and an unordered OFFSET is a page that can repeat and skip rows between requests.
+        // Newest first, and ordered explicitly: PostgreSQL is free to return rows in any order
+        // without an ORDER BY, and an unordered OFFSET is a page that can repeat and skip rows
+        // between requests.
+        //
+        // Descending rather than ascending, because nobody pages past the first hundred. Ascending
+        // put the newest rows on the last page, so a client holding a full page never saw the
+        // delivery they had just asked for and a request landing past the board's page was invisible
+        // to dispatch - a row nobody can reach is the defect, not the order it is drawn in. The id
+        // is a total order on its own here, so no tie-break is needed.
         return await rows
-            .OrderBy(delivery => delivery.Id)
+            .OrderByDescending(delivery => delivery.Id)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken);
