@@ -4,7 +4,7 @@
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 @* FR-28: the row an administrator can read.
 
@@ -80,10 +80,6 @@
 </DtDataTable>
 
 @code {
-    // The screen's own lifetime. A user who navigates away mid-load leaves a query running against
-    // a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private IReadOnlyList<NotificationAttemptSummary>? _attempts;
     private IReadOnlyList<string> _failures = [];
     private bool _isLoading = true;
@@ -103,13 +99,6 @@
         await ReloadAsync();
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
-    }
-
     /// <summary>
     /// The attempt's instant in local time (AD-13: storage is offset zero, and the conversion
     /// happens here, in the presentation layer, and nowhere else).
@@ -127,7 +116,7 @@
 
         try
         {
-            _attempts = await Log.ListAsync(_cancellation.Token);
+            _attempts = await Log.ListAsync(CircuitToken);
             _failures = [];
         }
         catch (DriveTrackException failure)

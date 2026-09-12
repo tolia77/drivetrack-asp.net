@@ -21,7 +21,7 @@
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["DeliveriesTitle"]</PageTitle>
 
@@ -518,10 +518,6 @@
 }
 
 @code {
-    // The screen's own lifetime. A dispatcher who navigates away mid-load leaves a query running
-    // against a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private DeliveryFilter _filter = new();
 
     private IReadOnlyList<DeliverySummary> _deliveries = [];
@@ -619,13 +615,6 @@
         _isAdmin = Caller.Role == UserRole.Admin;
 
         await LoadAsync();
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
     }
 
     /// <summary>The heading's sort action, bound as a delegate so no lambda has to live in markup.</summary>
@@ -823,7 +812,7 @@
     /// and the hint under the box is what tells the dispatcher about it beforehand.
     /// </remarks>
     private Func<Task> Search(PlaceSearch search) => async () =>
-        _failures = await search.RunAsync(Dispatch.SearchPlacesAsync, _cancellation.Token);
+        _failures = await search.RunAsync(Dispatch.SearchPlacesAsync, CircuitToken);
 
     /// <summary>
     /// The same action on Enter, which is the gesture a search box invites. Anything else typed in
@@ -844,7 +833,7 @@
     {
         if (args.Key == "Enter" && !search.IsBusy)
         {
-            _failures = await search.RunAsync(Dispatch.SearchPlacesAsync, _cancellation.Token);
+            _failures = await search.RunAsync(Dispatch.SearchPlacesAsync, CircuitToken);
         }
     };
 
@@ -865,16 +854,16 @@
             // original would have passed to the database unchecked.
             _deliveries = await Dispatch.ListAsync(
                 new ListDeliveriesQuery(0, ListDeliveriesQueryValidator.MaximumLimit),
-                _cancellation.Token);
+                CircuitToken);
 
             // The three lists the form is built from. Read here rather than when the dialog opens,
             // so choosing a driver does not wait on a round trip - and so the capacity hint has
             // something to read the moment a driver is picked.
-            _drivers = await DriverRoster.ListAsync(_cancellation.Token);
-            _clients = await ClientRoster.ListAsync(_cancellation.Token);
+            _drivers = await DriverRoster.ListAsync(CircuitToken);
+            _clients = await ClientRoster.ListAsync(CircuitToken);
             _vehicles = await VehicleFleet.ListAsync(
                 new ListVehiclesQuery(0, ListVehiclesQueryValidator.MaximumLimit),
-                _cancellation.Token);
+                CircuitToken);
         }
         finally
         {
@@ -992,7 +981,7 @@
                         Optional<DateTimeOffset?>.Present(_form.WindowLatestAt),
                         Optional<int?>.Present(_form.DriverId),
                         Optional<int?>.Present(_form.ClientId)),
-                    _cancellation.Token);
+                    CircuitToken);
             }
 
             if (_form.Id is null)
@@ -1008,7 +997,7 @@
                         _form.WindowLatestAt,
                         _form.DriverId,
                         _form.ClientId),
-                    _cancellation.Token);
+                    CircuitToken);
             }
 
             _failures = [];
@@ -1050,7 +1039,7 @@
 
         try
         {
-            await Dispatch.DeleteAsync(delivery.Id, _cancellation.Token);
+            await Dispatch.DeleteAsync(delivery.Id, CircuitToken);
 
             _failures = [];
         }

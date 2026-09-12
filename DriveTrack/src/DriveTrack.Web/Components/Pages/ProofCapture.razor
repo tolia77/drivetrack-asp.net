@@ -19,6 +19,7 @@
 @inject IJSRuntime JS
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
+@inherits CircuitScopedComponent
 @implements IAsyncDisposable
 
 @foreach (var key in _failures)
@@ -80,10 +81,6 @@
 
 @code {
     private const string ModulePath = "./Components/Pages/ProofCapture.razor.js";
-
-    // The panel's own lifetime. A driver who closes the dialog mid-upload leaves a capture running
-    // otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
 
     /// <summary>
     /// Generated rather than fixed: two of these on one screen must not share an id, or a label
@@ -147,8 +144,12 @@
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        await _cancellation.CancelAsync();
-        _cancellation.Dispose();
+        // Called by hand, and first. The renderer disposes a component through IAsyncDisposable when
+        // it has one and never also through IDisposable, so the base's Dispose - the one thing that
+        // cancels this panel's circuit token - is unreachable on this screen unless it is invoked
+        // from here. The base cancels and deliberately does not dispose the source, so the module
+        // release below and anything still in flight both keep a readable, cancelled token.
+        Dispose();
 
         if (_module is null)
         {
@@ -217,7 +218,7 @@
                     _recipientName,
                     new LocationInput(_location?.Latitude, _location?.Longitude),
                     assets),
-                _cancellation.Token);
+                CircuitToken);
 
             _failures = [];
         }
@@ -229,13 +230,22 @@
 
             return;
         }
-        catch (Exception)
+        catch (Exception failure) when (Reports(failure))
         {
             // The arm no other screen in this product needs, and the reason is AD-26: this is the
             // only action whose capability calls a network port inline, before its transaction. An
             // unreachable object store raises the SDK's own exception and an unconfigured one raises
             // InvalidOperationException, and neither is a DriveTrackException - so without this they
             // would escape the panel and kill the circuit, which loses the screen behind it as well.
+            //
+            // The filter is what makes an arm this wide safe to keep, and it is the base's rule
+            // rather than this file's: a driver who closes the dialog mid-capture cancels the
+            // circuit token, and without it this catch would intercept the resulting
+            // OperationCanceledException before ComponentBase could discard it - reporting a
+            // torn-down panel's quiet unwind to nobody as COMMON_UNEXPECTED_ERROR. Letting that
+            // one through leaves this screen on the same path as every other one, while an
+            // outbound port's own cancellation, raised while the panel is still open, is still
+            // reported below.
             //
             // Reported as COMMON_UNEXPECTED_ERROR, which is what the REST surface answers for the
             // same failure (AD-7): the capture did not happen, nothing committed, and the driver's

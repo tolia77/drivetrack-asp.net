@@ -22,7 +22,7 @@
 @inject TimeProvider Clock
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["ShiftsTitle"]</PageTitle>
 
@@ -178,10 +178,6 @@
                  OnConfirmed="ConfirmDeleteAsync" />
 
 @code {
-    // The screen's own lifetime. A dispatcher who navigates away mid-load leaves a query running
-    // against a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private IReadOnlyList<ShiftSummary> _shifts = [];
     private IReadOnlyList<DriverSummary> _drivers = [];
     private IReadOnlyList<string> _failures = [];
@@ -216,13 +212,6 @@
         }
 
         await LoadAsync();
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
     }
 
     /// <summary>The row's edit action, bound as a delegate so no lambda has to live in markup.</summary>
@@ -274,11 +263,11 @@
             // the database again.
             _shifts = await Duty.ListAsync(
                 new ListShiftsQuery(0, ListShiftsQueryValidator.MaximumLimit, null),
-                _cancellation.Token);
+                CircuitToken);
 
             // Read here rather than when the dialog opens, so choosing a driver does not wait on a
             // round trip.
-            _drivers = await DriverRoster.ListAsync(_cancellation.Token);
+            _drivers = await DriverRoster.ListAsync(CircuitToken);
         }
         catch (DriveTrackException failure)
         {
@@ -347,7 +336,7 @@
         {
             if (_form.Id is { } shiftId)
             {
-                await Duty.UpdateAsync(shiftId, _form.AsUpdate(), _cancellation.Token);
+                await Duty.UpdateAsync(shiftId, _form.AsUpdate(), CircuitToken);
             }
 
             if (_form.Id is null)
@@ -368,7 +357,7 @@
                         new DriverId(driverId),
                         _form.StartedAt ?? Clock.GetUtcNow(),
                         _form.EndedAt),
-                    _cancellation.Token);
+                    CircuitToken);
             }
 
             _failures = [];
@@ -410,7 +399,7 @@
 
         try
         {
-            await Duty.DeleteAsync(shift.Id, _cancellation.Token);
+            await Duty.DeleteAsync(shift.Id, CircuitToken);
 
             _failures = [];
         }

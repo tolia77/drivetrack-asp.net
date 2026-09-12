@@ -4,7 +4,7 @@
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 @* FR-5 / FR-87 / FR-88 / FR-92: what a signed-in user of any role reads about themselves, and the
    three things they can change about it.
@@ -198,10 +198,6 @@
 </DtDialog>
 
 @code {
-    // The screen's own lifetime. A user who navigates away mid-load leaves a query running against a
-    // pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private readonly ProfileEditForm _form = new();
 
     private DtDialog? _editDialog;
@@ -227,16 +223,9 @@
         await ReloadAsync();
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
-    }
-
     private async Task ReloadAsync()
     {
-        _profile = await Users.GetProfileAsync(Caller.UserId, _cancellation.Token);
+        _profile = await Users.GetProfileAsync(Caller.UserId, CircuitToken);
 
         // Read from the profile rather than from ICurrentUser: the two agree, and the one the screen
         // renders is the one it should decide from.
@@ -300,7 +289,7 @@
                     _form.LastName,
                     _form.PhoneNumber,
                     _isClient),
-                _cancellation.Token);
+                CircuitToken);
         }
         catch (DriveTrackException failure)
         {
@@ -332,7 +321,7 @@
                     _form.CurrentPassword,
                     _form.NewPassword,
                     _form.NewPasswordConfirmation),
-                _cancellation.Token);
+                CircuitToken);
         }
         catch (DriveTrackException failure)
         {
@@ -361,7 +350,7 @@
             await Users.ChangeEmailAsync(
                 Caller.UserId,
                 new ChangeEmailCommand(_form.Email),
-                _cancellation.Token);
+                CircuitToken);
         }
         catch (DriveTrackException failure)
         {

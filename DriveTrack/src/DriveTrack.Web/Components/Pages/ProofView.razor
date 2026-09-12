@@ -15,7 +15,7 @@
 @inject IProofOfDeliveryService Proofs
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 @foreach (var key in _failures)
 {
@@ -62,10 +62,6 @@
 }
 
 @code {
-    // The panel's own lifetime. A viewer who closes the dialog mid-load leaves a query running
-    // against a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private ProofOfDeliveryView? _proof;
     private IReadOnlyList<string> _failures = [];
     private bool _loading = true;
@@ -95,13 +91,6 @@
         _proof = null;
 
         await LoadAsync();
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
     }
 
     /// <summary>
@@ -151,7 +140,7 @@
 
         try
         {
-            _proof = await Proofs.GetAsync(DeliveryId, _cancellation.Token);
+            _proof = await Proofs.GetAsync(DeliveryId, CircuitToken);
         }
         catch (DriveTrackException failure)
         {

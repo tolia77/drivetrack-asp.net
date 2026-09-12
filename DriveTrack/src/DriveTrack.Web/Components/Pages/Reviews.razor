@@ -5,7 +5,7 @@
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 @* FR-62 to FR-67: reviews, and the three different screens the one route is for.
 
@@ -271,10 +271,6 @@
     private static readonly int[] Scale =
         [.. Enumerable.Range(RatingScale.Minimum, RatingScale.Maximum - RatingScale.Minimum + 1)];
 
-    // The screen's own lifetime. A user who navigates away mid-load leaves a query running against
-    // a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private readonly ReviewForm _form = new();
 
     private DtDialog? _formDialog;
@@ -327,13 +323,6 @@
         await ReloadAsync();
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
-    }
-
     private async Task ReloadAsync()
     {
         _loading = true;
@@ -346,13 +335,13 @@
         {
             if (_authors)
             {
-                _mine = await Verdicts.ListMineAsync(Page, _cancellation.Token);
+                _mine = await Verdicts.ListMineAsync(Page, CircuitToken);
                 _reviewable = await ReviewableAsync(_mine);
             }
 
             if (_readsEvery)
             {
-                _all = await Verdicts.ListAsync(Page, _cancellation.Token);
+                _all = await Verdicts.ListAsync(Page, CircuitToken);
             }
         }
         catch (DriveTrackException failure)
@@ -383,7 +372,7 @@
 
         var own = await Parcels.ListMineAsync(
             new ListDeliveriesQuery(0, ListDeliveriesQueryValidator.MaximumLimit),
-            _cancellation.Token);
+            CircuitToken);
 
         return
         [
@@ -458,14 +447,14 @@
                     new UpdateReviewCommand(
                         Optional<int>.Present(_form.Rating),
                         Optional<string>.Present(_form.Text)),
-                    _cancellation.Token);
+                    CircuitToken);
             }
 
             if (_editingId is null)
             {
                 await Verdicts.CreateAsync(
                     new CreateReviewCommand(_form.DeliveryId ?? 0, _form.Rating, _form.Text),
-                    _cancellation.Token);
+                    CircuitToken);
             }
         }
         catch (DriveTrackException failure)
@@ -497,7 +486,7 @@
 
         try
         {
-            await Verdicts.DeleteAsync(id, _cancellation.Token);
+            await Verdicts.DeleteAsync(id, CircuitToken);
         }
         catch (DriveTrackException failure)
         {
