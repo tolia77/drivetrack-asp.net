@@ -182,4 +182,17 @@
   <data name="REVIEW_TEXT_TOO_LONG" xml:space="preserve">
     <value>Текст відгуку задовгий: максимум 2000 символів.</value>
   </data>
+  <!-- FR-110. The way out is named rather than only the refusal: the driver is already on duty, so
+       what they do next is close that shift. -->
+  <data name="SHIFT_ALREADY_OPEN" xml:space="preserve">
+    <value>Водій уже на зміні. Спершу завершіть відкриту зміну.</value>
+  </data>
+  <data name="SHIFT_NOT_OPEN" xml:space="preserve">
+    <value>Водій зараз не на зміні, тож завершувати нічого.</value>
+  </data>
+  <!-- FR-111. States which end has to be later, because "неправильний проміжок" would leave a
+       dispatcher guessing which of the two boxes to move. -->
+  <data name="SHIFT_ENDED_BEFORE_STARTED" xml:space="preserve">
+    <value>Кінець зміни має бути пізніше за її початок.</value>
+  </data>
 </root>

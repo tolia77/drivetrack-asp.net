@@ -172,6 +172,14 @@
     {
         <path d="M8 1.25 10.09 5.5 14.75 6.19 11.38 9.49 12.17 14.13 8 11.94 3.83 14.13 4.62 9.49 1.25 6.19 5.91 5.5Z" />
     }
+    @* A clock face with its hands: a shift is a stretch of time, and the ring plus two hands is the
+       one shape in this set that says "when" rather than "what". Hollow, so it reads at 16px beside
+       the solid parcel and envelope. *@
+    @if (Name == IconName.Shifts)
+    {
+        <path fill-rule="evenodd" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z" />
+        <path d="M7.25 4h1.5v3.94l2.71 1.57-.75 1.3-3.46-2Z" />
+    }
 </svg>
 
 @code {

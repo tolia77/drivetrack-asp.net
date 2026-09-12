@@ -306,11 +306,11 @@ public class DeliveryScreenTests
     }
 
     [Fact]
-    public async Task The_driver_picker_names_each_drivers_standing_beside_them()
+    public async Task The_driver_picker_names_each_drivers_standing_and_whether_they_are_on_duty()
     {
-        // FR-98 at the moment a dispatcher chooses who carries a parcel. An <option> holds text and
-        // nothing else, so the rating is composed in C# - which means the two branches are only
-        // covered if the stub has one driver of each kind.
+        // FR-98 and FR-116 at the moment a dispatcher chooses who carries a parcel. An <option>
+        // holds text and nothing else, so both the rating and the duty marker are composed in C# -
+        // which means all four branches are only covered if the stub has one driver of each kind.
         var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
 
         var options = Regex.Matches(
@@ -322,12 +322,28 @@ public class DeliveryScreenTests
             .ToArray();
 
         // 4,5 under uk-UA, which uses a comma for the decimal mark (NFR-15): the average is rendered
-        // as an average rather than rounded to a whole star.
-        Assert.Contains("Тарас Шевченко — 4,5", options);
+        // as an average rather than rounded to a whole star. The marker after it is the driver's
+        // open shift, in the same words the shift screen's own driver picker uses - and not the
+        // words of the state badge beside it, which labels a shift rather than a person.
+        Assert.Contains("Тарас Шевченко — 4,5 — На зміні", options);
 
         // And the driver nobody has reviewed, who gets the catalogue's "no value" text. Never a
         // zero: that is a rating, and the worst one the scale has.
-        Assert.Contains("Олег Коваль — Немає оцінок", options);
+        //
+        // FR-116's other half, and the one worth stating flatly: this driver is off duty and is
+        // still in the list. The requirement asks the form to flag rather than to refuse, so an
+        // <option> that had been filtered out - or disabled - would fail here rather than quietly
+        // turning a note into a rule the guard never agreed to.
+        Assert.Contains("Олег Коваль — Немає оцінок — Не на зміні", options);
+
+        var offDuty = Regex.Match(
+            html,
+            @"<option\b[^>]*>[^<]*Олег Коваль[^<]*</option>",
+            RegexOptions.Singleline,
+            TimeSpan.FromSeconds(5));
+
+        Assert.True(offDuty.Success, "The picker dropped the off-duty driver instead of marking them.");
+        Assert.DoesNotContain("disabled", offDuty.Value, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -351,7 +367,11 @@ public class DeliveryScreenTests
                 "Рено Мастер",
                 "АА1234ВВ",
                 Rating: null,
-                ReviewCount: 0),
+                ReviewCount: 0,
+
+                // FR-116 has no part in the capacity lookup below, and saying so is the point of
+                // stating it: a driver's duty state must not change which vehicle they hold.
+                OnDuty: true),
             new DriverSummary(
                 new DriverId(2),
                 new UserId(11),
@@ -363,7 +383,8 @@ public class DeliveryScreenTests
                 VehicleModel: null,
                 VehicleLicensePlate: null,
                 Rating: null,
-                ReviewCount: 0),
+                ReviewCount: 0,
+                OnDuty: false),
         };
 
         var vehicles = new[]
@@ -1249,7 +1270,11 @@ public class DeliveryScreenTests
             "Рено Мастер",
             "АА1234ВВ",
             Rating: 4.5,
-            ReviewCount: 2);
+            ReviewCount: 2,
+
+            // FR-116: on duty, so the picker marks them as such. The pair below is one of each, so
+            // both branches of the marker are covered by the one render.
+            OnDuty: true);
 
         internal static readonly DriverSummary Unrated = new(
             new DriverId(2),
@@ -1262,7 +1287,11 @@ public class DeliveryScreenTests
             VehicleModel: null,
             VehicleLicensePlate: null,
             Rating: null,
-            ReviewCount: 0);
+            ReviewCount: 0,
+
+            // FR-116: off duty, and still offered. The assertion that this driver is in the picker
+            // at all is what makes "flag, never block" a property of the screen.
+            OnDuty: false);
 
         private static readonly DriverSummary Driver = Rated;
 

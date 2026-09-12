@@ -16,6 +16,12 @@ namespace DriveTrack.Application.Drivers;
 /// driver row (DR-18), so a review written, edited or deleted a moment ago is already reflected.
 /// A driver nobody has reviewed carries <c>null</c>, never a zero.
 /// </para>
+/// <para>
+/// Since story 4.2 it also carries FR-116's on-duty flag, read through <c>IShiftService</c> for the
+/// same reason and on the same terms: it is derived from the driver's open shift, shifts belong to
+/// another capability, and nothing here reads <c>unitOfWork.Shifts</c>. The flag marks an off-duty
+/// driver on the assignment form and never withholds one.
+/// </para>
 /// </summary>
 public interface IDriverService
 {

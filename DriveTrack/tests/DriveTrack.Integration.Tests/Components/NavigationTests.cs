@@ -127,6 +127,33 @@ public class NavigationTests
         Assert.Equal(reviews, NavDestinations.For(role).Contains(NavDestination.Reviews));
     }
 
+    [Theory]
+    [InlineData(UserRole.Admin, true, false)]
+    [InlineData(UserRole.Dispatcher, true, false)]
+    [InlineData(UserRole.Driver, false, true)]
+    [InlineData(UserRole.Client, false, false)]
+    public void The_two_shift_screens_are_offered_to_the_roles_that_have_one(
+        UserRole role,
+        bool shifts,
+        bool myShifts)
+    {
+        // Story 4.2's two destinations, and the reason they are two rather than one route that
+        // branches: the roster shows every driver's shifts and is where dispatch corrects one, while
+        // the personal screen shows what the caller's own scope narrows to and carries the button
+        // that puts them on duty. The sets are complements here rather than nested - a dispatcher's
+        // scope narrows to nobody, so "my shifts" could only ever refuse them, and a driver has no
+        // business reading the whole roster.
+        //
+        // A client appears in neither, which is FR-115: they have no part in shifts at all, and
+        // IAccessGuard.RequireShiftScope lands them in its total arm.
+        //
+        // FR-12 unchanged: this is what is worth showing, and the guard is what decides.
+        var destinations = NavDestinations.For(role);
+
+        Assert.Equal(shifts, destinations.Contains(NavDestination.Shifts));
+        Assert.Equal(myShifts, destinations.Contains(NavDestination.MyShifts));
+    }
+
     [Fact]
     public void An_anonymous_caller_is_offered_the_page_that_allows_them()
     {
@@ -196,12 +223,12 @@ public class NavigationTests
         // Every link and action carries an icon beside its text (NFR-24): the brand mark, home,
         // profile, the two fleet screens (4.1), the dispatch board and the own-deliveries screen
         // (5.1), the two administration rosters (7.1), story 5.2's notification log, sign-out,
-        // sign-in and register, story 8.1's chat destination and story 7.2's reviews - fifteen in
-        // all. The count moves with the destination table on purpose: a destination rendered
-        // without a glyph is markup with nothing behind it, which is the defect this whole test
-        // guards, so adding a link has to be a deliberate edit to this line rather than an empty
-        // box nobody notices.
-        Assert.Equal(15, SharedMarkup.Occurrences(menu, "<Icon Name="));
+        // sign-in and register, story 8.1's chat destination, story 7.2's reviews and story 4.2's
+        // two shift screens - seventeen in all. The count moves with the destination table on
+        // purpose: a destination rendered without a glyph is markup with nothing behind it, which is
+        // the defect this whole test guards, so adding a link has to be a deliberate edit to this
+        // line rather than an empty box nobody notices.
+        Assert.Equal(17, SharedMarkup.Occurrences(menu, "<Icon Name="));
     }
 
     [Fact]
@@ -291,6 +318,15 @@ public class NavigationTests
         // driver, who is the party a review judges.
         Assert.Equal(destinations.Contains(NavDestination.Reviews), links.Contains("reviews"));
         Assert.Equal(role != UserRole.Driver, links.Contains("reviews"));
+
+        // Story 4.2's two destinations, rendered rather than only read off the table, and stated as
+        // flat role tests for the same reason chat's are: dispatch runs the roster of shifts, a
+        // driver has their own, and a client has neither (FR-113, FR-112, FR-115).
+        Assert.Equal(destinations.Contains(NavDestination.Shifts), links.Contains("shifts"));
+        Assert.Equal(runsDispatch, links.Contains("shifts"));
+
+        Assert.Equal(destinations.Contains(NavDestination.MyShifts), links.Contains("my-shifts"));
+        Assert.Equal(role == UserRole.Driver, links.Contains("my-shifts"));
     }
 
     [Fact]

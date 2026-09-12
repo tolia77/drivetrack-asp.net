@@ -1,0 +1,488 @@
+@page "/shifts"
+@* FR-113 and FR-114: every driver's shifts, and dispatch's way of correcting one.
+
+   The Roles argument routes a wrong role to /access-denied (FR-79) rather than into an error
+   boundary. It is a convenience, not the decision: IAccessGuard.RequireShiftScope and
+   RequireShiftOwner inside IShiftService settle whose shifts this caller may see and change, and
+   they run whether or not this screen was ever rendered (FR-12).
+
+   There is no on-duty button here, and its absence is the product decision rather than an omission.
+   Going on duty is a driver reporting that they have started work, and the instant is the server's
+   clock; a dispatcher who needs to record a shift somebody forgot to log uses the form below, which
+   names a window. The two are different acts, so they are different controls on different screens.
+
+   The @if blocks below are independent rather than if/else chains: an `else` at markup level reads
+   to NFR-14's source scan as a rendered English word. *@
+@attribute [Authorize(Roles = "Dispatcher,Admin")]
+@* Named for what it does rather than for the capability: a member called `Shifts` on a component
+   called `Shifts` does not compile. *@
+@inject IShiftService Duty
+@inject IDriverService DriverRoster
+@inject ICurrentUser Caller
+@inject TimeProvider Clock
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IDisposable
+
+<PageTitle>@Localizer["ShiftsTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.Shifts" />@Localizer["ShiftsTitle"]
+</h1>
+
+@* FR-110 and FR-111 arrive here: a driver who is already on duty and a window that runs backwards
+   both resolve through the same catalogue the REST envelope uses, so the two cannot disagree
+   (NFR-3). Rendered at page level as well as inside the dialog - a refused delete is raised with no
+   dialog open and would otherwise have nowhere to appear. *@
+@foreach (var key in _failures)
+{
+    <div class="alert alert-danger" role="alert">@Errors[key]</div>
+}
+
+<div class="row g-3 align-items-end mb-3">
+    <div class="col-sm">
+        <label class="form-label" for="shifts-search">@Localizer["Search"]</label>
+        @* Over the list already fetched: PRD section 8 excludes server-side filtering, so typing
+           here never becomes a query. *@
+        <input id="shifts-search" type="search" class="form-control"
+               @bind="_search" @bind:event="oninput" />
+    </div>
+    <div class="col-sm-auto">
+        <button type="button" class="btn btn-success dt-shift-create" @onclick="OpenCreateAsync">
+            <Icon Name="IconName.Create" />@Localizer["Create"]
+        </button>
+    </div>
+</div>
+
+@* NFR-27 keeps the original's paging, and this screen asks for the first page and searches it in
+   the browser - so past a full page the rest is neither shown nor findable. Saying so is the
+   difference between a limit and a screen that quietly lies about the roster. *@
+@if (IsTruncated)
+{
+    <div class="alert alert-warning" role="status">@Localizer["ListTruncated"]</div>
+}
+
+<DtDataTable TItem="ShiftSummary"
+             Items="Visible"
+             IsLoading="_loading"
+             EmptyText="@Localizer["ShiftsEmpty"]">
+    <HeaderTemplate>
+        <th scope="col">@Localizer["Driver"]</th>
+        <th scope="col">@Localizer["ShiftStartedAt"]</th>
+        <th scope="col">@Localizer["ShiftEndedAt"]</th>
+        <th scope="col">@Localizer["ShiftState"]</th>
+        <th scope="col">@Localizer["Actions"]</th>
+    </HeaderTemplate>
+    <RowTemplate Context="shift">
+        <td>@shift.DriverName</td>
+        <td>@Moment(shift.StartedAt)</td>
+        <td>
+            @* An open shift has no end, and says so rather than rendering an empty cell - which
+               reads as a missing value instead of as a shift that is still running. *@
+            @if (shift.EndedAt is null)
+            {
+                <span>@Localizer["ShiftStillOpen"]</span>
+            }
+            @if (shift.EndedAt is not null)
+            {
+                <span>@Moment(shift.EndedAt.Value)</span>
+            }
+        </td>
+        <td>
+            <ShiftStateLabel IsOpen="shift.IsOpen" />
+        </td>
+        <td class="dt-row-actions">
+            @* The handlers are built in code rather than written as lambdas here: a `=>` inside an
+               attribute closes the tag as far as a source scan is concerned. *@
+            <button type="button" class="btn btn-primary btn-sm dt-shift-edit" @onclick="EditHandler(shift)">
+                <Icon Name="IconName.Edit" />@Localizer["Edit"]
+            </button>
+            <button type="button" class="btn btn-danger btn-sm dt-shift-delete" @onclick="DeleteHandler(shift)">
+                <Icon Name="IconName.Delete" />@Localizer["Delete"]
+            </button>
+        </td>
+    </RowTemplate>
+</DtDataTable>
+
+@* FR-85: the shared dialog. One heading for both recording and correcting - a title composed at run
+   time would be a key no test can see, and the catalogue is closed against the keys components ask
+   for. *@
+<DtDialog @ref="_formDialog" Title="@Localizer["ShiftForm"]">
+    <ChildContent>
+        @* The same list as the one at the top of the page, and deliberately a second copy. A
+           DtDialog opens with showModal(), so everything outside it is in the inert layer behind
+           the backdrop: a window that runs backwards refused with the message only up there is a
+           form that fails to close and says nothing. *@
+        @foreach (var key in _failures)
+        {
+            <div class="alert alert-danger" role="alert">@Errors[key]</div>
+        }
+
+        <EditForm id="shift-form" Model="_form" OnValidSubmit="SaveAsync">
+            @* Clearing a date field leaves a parse failure on the EditContext, and OnValidSubmit
+               then never fires - so without this the Save button would do nothing and say nothing.
+               ValidationSummary rather than per-field ValidationMessage: a `For="@(() => ...)"`
+               lambda inside an attribute is the construct NFR-14's source scan misreads. *@
+            <ValidationSummary />
+
+            @* Only when recording a new shift. A shift is one driver's stretch of time, so moving
+               one to another driver is deleting it and writing another - and a movable driver would
+               let an edit carry an open row to a driver who already has one. *@
+            @if (_form.Id is null)
+            {
+                <div class="mb-3">
+                    <label class="form-label" for="shift-driver">@Localizer["Driver"]</label>
+                    <select id="shift-driver" class="form-select" @bind="_form.DriverId">
+                        @foreach (var driver in _drivers)
+                        {
+                            <option value="@driver.Id.Value">@DriverOption(driver)</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label" for="shift-started-at">@Localizer["ShiftStartedAt"]</label>
+                <InputDate id="shift-started-at" class="form-control"
+                           Type="InputDateType.DateTimeLocal"
+                           ParsingErrorMessage="@Localizer["DateParseError"]"
+                           @bind-Value="_form.StartedAt" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="shift-ended-at">@Localizer["ShiftEndedAt"]</label>
+                <InputDate id="shift-ended-at" class="form-control"
+                           Type="InputDateType.DateTimeLocal"
+                           ParsingErrorMessage="@Localizer["DateParseError"]"
+                           @bind-Value="_form.EndedAt" />
+                @* FR-117 said in a sentence: an empty box opens a shift when one is being recorded,
+                   and leaves a closed one closed when one is being corrected. Clearing an end is not
+                   something the contract can express, so it is not something this box can do. *@
+                <div class="form-text">@Localizer["ShiftEndedAtHint"]</div>
+            </div>
+        </EditForm>
+    </ChildContent>
+    <Actions>
+        <button type="submit" form="shift-form" class="btn btn-primary dt-shift-save">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-shift-cancel" @onclick="CloseFormAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+@* FR-81: a destructive action is confirmed through the shared prompt. *@
+<DtConfirmDialog @ref="_deleteDialog"
+                 Title="@Localizer["DeleteShiftTitle"]"
+                 Message="@Localizer["DeleteShiftMessage"]"
+                 OnConfirmed="ConfirmDeleteAsync" />
+
+@code {
+    // The screen's own lifetime. A dispatcher who navigates away mid-load leaves a query running
+    // against a pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private IReadOnlyList<ShiftSummary> _shifts = [];
+    private IReadOnlyList<DriverSummary> _drivers = [];
+    private IReadOnlyList<string> _failures = [];
+    private ShiftForm _form = new();
+    private ShiftSummary? _pendingDeletion;
+    private DtDialog? _formDialog;
+    private DtConfirmDialog? _deleteDialog;
+    private string _search = string.Empty;
+    private bool _loading = true;
+
+    /// <summary>The rows the search leaves, filtered over the list already fetched.</summary>
+    private IReadOnlyCollection<ShiftSummary> Visible =>
+        [.. _shifts.Where(shift => Matches(shift, _search))];
+
+    /// <summary>
+    /// True when the page came back full, which is as much as this screen can know: the query
+    /// returns no total (PRD section 8 excludes one), so "there may be more" is the honest claim
+    /// rather than a count.
+    /// </summary>
+    private bool IsTruncated => _shifts.Count >= ListShiftsQueryValidator.MaximumLimit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen calls a service. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        await LoadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    /// <summary>The row's edit action, bound as a delegate so no lambda has to live in markup.</summary>
+    private Func<Task> EditHandler(ShiftSummary shift) => () => OpenEditAsync(shift);
+
+    /// <summary>The row's delete action, for the same reason.</summary>
+    private Func<Task> DeleteHandler(ShiftSummary shift) => () => OpenDeleteAsync(shift);
+
+    /// <summary>
+    /// Whether a shift matches what a dispatcher typed, over the driver it belongs to.
+    /// </summary>
+    /// <remarks>
+    /// Internal and static so it can be tested directly: the search is the one thing on this screen
+    /// a render test cannot reach, since static rendering dispatches no events. Culture-aware and
+    /// case-insensitive - a dispatcher typing a name in lower case is looking for the same driver.
+    /// <para>
+    /// The driver is the only thing worth searching. The two instants are already the columns the
+    /// table is ordered by, and nobody types a timestamp.
+    /// </para>
+    /// </remarks>
+    /// <param name="shift">The row being considered.</param>
+    /// <param name="search">What the dispatcher typed. Blank keeps everything.</param>
+    internal static bool Matches(ShiftSummary shift, string? search)
+    {
+        ArgumentNullException.ThrowIfNull(shift);
+
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        return shift.DriverName.Contains(
+            search.Trim(),
+            StringComparison.CurrentCultureIgnoreCase);
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        // Rendered before the await, or the flag is set and cleared inside one synchronous stretch
+        // and DtDataTable's loading row never reaches the browser on a post-write refetch.
+        StateHasChanged();
+
+        try
+        {
+            // NFR-27's default page, stated rather than assumed, and no driver filter: this screen
+            // is the whole roster's, and a dispatcher narrows it by typing rather than by asking
+            // the database again.
+            _shifts = await Duty.ListAsync(
+                new ListShiftsQuery(0, ListShiftsQueryValidator.MaximumLimit, null),
+                _cancellation.Token);
+
+            // Read here rather than when the dialog opens, so choosing a driver does not wait on a
+            // round trip.
+            _drivers = await DriverRoster.ListAsync(_cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+        }
+        finally
+        {
+            // In a finally so a refused or failed read leaves the table in its empty state rather
+            // than spinning forever, which reads to a user as a hung screen.
+            _loading = false;
+        }
+    }
+
+    private async Task OpenCreateAsync()
+    {
+        _failures = [];
+
+        _form = new ShiftForm
+        {
+            // Preselected rather than left blank: an unset picker submits no driver, and driver
+            // zero is a 404 about a question the dispatcher did not mean to ask.
+            DriverId = _drivers.Count > 0 ? _drivers[0].Id.Value : null,
+
+            // AD-13: the injected clock, read as local time because that is what the control shows.
+            // A blank start would be submitted as the zero instant, which is a shift in the year one.
+            StartedAt = Clock.GetUtcNow().ToLocalTime(),
+        };
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task OpenEditAsync(ShiftSummary shift)
+    {
+        _failures = [];
+        _form = new ShiftForm
+        {
+            Id = shift.Id,
+            DriverId = shift.DriverId.Value,
+
+            // Local time, because the control shows local time and the circuit runs on the server -
+            // the same reading every other screen in the product gives a stored instant (NFR-15).
+            StartedAt = shift.StartedAt.ToLocalTime(),
+            EndedAt = shift.EndedAt?.ToLocalTime(),
+        };
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task CloseFormAsync()
+    {
+        if (_formDialog is not null)
+        {
+            await _formDialog.CloseAsync();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (_form.Id is { } shiftId)
+            {
+                await Duty.UpdateAsync(shiftId, _form.AsUpdate(), _cancellation.Token);
+            }
+
+            if (_form.Id is null)
+            {
+                // The picker is preselected, so this is the fresh-install case and the failed-roster
+                // read: there is no driver to name. Refused here rather than posted as driver zero,
+                // which would come back as a 404 about a driver the dispatcher never chose - a true
+                // sentence answering a question nobody asked.
+                if (_form.DriverId is not { } driverId)
+                {
+                    _failures = [nameof(ErrorCode.COMMON_VALIDATION_FAILED)];
+
+                    return;
+                }
+
+                await Duty.CreateAsync(
+                    new CreateShiftCommand(
+                        new DriverId(driverId),
+                        _form.StartedAt ?? Clock.GetUtcNow(),
+                        _form.EndedAt),
+                    _cancellation.Token);
+            }
+
+            _failures = [];
+
+            await CloseFormAsync();
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Outside the try, deliberately. The write has committed, so a failure refreshing the list
+        // afterwards is a failed read, and reporting it as a refused save would tell the dispatcher
+        // their correction was not saved when it was.
+        await LoadAsync();
+    }
+
+    private async Task OpenDeleteAsync(ShiftSummary shift)
+    {
+        _failures = [];
+        _pendingDeletion = shift;
+
+        if (_deleteDialog is not null)
+        {
+            await _deleteDialog.ShowAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_pendingDeletion is not { } shift)
+        {
+            return;
+        }
+
+        _pendingDeletion = null;
+
+        try
+        {
+            await Duty.DeleteAsync(shift.Id, _cancellation.Token);
+
+            _failures = [];
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Outside the try: the shift is gone, and a failed refresh afterwards must not be reported
+        // as a delete that did not happen.
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// One driver as the picker names them, with the marker FR-116 puts beside an off-duty one.
+    /// </summary>
+    /// <remarks>
+    /// Composed here rather than in markup because an <c>&lt;option&gt;</c> holds text and nothing
+    /// else. The same two keys the delivery form's picker uses — <c>ShiftOpen</c>/<c>ShiftClosed</c>
+    /// — because both are the same question about a person: is this driver on duty now. The state
+    /// badge on the rows above says something else on purpose, with
+    /// <c>ShiftRunning</c>/<c>ShiftFinished</c>: a finished row is a fact about a shift, and
+    /// labelling it "не на зміні" would read as a present-tense claim about the driver instead.
+    /// </remarks>
+    private string DriverOption(DriverSummary driver) =>
+        driver.FirstName + " " + driver.LastName + " — "
+            + (driver.OnDuty ? Localizer["ShiftOpen"] : Localizer["ShiftClosed"]);
+
+    /// <summary>
+    /// An instant as this screen shows it. Local time against the current culture (NFR-15); the
+    /// circuit runs interactively on the server, so <c>ToLocalTime</c> resolves against the host -
+    /// the same reading every other screen in the product gives a stored instant.
+    /// </summary>
+    private static string Moment(DateTimeOffset value) =>
+        value.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
+
+    /// <summary>
+    /// What the dialog is editing. A screen-local shape rather than a command: a command's update
+    /// fields are <c>Optional&lt;T&gt;</c>, and two-way binding needs somewhere plain to write.
+    /// </summary>
+    private sealed class ShiftForm
+    {
+        /// <summary>The shift being corrected, or null while recording one.</summary>
+        public int? Id { get; set; }
+
+        /// <summary>The driver row id the shift belongs to. Read-only once the row exists.</summary>
+        public int? DriverId { get; set; }
+
+        /// <summary>When it started, in local time because that is what the control shows.</summary>
+        public DateTimeOffset? StartedAt { get; set; }
+
+        /// <summary>When it ended, or null while it is open.</summary>
+        public DateTimeOffset? EndedAt { get; set; }
+
+        /// <summary>
+        /// The correction this form describes (AD-23, FR-117).
+        /// <para>
+        /// An empty box is <em>absent</em> rather than a present null, and that is the whole of
+        /// FR-117 on this screen: <c>Optional&lt;DateTimeOffset&gt;</c> has no case for a clear, so
+        /// a dispatcher who empties the end box leaves the stored one alone instead of reopening a
+        /// shift that is over.
+        /// </para>
+        /// </summary>
+        public UpdateShiftCommand AsUpdate() =>
+            new(
+                StartedAt is { } start
+                    ? Optional<DateTimeOffset>.Present(start)
+                    : Optional<DateTimeOffset>.Absent,
+                EndedAt is { } end
+                    ? Optional<DateTimeOffset>.Present(end)
+                    : Optional<DateTimeOffset>.Absent);
+    }
+}
