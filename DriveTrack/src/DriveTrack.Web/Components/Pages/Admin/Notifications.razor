@@ -30,6 +30,14 @@
 
 <DtFailureBanner Failures="_failures" />
 
+@* NFR-27 keeps the original's paging, and this screen asks for the first page - so past a full page
+   the older attempts are neither shown nor findable. Saying so is the difference between a limit and
+   a screen that quietly lies about what the system has sent. *@
+@if (IsTruncated)
+{
+    <div class="alert alert-warning" role="status">@Localizer["NotificationsTruncated"]</div>
+}
+
 <DtDataTable TItem="NotificationAttemptSummary"
              Items="_attempts"
              IsLoading="_isLoading"
@@ -80,6 +88,21 @@
     private IReadOnlyList<ScreenFailure> _failures = [];
     private bool _isLoading = true;
 
+    /// <summary>
+    /// The page this screen asks for. One page of a hundred, like every other list in the product:
+    /// PRD section 8 excludes server-side filtering and result counts, so the screen reads a page
+    /// and shows it.
+    /// </summary>
+    private static ListNotificationAttemptsQuery Page =>
+        new(0, ListNotificationAttemptsQueryValidator.MaximumLimit);
+
+    /// <summary>
+    /// True when the page came back full, which is as much as this screen can know: the query
+    /// returns no total (PRD section 8 excludes one), so "there may be more" is the honest claim
+    /// rather than a count.
+    /// </summary>
+    private bool IsTruncated => _attempts?.Count >= ListNotificationAttemptsQueryValidator.MaximumLimit;
+
     protected override async Task OnInitializedAsync()
     {
         // The circuit outlives the request that opened it, so the cookie can be gone by the time a
@@ -112,7 +135,7 @@
 
         try
         {
-            _attempts = await Log.ListAsync(CircuitToken);
+            _attempts = await Log.ListAsync(Page, CircuitToken);
             _failures = [];
         }
         catch (DriveTrackException failure)

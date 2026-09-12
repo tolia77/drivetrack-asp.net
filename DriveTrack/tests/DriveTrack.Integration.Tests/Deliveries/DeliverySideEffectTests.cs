@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using DriveTrack.Application.Deliveries;
+using DriveTrack.Application.Notifications;
 using DriveTrack.Domain.Deliveries;
 using DriveTrack.Integration.Tests.Fleet;
 using DriveTrack.Integration.Tests.Persistence;
@@ -624,7 +625,13 @@ public class DeliverySideEffectTests(PostgresFixture postgres)
         await using var unitOfWork = await factory.Database.UnitOfWorkFactory
             .CreateAsync(cancellationToken);
 
-        return await unitOfWork.NotificationAttempts.ListAsync(cancellationToken);
+        // The screen's own page, asked for the way the screen asks for it: the read is bounded
+        // (NFR-27), and a helper that could not say so would be reading a method the product does
+        // not have.
+        return await unitOfWork.NotificationAttempts.ListAsync(
+            0,
+            ListNotificationAttemptsQueryValidator.MaximumLimit,
+            cancellationToken);
     }
 
     /// <summary>One delivery, as dispatch reads it.</summary>
