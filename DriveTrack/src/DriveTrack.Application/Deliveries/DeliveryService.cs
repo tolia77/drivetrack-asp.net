@@ -130,6 +130,64 @@ public sealed class DeliveryService(
     }
 
     /// <inheritdoc />
+    public async Task<AssignedDeliverySummary> GetMineAsync(int id, CancellationToken cancellationToken)
+    {
+        // No role check, exactly as ListMineAsync has none: this route is for whoever the scope
+        // narrows to. The scope is asked for first because it is an argument to the read rather
+        // than a judgement on its result - AD-3's whole point.
+        var scope = accessGuard.RequireScope();
+
+        await using var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken);
+
+        // The narrowing is a WHERE, so a row the caller may not see is simply not returned - and
+        // the 404 below is therefore non-disclosing without anyone having to remember to make it so.
+        var delivery = await unitOfWork.Deliveries.FindVisibleAsync(id, scope, cancellationToken);
+
+        if (delivery is null)
+        {
+            throw NotFound(id);
+        }
+
+        // No party lookup at all, and nothing to strip: the type has no field a counterparty's name
+        // could be written into (AD-17).
+        return Assigned(delivery);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DeliverySummary>> ListByIdsAsync(
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        accessGuard.RequireRole(UserRole.Dispatcher);
+
+        // AD-3's "the predicate comes from the guard", on the same terms ListAsync states it: the
+        // role check above has already narrowed the caller to the two roles the scope is
+        // unrestricted for, and the scope still travels into the query so there is never a second
+        // place deciding what a caller may see.
+        var scope = accessGuard.RequireScope();
+
+        // Written after the guard, not before it: a caller asking about nothing must take the same
+        // decision a caller asking about a hundred rows does, or the guard becomes something a
+        // caller can skip by passing an empty list.
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        await using var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken);
+
+        var deliveries = await unitOfWork.Deliveries.ListByIdsAsync(scope, ids, cancellationToken);
+
+        // One resolution for the whole batch, which is the entire point of this method existing:
+        // two roster reads rather than two per row.
+        var parties = await PartiesAsync(unitOfWork, deliveries, cancellationToken);
+
+        return [.. deliveries.Select(delivery => Summary(delivery, parties))];
+    }
+
+    /// <inheritdoc />
     public async Task<DeliverySummary> CreateAsync(
         CreateDeliveryCommand command,
         CancellationToken cancellationToken)

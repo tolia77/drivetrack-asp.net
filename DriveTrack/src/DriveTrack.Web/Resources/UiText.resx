@@ -689,4 +689,54 @@
   <data name="ChatNotParticipant" xml:space="preserve">
     <value>Розмови ведуть диспетчери та водії. Ваша роль до них доступу не має.</value>
   </data>
+  <!-- Story 7.2: reviews (FR-62 to FR-67) and the rating derived from them (FR-98). -->
+  <data name="NavReviews" xml:space="preserve">
+    <value>Відгуки</value>
+  </data>
+  <data name="ReviewsTitle" xml:space="preserve">
+    <value>Відгуки</value>
+  </data>
+  <data name="ReviewsEmpty" xml:space="preserve">
+    <value>Відгуків поки немає.</value>
+  </data>
+  <!-- A driver. They are the party a review judges, so the sentence says whose screen this is
+       rather than showing them an empty table, which would read as "nobody has written anything". -->
+  <data name="ReviewsNotAvailable" xml:space="preserve">
+    <value>Відгуки пишуть клієнти, а читають диспетчери. Ваша роль до них доступу не має.</value>
+  </data>
+  <data name="WriteReview" xml:space="preserve">
+    <value>Написати відгук</value>
+  </data>
+  <data name="ReviewForm" xml:space="preserve">
+    <value>Відгук</value>
+  </data>
+  <data name="ReviewDelivery" xml:space="preserve">
+    <value>Доставка</value>
+  </data>
+  <!-- FR-62's two halves, said once: only a finished delivery, and only one review each. It
+       explains why a client who expected to see a parcel in the picker does not. -->
+  <data name="ReviewDeliveryHint" xml:space="preserve">
+    <value>У списку лише ваші завершені або невдалі доставки, на які ви ще не залишали відгук.</value>
+  </data>
+  <data name="ReviewRating" xml:space="preserve">
+    <value>Оцінка</value>
+  </data>
+  <data name="ReviewText" xml:space="preserve">
+    <value>Текст відгуку</value>
+  </data>
+  <data name="DeleteReviewTitle" xml:space="preserve">
+    <value>Видалити відгук</value>
+  </data>
+  <data name="DeleteReviewMessage" xml:space="preserve">
+    <value>Відгук буде видалено остаточно. Продовжити?</value>
+  </data>
+  <!-- FR-98's column on the driver roster. Short: it is a table heading beside the vehicle. -->
+  <data name="Rating" xml:space="preserve">
+    <value>Рейтинг</value>
+  </data>
+  <!-- A driver nobody has reviewed. Never a zero: that is a rating, and the worst one the scale
+       has. -->
+  <data name="NoRating" xml:space="preserve">
+    <value>Немає оцінок</value>
+  </data>
 </root>

@@ -146,6 +146,31 @@ public enum ErrorCode
     /// </summary>
     CHAT_MESSAGE_TEXT_TOO_LONG,
 
+    /// <summary>
+    /// A review was attempted on a delivery that has not finished (FR-62). 422, and deliberately
+    /// not 409: the caller named a delivery that exists and is theirs, and what refused them is a
+    /// value in the request — the delivery they chose — rather than a collision with another row.
+    /// The next move is to pick a different delivery, which is what a 422 on the content says.
+    /// </summary>
+    REVIEW_DELIVERY_NOT_COMPLETED,
+
+    /// <summary>
+    /// The rating is outside the one-to-five scale (FR-67). 422, reported as a field key inside
+    /// <c>COMMON_VALIDATION_FAILED</c> so the form can mark the control that was wrong — and stated
+    /// by the validator so the answer is the same 422 whether it or <c>CK_Reviews_Rating</c>
+    /// catches it (NFR-2).
+    /// </summary>
+    REVIEW_RATING_OUT_OF_RANGE,
+
+    /// <summary>The review text is empty once trimmed. 422 (FR-62), reported as a field key.</summary>
+    REVIEW_TEXT_REQUIRED,
+
+    /// <summary>
+    /// The review text is longer than the <c>reviews.text</c> column holds. 422 (FR-62), reported
+    /// as a field key — so a truncation PostgreSQL would raise arrives naming the field instead.
+    /// </summary>
+    REVIEW_TEXT_TOO_LONG,
+
     /// <summary>PostgreSQL SQLSTATE 23505, translated in Infrastructure. 409 (AD-8).</summary>
     PERSISTENCE_UNIQUE_VIOLATION,
 

@@ -1,0 +1,580 @@
+@page "/reviews"
+@attribute [Authorize]
+@inject IReviewService Verdicts
+@inject IDeliveryService Parcels
+@inject ICurrentUser Caller
+@inject IStringLocalizer<UiText> Localizer
+@inject IStringLocalizer<ErrorMessages> Errors
+@implements IDisposable
+
+@* FR-62 to FR-67: reviews, and the three different screens the one route is for.
+
+   A client sees what they wrote and a way to write another. A dispatcher sees every review and no
+   way to touch one. An administrator sees every review and moderates them. A driver sees a
+   sentence saying this is not theirs - they are the party being judged, and every review route
+   refuses them.
+
+   [Authorize] carries no roles on purpose, and this is the capability where a Roles argument would
+   be most wrong: the five routes behind this screen are reserved to three different sets of
+   callers, so one attribute could only ever state one of them, wrongly (AD-2, FR-12). Who may do
+   what is IAccessGuard's answer inside IReviewService, and it runs whether or not a button was
+   rendered.
+
+   Independent @if blocks and one literal localizer key per string, for the two reasons the shell
+   components already state: an `else` at markup level reads to NFR-14's scan as a rendered English
+   word, and a key composed at run time is a key the closed-catalogue test cannot see.
+
+   The role predicates are ReviewViews' rather than expressions here, so a rule about who sees what
+   is a thing a test can read back rather than a condition buried in markup. *@
+
+<PageTitle>@Localizer["ReviewsTitle"]</PageTitle>
+
+<h1>
+    <Icon Name="IconName.Reviews" />@Localizer["ReviewsTitle"]
+</h1>
+
+@* NFR-3: the message is the localized string for the code the service threw, resolved through the
+   same catalogue the REST envelope uses. Nothing an exception carries reaches this page.
+
+   Stood down while the form is open, because the dialog renders the same list (NFR-19). Two
+   role="alert" regions holding one refusal is one refusal announced twice; exactly one of them is
+   in the DOM at any moment, and which one it is follows where the reader is. *@
+@if (!_formOpen)
+{
+    @foreach (var key in _failures)
+    {
+        <div class="alert alert-danger" role="alert">@Errors[key]</div>
+    }
+}
+
+@* Offered only when there is something to review. An action whose form opens on an empty picker
+   posts no delivery and is answered "no such delivery" - a true sentence about a question the
+   client did not ask. The hint below says the same thing the picker's own hint says, because it is
+   the same rule: a finished delivery of theirs that they have not already written about. *@
+@if (_authors && _reviewable.Count > 0)
+{
+    <div class="row g-3 align-items-end mb-3">
+        <div class="col-sm-auto">
+            <button type="button" class="btn btn-success dt-review-create" @onclick="OpenCreateAsync">
+                <Icon Name="IconName.Create" />@Localizer["WriteReview"]
+            </button>
+        </div>
+    </div>
+}
+
+@if (_authors && !_loading && _reviewable.Count == 0)
+{
+    <p class="dt-review-nothing-to-review">@Localizer["ReviewDeliveryHint"]</p>
+}
+
+@* FR-63: the author's own list. A separate table from the moderation one below rather than the
+   same table with columns hidden, because the two are different types - AuthoredReviewSummary has
+   no party field at all, so a driver's identity cannot reach this table however it is later edited
+   (AD-17). *@
+@if (_authors)
+{
+    <DtDataTable TItem="AuthoredReviewSummary"
+                 Items="_mine"
+                 IsLoading="_loading"
+                 EmptyText="@Localizer["ReviewsEmpty"]">
+        <HeaderTemplate>
+            <th scope="col">@Localizer["ReviewDelivery"]</th>
+            <th scope="col">@Localizer["ReviewRating"]</th>
+            <th scope="col">@Localizer["ReviewText"]</th>
+            <th scope="col">@Localizer["CreatedAt"]</th>
+            <th scope="col">@Localizer["Actions"]</th>
+        </HeaderTemplate>
+        <RowTemplate Context="review">
+            <td>@review.DeliveryId</td>
+            <td>
+                @* AD-18: the band is Domain's reading of the number and the class is only what that
+                   band looks like. No threshold here, and no colour - the class resolves to a
+                   --dt-rating-* token (AD-28, NFR-29). *@
+                <span class="@ReviewViews.ClassFor(review.Band)">@ReviewViews.Format(review.Rating)</span>
+            </td>
+            <td>@review.Text</td>
+            <td>@Moment(review.CreatedAt)</td>
+            <td class="dt-row-actions">
+                @* The handler is built in C# rather than written as a lambda in the attribute: a
+                   `=>` here would close the tag as far as NFR-14's markup scan is concerned, and
+                   everything after it would be read as rendered English. *@
+                <button type="button" class="btn btn-primary btn-sm dt-review-edit" @onclick="EditMine(review)">
+                    <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                </button>
+                <button type="button" class="btn btn-danger btn-sm dt-review-delete" @onclick="Remove(review.Id)">
+                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                </button>
+            </td>
+        </RowTemplate>
+    </DtDataTable>
+}
+
+@* FR-64: every review, with both parties named. A dispatcher gets the table and no actions, which
+   is the same rule the guard states - they read the collection and never write to it - rendered
+   rather than restated. *@
+@if (_readsEvery)
+{
+    <DtDataTable TItem="ReviewSummary"
+                 Items="_all"
+                 IsLoading="_loading"
+                 EmptyText="@Localizer["ReviewsEmpty"]">
+        <HeaderTemplate>
+            <th scope="col">@Localizer["ReviewDelivery"]</th>
+            <th scope="col">@Localizer["Client"]</th>
+            <th scope="col">@Localizer["Driver"]</th>
+            <th scope="col">@Localizer["ReviewRating"]</th>
+            <th scope="col">@Localizer["ReviewText"]</th>
+            <th scope="col">@Localizer["CreatedAt"]</th>
+            @* Only for the role that has any. A dispatcher reads the collection and writes to none
+               of it, so an unconditional heading here would label a column of permanently empty
+               cells; the cell below carries the same predicate, so header and row stay the same
+               width for whoever is reading. *@
+            @if (_moderates)
+            {
+                <th scope="col">@Localizer["Actions"]</th>
+            }
+        </HeaderTemplate>
+        <RowTemplate Context="review">
+            <td>@review.DeliveryId</td>
+            <td>
+                @if (review.Client is null)
+                {
+                    <span>@Localizer["NoClient"]</span>
+                }
+                @if (review.Client is not null)
+                {
+                    <span>@review.Client.Name</span>
+                }
+            </td>
+            <td>
+                @if (review.Driver is null)
+                {
+                    <span>@Localizer["NoDriver"]</span>
+                }
+                @if (review.Driver is not null)
+                {
+                    <span>@review.Driver.Name</span>
+                }
+            </td>
+            <td>
+                <span class="@ReviewViews.ClassFor(review.Band)">@ReviewViews.Format(review.Rating)</span>
+            </td>
+            <td>@review.Text</td>
+            <td>@Moment(review.CreatedAt)</td>
+            @* FR-65 and FR-66 are an administrator's. Offering a dispatcher an action that could
+               only ever fail is worse than not offering it - and FR-12 is unchanged: this hides,
+               the guard decides. The cell goes with the buttons rather than staying behind empty,
+               because the heading above is conditional on the same predicate. *@
+            @if (_moderates)
+            {
+                <td class="dt-row-actions">
+                    <button type="button" class="btn btn-primary btn-sm dt-review-edit" @onclick="EditAny(review)">
+                        <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm dt-review-delete" @onclick="Remove(review.Id)">
+                        <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                    </button>
+                </td>
+            }
+        </RowTemplate>
+    </DtDataTable>
+}
+
+@* A driver. Said plainly rather than shown as an empty table, which would read as "nobody has
+   written anything" instead of "this is not yours". *@
+@if (!_authors && !_readsEvery)
+{
+    <p class="dt-review-refused">@Localizer["ReviewsNotAvailable"]</p>
+}
+
+@* FR-85: the one dialog every screen opens, rather than a modal of this screen's own. One heading
+   for both writing and editing - a title composed at run time would be a key no test can see, and
+   the catalogue is closed against the keys components literally ask for. *@
+<DtDialog @ref="_formDialog" Title="@Localizer["ReviewForm"]" OnClosed="CloseForm">
+    <ChildContent>
+        @* The same list as the one at the top of the page, and deliberately a second copy. A
+           DtDialog opens with showModal(), so everything outside it is inert behind the backdrop: a
+           refusal rendered only up there is a message nobody can see, and the form would simply
+           fail to close.
+
+           It replaces that one rather than joining it: the copy above stands down while this is
+           open, so a refused save is one live region announcing once. *@
+        @if (_formOpen)
+        {
+            @foreach (var key in _failures)
+            {
+                <div class="alert alert-danger" role="alert">@Errors[key]</div>
+            }
+        }
+
+        @* Only when writing a new one. A review is keyed one-to-one on its delivery, so moving an
+           existing one is deleting it and writing another - there is nothing here to change. *@
+        @if (_editingId is null)
+        {
+            <div class="mb-3">
+                <label class="form-label" for="review-delivery">@Localizer["ReviewDelivery"]</label>
+                <select id="review-delivery" class="form-select" @bind="_form.DeliveryId">
+                    @foreach (var delivery in _reviewable)
+                    {
+                        <option value="@delivery.Id">@Localizer["ReviewDelivery"] @delivery.Id</option>
+                    }
+                </select>
+                @* FR-62's two halves, said once: only a finished delivery, and only one review
+                   each. The list above is already narrowed to both, so this explains why a client
+                   who expected to see a parcel here does not. *@
+                <div class="form-text">@Localizer["ReviewDeliveryHint"]</div>
+            </div>
+        }
+
+        <div class="mb-3">
+            <label class="form-label" for="review-rating">@Localizer["ReviewRating"]</label>
+            @* The options are the scale's own values, so the control cannot offer a number the
+               column would refuse (FR-67, AD-18). It opens on RatingScale.Default. *@
+            <select id="review-rating" class="form-select" @bind="_form.Rating">
+                @foreach (var value in Scale)
+                {
+                    <option value="@value">@value</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="review-text">@Localizer["ReviewText"]</label>
+            <textarea id="review-text" class="form-control" rows="4"
+                      maxlength="@CreateReviewCommandValidator.TextMaximumLength"
+                      @bind="_form.Text"></textarea>
+        </div>
+    </ChildContent>
+    <Actions>
+        <button type="button" class="btn btn-primary dt-review-save" @onclick="SaveAsync">
+            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        </button>
+        <button type="button" class="btn btn-secondary dt-review-cancel" @onclick="CloseFormAsync">
+            <Icon Name="IconName.Close" />@Localizer["Cancel"]
+        </button>
+    </Actions>
+</DtDialog>
+
+@* FR-63 and NFR-22: every delete is confirmed, the author's own as much as the moderator's. One
+   prompt for both, because it is one destructive action - which is the whole reason the
+   confirmation is a shared component rather than a convention each screen remembers. *@
+<DtConfirmDialog @ref="_deleteDialog"
+                 Title="@Localizer["DeleteReviewTitle"]"
+                 Message="@Localizer["DeleteReviewMessage"]"
+                 OnConfirmed="DeleteAsync" />
+
+@code {
+    /// <summary>
+    /// The values the rating control offers: the scale itself, so the form cannot present a number
+    /// the check constraint would refuse.
+    /// </summary>
+    private static readonly int[] Scale =
+        [.. Enumerable.Range(RatingScale.Minimum, RatingScale.Maximum - RatingScale.Minimum + 1)];
+
+    // The screen's own lifetime. A user who navigates away mid-load leaves a query running against
+    // a pooled connection otherwise, and nothing would ever ask it to stop.
+    private readonly CancellationTokenSource _cancellation = new();
+
+    private readonly ReviewForm _form = new();
+
+    private DtDialog? _formDialog;
+    private DtConfirmDialog? _deleteDialog;
+
+    private IReadOnlyList<AuthoredReviewSummary>? _mine;
+    private IReadOnlyList<ReviewSummary>? _all;
+    private IReadOnlyList<AssignedDeliverySummary> _reviewable = [];
+    private IReadOnlyList<string> _failures = [];
+
+    private int? _editingId;
+    private int? _pendingDelete;
+
+    private bool _loading = true;
+    private bool _authors;
+    private bool _readsEvery;
+    private bool _moderates;
+
+    /// <summary>
+    /// Whether the write dialog is on screen, which decides where a refusal is rendered.
+    /// <para>
+    /// Kept here rather than read off the element, because the page needs it while it renders:
+    /// exactly one <c>role="alert"</c> region may be in the DOM, or one refusal is announced twice
+    /// (NFR-19). Cleared through <c>DtDialog.OnClosed</c>, so Escape and the backdrop count as
+    /// closing it just as the cancel action does.
+    /// </para>
+    /// </summary>
+    private bool _formOpen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The circuit outlives the request that opened it, so the cookie can be gone by the time a
+        // screen calls a service. Raising the contract's own code here is what puts that case
+        // through FR-13's single boundary instead of a per-screen redirect.
+        if (!Caller.IsAuthenticated)
+        {
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "The circuit has no authenticated caller: the session cookie is gone.");
+        }
+
+        // Read once, after the authenticated check: ICurrentUser.Role throws for an anonymous
+        // caller, so asking outside that branch would take the screen down instead of refusing it.
+        var role = Caller.Role;
+
+        _authors = ReviewViews.Authors(role);
+        _readsEvery = ReviewViews.ReadsEveryReview(role);
+        _moderates = ReviewViews.Moderates(role);
+
+        await ReloadAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+
+        // Rendered before the await, or the flag is set and cleared inside one synchronous stretch
+        // and DtDataTable's loading row never reaches the browser on a post-write refetch.
+        StateHasChanged();
+
+        try
+        {
+            if (_authors)
+            {
+                _mine = await Verdicts.ListMineAsync(Page, _cancellation.Token);
+                _reviewable = await ReviewableAsync(_mine);
+            }
+
+            if (_readsEvery)
+            {
+                _all = await Verdicts.ListAsync(Page, _cancellation.Token);
+            }
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+        }
+        finally
+        {
+            // In a finally so a refused or failed read leaves the table in its empty state rather
+            // than spinning forever, which reads to a user as a hung screen.
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// The caller's own deliveries they may still review: finished, and not already reviewed.
+    /// <para>
+    /// Both halves are the client's convenience rather than the rule. The service refuses an
+    /// unfinished delivery with <c>REVIEW_DELIVERY_NOT_COMPLETED</c> and the unique index refuses a
+    /// second review with a 409, whatever this list offered — which is what makes it safe to narrow
+    /// here without a second authorization decision living on a screen (FR-12).
+    /// </para>
+    /// </summary>
+    private async Task<IReadOnlyList<AssignedDeliverySummary>> ReviewableAsync(
+        IReadOnlyList<AuthoredReviewSummary> written)
+    {
+        var reviewed = written.Select(review => review.DeliveryId).ToHashSet();
+
+        var own = await Parcels.ListMineAsync(
+            new ListDeliveriesQuery(0, ListDeliveriesQueryValidator.MaximumLimit),
+            _cancellation.Token);
+
+        return
+        [
+            .. own.Where(delivery =>
+                delivery.Status is DeliveryStatus.Delivered or DeliveryStatus.Failed
+                && !reviewed.Contains(delivery.Id)),
+        ];
+    }
+
+    private Func<Task> EditMine(AuthoredReviewSummary review) =>
+        () => OpenEditAsync(review.Id, review.Rating, review.Text);
+
+    private Func<Task> EditAny(ReviewSummary review) =>
+        () => OpenEditAsync(review.Id, review.Rating, review.Text);
+
+    private Func<Task> Remove(int id) => () => OpenDeleteAsync(id);
+
+    private async Task OpenCreateAsync()
+    {
+        _editingId = null;
+        _failures = [];
+
+        // Preselected rather than left blank: an unset picker submits no delivery, and "no
+        // delivery" is a 404 from the scoped read - a true answer to a question the client did not
+        // mean to ask.
+        _form.Reset(_reviewable.Count > 0 ? _reviewable[0].Id : null);
+
+        _formOpen = true;
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task OpenEditAsync(int id, int rating, string text)
+    {
+        _editingId = id;
+        _failures = [];
+
+        _form.Fill(rating, text);
+
+        _formOpen = true;
+
+        if (_formDialog is not null)
+        {
+            await _formDialog.ShowAsync();
+        }
+    }
+
+    private async Task OpenDeleteAsync(int id)
+    {
+        _pendingDelete = id;
+        _failures = [];
+
+        if (_deleteDialog is not null)
+        {
+            await _deleteDialog.ShowAsync();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (_editingId is { } id)
+            {
+                // AD-23: both fields are sent because both are on the form. Absent would mean
+                // "leave it alone", which is not what a filled-in form says.
+                await Verdicts.UpdateAsync(
+                    id,
+                    new UpdateReviewCommand(
+                        Optional<int>.Present(_form.Rating),
+                        Optional<string>.Present(_form.Text)),
+                    _cancellation.Token);
+            }
+
+            if (_editingId is null)
+            {
+                await Verdicts.CreateAsync(
+                    new CreateReviewCommand(_form.DeliveryId ?? 0, _form.Rating, _form.Text),
+                    _cancellation.Token);
+            }
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Cleared on the way out, not only when a dialog opens: the banner is rendered at page
+        // level as well as inside the dialog, so a refused attempt that is then corrected and
+        // accepted would otherwise leave the failure standing on the page behind the closed
+        // dialog, contradicting the row the user can see was written.
+        _failures = [];
+
+        // Outside the try, because the write has already committed by now: a refetch that failed
+        // inside it would be caught and rendered as though the write had been refused, which is the
+        // one thing the user must not be told.
+        await CloseFormAsync();
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_pendingDelete is not { } id)
+        {
+            return;
+        }
+
+        try
+        {
+            await Verdicts.DeleteAsync(id, _cancellation.Token);
+        }
+        catch (DriveTrackException failure)
+        {
+            _failures = FailureKeys.For(failure);
+
+            return;
+        }
+
+        // Cleared here too: a refused delete followed by a confirmed one would otherwise leave the
+        // refusal standing above a table the row is already gone from.
+        _failures = [];
+        _pendingDelete = null;
+
+        await ReloadAsync();
+    }
+
+    private async Task CloseFormAsync()
+    {
+        if (_formDialog is not null)
+        {
+            await _formDialog.CloseAsync();
+        }
+    }
+
+    /// <summary>
+    /// Raised once for every dismissal — the cancel action, Escape or the backdrop — which is why
+    /// the flag is cleared here and not in <see cref="CloseFormAsync"/>: a dialog dismissed by the
+    /// platform would otherwise leave the page with no live region at all.
+    /// </summary>
+    private void CloseForm() => _formOpen = false;
+
+    /// <summary>
+    /// The page both lists ask for. One page of a hundred, like every other list in the product:
+    /// PRD section 8 excludes server-side filtering and result counts, so the screen reads a page
+    /// and shows it.
+    /// </summary>
+    private static ListReviewsQuery Page =>
+        new(0, ListReviewsQueryValidator.MaximumLimit);
+
+    /// <summary>
+    /// An instant as this screen shows it. Local time against the current culture (NFR-15); the
+    /// circuit runs interactively on the server, so <c>ToLocalTime</c> resolves against the host -
+    /// the same reading every other screen in the product gives a stored instant.
+    /// </summary>
+    private static string Moment(DateTimeOffset value) =>
+        value.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
+
+    /// <summary>
+    /// What the dialog is bound to. A form object rather than the command itself: a command is what
+    /// is sent once the boxes are filled, and a half-filled box is not a value the contract has to
+    /// be able to carry.
+    /// </summary>
+    private sealed class ReviewForm
+    {
+        /// <summary>The delivery being reviewed. Null only before the first delivery is offered.</summary>
+        public int? DeliveryId { get; set; }
+
+        /// <summary>The score. Opens on the scale's default rather than on zero, which is off it.</summary>
+        public int Rating { get; set; } = RatingScale.Default;
+
+        /// <summary>The comment.</summary>
+        public string? Text { get; set; }
+
+        /// <summary>Clears the form for a new review, aimed at the delivery given.</summary>
+        public void Reset(int? deliveryId)
+        {
+            DeliveryId = deliveryId;
+            Rating = RatingScale.Default;
+            Text = null;
+        }
+
+        /// <summary>Fills the form from a stored review.</summary>
+        public void Fill(int rating, string text)
+        {
+            DeliveryId = null;
+            Rating = rating;
+            Text = text;
+        }
+    }
+}

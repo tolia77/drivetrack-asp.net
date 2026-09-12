@@ -46,6 +46,12 @@ public enum NavDestination
     /// administrator is one of them.
     /// </summary>
     Chat,
+
+    /// <summary>
+    /// Reviews (FR-62 to FR-67). Offered to the client who writes them and to the two roles that
+    /// read and moderate them — and never to a driver, who is the party being judged.
+    /// </summary>
+    Reviews,
 }
 
 /// <summary>
@@ -100,6 +106,20 @@ internal static class NavDestinations
         new HashSet<NavDestination>(Assigned) { NavDestination.Chat };
 
     /// <summary>
+    /// What a client is offered: what any party to a delivery is, plus the reviews they write
+    /// (FR-62, FR-63).
+    /// <para>
+    /// Story 7.2 finishes the split story 8.1 began. <see cref="Assigned"/> used to be a client's
+    /// whole tier, and it cannot be any more: a driver builds on the same set, and a driver must
+    /// not be offered reviews — they are the party being judged, and every review route refuses
+    /// them. Folding it into <see cref="Assigned"/> would have handed a driver a link that can only
+    /// refuse.
+    /// </para>
+    /// </summary>
+    private static readonly IReadOnlySet<NavDestination> Client =
+        new HashSet<NavDestination>(Assigned) { NavDestination.Reviews };
+
+    /// <summary>
     /// The personal destinations plus the fleet, for the two roles that run dispatch. FR-12 still
     /// holds: this decides what is worth showing, and <c>IAccessGuard</c> decides who may do it.
     /// <para>
@@ -129,7 +149,16 @@ internal static class NavDestinations
     /// </para>
     /// </summary>
     private static readonly IReadOnlySet<NavDestination> Dispatch =
-        new HashSet<NavDestination>(Fleet) { NavDestination.Clients };
+        new HashSet<NavDestination>(Fleet)
+        {
+            NavDestination.Clients,
+
+            // FR-64 and FR-65: a dispatcher reads every review and an administrator moderates them,
+            // so the destination belongs to the work rather than to either role. Neither authors
+            // one - IAccessGuard.RequireReviewAuthor refuses both - which is why the screen offers
+            // them no compose action rather than a button that can only refuse.
+            NavDestination.Reviews,
+        };
 
     /// <summary>
     /// What a dispatcher is offered: the dispatch work, plus the conversations they hold with the
@@ -179,7 +208,7 @@ internal static class NavDestinations
         UserRole.Admin => Administrator,
         UserRole.Dispatcher => Dispatcher,
         UserRole.Driver => Driver,
-        UserRole.Client => Assigned,
+        UserRole.Client => Client,
 
         // Total, like LandingRoute: a fifth role added without a navigation decision fails loudly
         // here rather than silently rendering a menu with nothing in it.

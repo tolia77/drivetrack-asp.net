@@ -25,6 +25,22 @@ namespace DriveTrack.Application.Drivers;
 /// <param name="VehicleId">The vehicle held, or null when the driver holds none (FR-45).</param>
 /// <param name="VehicleModel">Its make and model, or null when the driver holds none.</param>
 /// <param name="VehicleLicensePlate">Its registration plate, or null when the driver holds none.</param>
+/// <param name="Rating">
+/// The mean of every rating clients have given this driver's deliveries (FR-98), or <c>null</c> when
+/// nobody has reviewed one. Derived on demand through <c>IReviewService</c> and stored nowhere
+/// (DR-18, AD-24): a column on <c>drivers</c> would be a second answer that goes stale the moment a
+/// review is written, edited or deleted.
+/// <para>
+/// Null rather than zero, and the distinction is the whole of this field's contract. A zero is a
+/// rating — the worst one the scale can express — so mapping "nobody has said anything" onto it
+/// would sort an unrated driver below every rated one and put a complaint nobody made in front of a
+/// dispatcher. The screen renders its "no value" text for null and never a number.
+/// </para>
+/// </param>
+/// <param name="ReviewCount">
+/// How many reviews the mean was drawn from. Zero when <see cref="Rating"/> is null, and the two
+/// always agree: an average of nothing is not a number.
+/// </param>
 public sealed record DriverSummary(
     DriverId Id,
     UserId UserId,
@@ -34,4 +50,6 @@ public sealed record DriverSummary(
     string LicenseNumber,
     int? VehicleId,
     string? VehicleModel,
-    string? VehicleLicensePlate);
+    string? VehicleLicensePlate,
+    double? Rating,
+    int ReviewCount);

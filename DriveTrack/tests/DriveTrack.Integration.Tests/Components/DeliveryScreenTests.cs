@@ -306,6 +306,31 @@ public class DeliveryScreenTests
     }
 
     [Fact]
+    public async Task The_driver_picker_names_each_drivers_standing_beside_them()
+    {
+        // FR-98 at the moment a dispatcher chooses who carries a parcel. An <option> holds text and
+        // nothing else, so the rating is composed in C# - which means the two branches are only
+        // covered if the stub has one driver of each kind.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        var options = Regex.Matches(
+                html,
+                @"<option\b[^>]*>(?<body>.*?)</option>",
+                RegexOptions.Singleline,
+                TimeSpan.FromSeconds(5))
+            .Select(match => System.Net.WebUtility.HtmlDecode(match.Groups["body"].Value).Trim())
+            .ToArray();
+
+        // 4,5 under uk-UA, which uses a comma for the decimal mark (NFR-15): the average is rendered
+        // as an average rather than rounded to a whole star.
+        Assert.Contains("Тарас Шевченко — 4,5", options);
+
+        // And the driver nobody has reviewed, who gets the catalogue's "no value" text. Never a
+        // zero: that is a rating, and the worst one the scale has.
+        Assert.Contains("Олег Коваль — Немає оцінок", options);
+    }
+
+    [Fact]
     public void The_capacity_hint_reads_the_vehicle_the_selected_driver_holds()
     {
         // The other half of the assertion above, and the half the render cannot make: static
@@ -324,7 +349,9 @@ public class DeliveryScreenTests
                 "ВІ123456",
                 5,
                 "Рено Мастер",
-                "АА1234ВВ"),
+                "АА1234ВВ",
+                Rating: null,
+                ReviewCount: 0),
             new DriverSummary(
                 new DriverId(2),
                 new UserId(11),
@@ -334,7 +361,9 @@ public class DeliveryScreenTests
                 "ВІ654321",
                 VehicleId: null,
                 VehicleModel: null,
-                VehicleLicensePlate: null),
+                VehicleLicensePlate: null,
+                Rating: null,
+                ReviewCount: 0),
         };
 
         var vehicles = new[]
@@ -1131,6 +1160,14 @@ public class DeliveryScreenTests
         public Task<DeliverySummary> GetAsync(int id, CancellationToken cancellationToken) =>
             Task.FromResult(Board[0]);
 
+        public Task<AssignedDeliverySummary> GetMineAsync(int id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The dispatch board never reads one delivery as its own.");
+
+        public Task<IReadOnlyList<DeliverySummary>> ListByIdsAsync(
+            IReadOnlyCollection<int> ids,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The dispatch board reads a page, not a set of ids.");
+
         public Task<DeliverySummary> CreateAsync(
             CreateDeliveryCommand command,
             CancellationToken cancellationToken) =>
@@ -1191,10 +1228,17 @@ public class DeliveryScreenTests
             Noon);
     }
 
-    /// <summary>One driver, holding the vehicle the capacity hint reads.</summary>
+    /// <summary>
+    /// Two drivers: one holding the vehicle the capacity hint reads, and one holding nothing.
+    /// <para>
+    /// They differ in their standing as well, because the assignment picker renders it (FR-98) and
+    /// the two branches of that are what a single stub cannot exercise: a rated driver shows the
+    /// average, an unrated one shows the "no value" text and never a zero.
+    /// </para>
+    /// </summary>
     private sealed class StubDriverService : IDriverService
     {
-        private static readonly DriverSummary Driver = new(
+        internal static readonly DriverSummary Rated = new(
             new DriverId(1),
             new UserId(10),
             "Тарас",
@@ -1203,10 +1247,27 @@ public class DeliveryScreenTests
             "ВІ123456",
             5,
             "Рено Мастер",
-            "АА1234ВВ");
+            "АА1234ВВ",
+            Rating: 4.5,
+            ReviewCount: 2);
+
+        internal static readonly DriverSummary Unrated = new(
+            new DriverId(2),
+            new UserId(11),
+            "Олег",
+            "Коваль",
+            "oleh@drivetrack.test",
+            "ВІ654321",
+            VehicleId: null,
+            VehicleModel: null,
+            VehicleLicensePlate: null,
+            Rating: null,
+            ReviewCount: 0);
+
+        private static readonly DriverSummary Driver = Rated;
 
         public Task<IReadOnlyList<DriverSummary>> ListAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<DriverSummary>>([Driver]);
+            Task.FromResult<IReadOnlyList<DriverSummary>>([Rated, Unrated]);
 
         public Task<DriverSummary> GetAsync(DriverId id, CancellationToken cancellationToken) =>
             Task.FromResult(Driver);

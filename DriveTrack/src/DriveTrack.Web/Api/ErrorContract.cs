@@ -102,6 +102,24 @@ internal static class ErrorContract
         ErrorCode.CHAT_MESSAGE_TEXT_REQUIRED => StatusCodes.Status422UnprocessableEntity,
         ErrorCode.CHAT_MESSAGE_TEXT_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
 
+        // FR-62 and FR-67's four refusals, all on the content of the request (NFR-4).
+        //
+        // The first is the one worth arguing. A review of an unfinished delivery looks like the
+        // status refusals above - the row's state is what says no - but it is not the same failure:
+        // there, the caller addressed a delivery and asked it to move, and the delivery refused;
+        // here, the caller is opening a new row and the delivery is a *value in their payload* that
+        // names the wrong one. A 409 would tell a client to try the same request again later, when
+        // what they should do is pick a different delivery.
+        //
+        // The other three travel as field keys inside COMMON_VALIDATION_FAILED, so the status the
+        // validator's own code carries is the one that reaches a caller - these arms exist because
+        // AD-7's map is total, and because a future path throwing one of them directly must not
+        // answer 500.
+        ErrorCode.REVIEW_DELIVERY_NOT_COMPLETED => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.REVIEW_RATING_OUT_OF_RANGE => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.REVIEW_TEXT_REQUIRED => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.REVIEW_TEXT_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+
         // AD-8 splits the two constraint kinds where AD-7 folds them together, and AD-8 is the more
         // specific rule: a unique violation is a genuine conflict with another row, a check
         // violation is a value the caller should not have sent. That split is what keeps NFR-2

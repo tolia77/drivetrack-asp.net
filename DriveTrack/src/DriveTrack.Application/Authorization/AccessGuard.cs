@@ -261,4 +261,86 @@ public sealed class AccessGuard(ICurrentUser currentUser) : IAccessGuard
             ErrorCode.AUTH_FORBIDDEN,
             "Role " + currentUser.Role + " is not a participant in chat.");
     }
+
+    /// <inheritdoc />
+    public ClientId RequireReviewAuthor()
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            // 401 for the reason every other member answers 401: an expired cookie on a live
+            // circuit is a caller with no credentials left, and FR-13 branches on this one code.
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "An anonymous caller attempted to write or read reviews of their own.");
+        }
+
+        if (currentUser.Role == UserRole.Client)
+        {
+            // Refused rather than widened, exactly as RequireScope refuses a claimless caller.
+            // There is no other answer available: the return type is the client row itself, so a
+            // client with a broken claim has no row to attach a review to.
+            return currentUser.ClientId is { } clientId
+                ? clientId
+                : throw new ForbiddenException(
+                    ErrorCode.AUTH_FORBIDDEN,
+                    "User "
+                        + currentUser.UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        + " holds role Client and carries no client row id, so the row a review "
+                        + "would be attached to cannot be determined.");
+        }
+
+        // Total over the enum, and the second place AD-4's admin override deliberately does not
+        // apply. An Admin lands here because the PRD retired FR-97 - an administrator authoring
+        // customer feedback is manufacturing it rather than moderating it, and moderation is
+        // RequireReviewOwner's, where the override does apply. A Dispatcher lands here because they
+        // run the deliveries being judged, and a Driver because they are the party being judged.
+        throw new ForbiddenException(
+            ErrorCode.AUTH_FORBIDDEN,
+            "Role " + currentUser.Role + " does not author reviews.");
+    }
+
+    /// <inheritdoc />
+    public void RequireReviewOwner(ClientId? ownerId)
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            // 401 for the reason every other member answers 401: an expired cookie on a live
+            // circuit is a caller with no credentials left, and FR-13 branches on this one code.
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "An anonymous caller attempted to change a review.");
+        }
+
+        // AD-4 once more, and still decided in this one file. FR-65 and FR-66 give an administrator
+        // every review to edit and to delete, which is what moderation is - and it is the half of
+        // the review pair the override applies to.
+        if (currentUser.Role == UserRole.Admin)
+        {
+            return;
+        }
+
+        if (currentUser.Role == UserRole.Client)
+        {
+            // Both halves have to be present and equal, exactly as RequireAssignedDriver compares.
+            // A missing review reaches here as a null that never matches, so it is refused before
+            // anyone learns whether it exists; a client with no client claim matches nothing.
+            if (ownerId is { } owner && currentUser.ClientId == owner)
+            {
+                return;
+            }
+
+            throw new ForbiddenException(
+                ErrorCode.AUTH_FORBIDDEN,
+                "User "
+                    + currentUser.UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + " holds role Client and did not write that review.");
+        }
+
+        // Total over the enum, like the members above. A Dispatcher lands here - FR-64 makes them a
+        // reader of reviews and never a writer of one - and so does a Driver, who is the party the
+        // review is about.
+        throw new ForbiddenException(
+            ErrorCode.AUTH_FORBIDDEN,
+            "Role " + currentUser.Role + " does not moderate reviews.");
+    }
 }

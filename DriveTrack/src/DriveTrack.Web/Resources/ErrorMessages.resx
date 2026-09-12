@@ -163,4 +163,23 @@
   <data name="CHAT_MESSAGE_TEXT_TOO_LONG" xml:space="preserve">
     <value>Повідомлення задовге: максимум 2000 символів.</value>
   </data>
+  <!-- FR-62. The sentence names the two states a delivery has to have reached, because the client
+       who meets this refusal is looking at a list of their own deliveries and has to know which of
+       them they may write about. -->
+  <data name="REVIEW_DELIVERY_NOT_COMPLETED" xml:space="preserve">
+    <value>Відгук можна залишити лише про доставку, яку вже завершено або позначено як невдалу.</value>
+  </data>
+  <!-- FR-67. The bounds are stated rather than only refused: the scale is the one thing a caller
+       cannot guess from a rejected value. -->
+  <data name="REVIEW_RATING_OUT_OF_RANGE" xml:space="preserve">
+    <value>Оцінка має бути цілим числом від 1 до 5.</value>
+  </data>
+  <data name="REVIEW_TEXT_REQUIRED" xml:space="preserve">
+    <value>Текст відгуку не може бути порожнім.</value>
+  </data>
+  <!-- The figure is the column's, stated so the author knows how much to cut rather than only that
+       it was too much. -->
+  <data name="REVIEW_TEXT_TOO_LONG" xml:space="preserve">
+    <value>Текст відгуку задовгий: максимум 2000 символів.</value>
+  </data>
 </root>

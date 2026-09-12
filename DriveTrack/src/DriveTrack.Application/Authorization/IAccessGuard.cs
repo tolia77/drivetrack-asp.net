@@ -21,20 +21,25 @@ namespace DriveTrack.Application.Authorization;
 /// answers "is this the driver carrying this parcel, or dispatch"; <c>RequireChatParticipant</c>
 /// answers "may this caller work in this driver's conversation, or see the list of them";
 /// <c>RequireDeliveryComposer</c> answers "may this caller compose a delivery, and for which client
-/// row". Each arrived with the first capability that had a caller for it — the scope with story
-/// 5.1, the assignment with 5.3, the conversation with 8.1, the composer with 7.4 — and none is a
-/// rewording of another: none of the first three can express "the assigned driver, or dispatch, but
-/// never the client whose delivery it is", and writing that as a role test inside a service would be
-/// a second place authorization lived.
+/// row"; <c>RequireReviewAuthor</c> answers "may this caller write reviews, and as which client
+/// row"; <c>RequireReviewOwner</c> answers "may this caller change <em>this</em> review". Each
+/// arrived with the first capability that had a caller for it — the scope with story 5.1, the
+/// assignment with 5.3, the conversation with 8.1, the composer with 7.4, the two review members
+/// with 7.2 — and none is a rewording of another: none of the first three can express "the assigned
+/// driver, or dispatch, but never the client whose delivery it is", and writing that as a role test
+/// inside a service would be a second place authorization lived.
 /// </para>
 /// <para>
 /// AD-4's "admin satisfies every check" lives inside the implementation, once, so every member
-/// inherits it and none restates it — with exactly one exception, recorded here because it is the
-/// kind of asymmetry a reader will otherwise take for a bug.
+/// inherits it and none restates it — with exactly two exceptions, recorded here because they are
+/// the kind of asymmetry a reader will otherwise take for a bug.
 /// <see cref="RequireChatParticipant"/> refuses an administrator. The PRD decides it as product
 /// ("admins moderate rather than dispatch"), and a fifth member is what lets the exception be
-/// written once, in one body, instead of as a role test scattered through a capability. Every other
-/// member still grants the override.
+/// written once, in one body, instead of as a role test scattered through a capability.
+/// <see cref="RequireReviewAuthor"/> refuses one too, for the same kind of product reason: the PRD
+/// retired FR-97 because an administrator authoring customer feedback is not moderation. Every
+/// other member — <see cref="RequireReviewOwner"/> included, which is the moderation half — still
+/// grants the override.
 /// </para>
 /// </summary>
 public interface IAccessGuard
@@ -190,4 +195,62 @@ public interface IAccessGuard
     /// an administrator (<c>AUTH_FORBIDDEN</c>, 403).
     /// </exception>
     void RequireChatParticipant(DriverId? thread);
+
+    /// <summary>
+    /// Answers "may this caller write reviews, and as which client row" (FR-62, FR-67).
+    /// <para>
+    /// A client, and nobody else. This is the second member whose answer deliberately contradicts
+    /// AD-4: the PRD retired FR-97 because an administrator authoring customer feedback is not
+    /// moderation — it is manufacturing it — so an admin is refused here and granted everything in
+    /// <see cref="RequireReviewOwner"/>, which is where moderation actually lives. A dispatcher is
+    /// refused for the plainer reason that they run the deliveries being judged. A driver is
+    /// refused because they are the party being judged.
+    /// </para>
+    /// <para>
+    /// <c>RequireRole(UserRole.Client)</c> cannot express it: it reads as "a client <em>or</em> an
+    /// admin" by AD-4's design, which is the one answer that is wrong here — and an admin carries
+    /// no client row id, so a service using it would have to decide what a missing id means, which
+    /// is an authorization decision living outside this interface.
+    /// </para>
+    /// <para>
+    /// It serves two call sites, which is the test of a question rather than a convenience:
+    /// authoring a review, and reading back the reviews the caller authored — where the answer is
+    /// also the scope the list is narrowed by (AD-3).
+    /// </para>
+    /// </summary>
+    /// <returns>The client row the caller writes reviews as.</returns>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401); or is an administrator, a
+    /// dispatcher or a driver, or is a client whose claims carry no client row id — refused rather
+    /// than widened, exactly as <see cref="RequireScope"/> refuses them (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    ClientId RequireReviewAuthor();
+
+    /// <summary>
+    /// Requires that the caller may change a review: its author, or an administrator moderating
+    /// (FR-65, FR-66).
+    /// <para>
+    /// AD-4 applies in full here, and that is the point of the pair: an administrator authors
+    /// nothing and edits or deletes anything, which is what moderation is. A dispatcher passes
+    /// nothing — they read the collection and never write to it.
+    /// </para>
+    /// <para>
+    /// <see cref="RequireSelf"/> cannot express it, because a review's owner is a
+    /// <see cref="ClientId"/> rather than a <see cref="UserId"/> and AD-22 keeps the two from being
+    /// compared. <see cref="RequireScope"/> cannot, because it hands a dispatcher the unrestricted
+    /// scope and so cannot refuse one.
+    /// </para>
+    /// </summary>
+    /// <param name="ownerId">
+    /// The client who wrote the review, or null when there is no review at all — which is why the
+    /// caller may ask this before answering 404. The comparison follows
+    /// <see cref="RequireAssignedDriver"/>: a null never equals a caller's client row id, so a
+    /// missing review is refused rather than handed to whoever asked for it.
+    /// </param>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401), or is a client who did not write
+    /// this review, or holds a role with no part in moderating one — a dispatcher or a driver
+    /// (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    void RequireReviewOwner(ClientId? ownerId);
 }

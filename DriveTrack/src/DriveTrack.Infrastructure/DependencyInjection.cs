@@ -5,6 +5,7 @@ using DriveTrack.Application.Chat;
 using DriveTrack.Application.Deliveries;
 using DriveTrack.Application.Drivers;
 using DriveTrack.Application.Notifications;
+using DriveTrack.Application.Reviews;
 using DriveTrack.Application.Users;
 using DriveTrack.Application.Vehicles;
 using DriveTrack.Infrastructure.Email;
@@ -220,6 +221,15 @@ public static class DependencyInjection
         // Infrastructure the one composition surface, even for a capability that lives in
         // Application.
         services.AddScoped<IChatService, ChatService>();
+
+        // FR-62 to FR-67 and FR-98. Scoped like every other capability - it reads the caller of the
+        // request or circuit it is serving - and registered here because AD-1 makes Infrastructure
+        // the one composition surface, even for a capability that lives in Application.
+        //
+        // AD-24 shows up as a shape in the container: this one takes IDeliveryService and the
+        // driver capability takes this one, so the two directions are declared rather than
+        // discovered. Neither closes a cycle, because the Deliveries capability reads neither.
+        services.AddScoped<IReviewService, ReviewService>();
     }
 
     /// <summary>

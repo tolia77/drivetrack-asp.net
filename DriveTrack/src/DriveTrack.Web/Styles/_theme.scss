@@ -137,3 +137,38 @@ h1:focus {
 .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+
+// -----------------------------------------------------------------------------
+// Ratings (FR-98, AD-18, AD-28)
+//
+// App-level rather than scoped to one component, because two screens render the
+// same judgement: the reviews screen shows a single verdict, and the driver roster
+// shows the average derived from many. A scoped rule would have been the same
+// three colours written twice, and the second copy is where a divergence starts.
+//
+// The class carries no threshold. Which band a number falls in is RatingScale's
+// answer in Domain, because "four and above is good" is a product rule - this only
+// says what each band looks like once something else has decided.
+// -----------------------------------------------------------------------------
+.dt-rating {
+    font-weight: var(--dt-font-weight-medium);
+}
+
+.dt-rating-favourable {
+    color: var(--dt-rating-favourable);
+}
+
+.dt-rating-neutral {
+    color: var(--dt-rating-neutral);
+}
+
+.dt-rating-unfavourable {
+    color: var(--dt-rating-unfavourable);
+}
+
+// A driver nobody has reviewed. Muted rather than any of the three above: the
+// absence of a verdict is not a verdict, and colouring it would make it one.
+.dt-rating-none {
+    color: var(--dt-text-muted);
+}

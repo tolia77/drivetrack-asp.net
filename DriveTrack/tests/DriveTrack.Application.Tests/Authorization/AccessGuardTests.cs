@@ -575,6 +575,138 @@ public class AccessGuardTests
         Assert.Equal(ErrorCode.AUTH_FORBIDDEN, failure.Code);
     }
 
+    // =====================================================================================
+    // RequireReviewAuthor / RequireReviewOwner (story 7.2)
+    //
+    // The pair FR-62 to FR-66 need, and the split between them is the product decision: the PRD
+    // retired FR-97, so an administrator authors nothing and moderates anything. That makes
+    // RequireReviewAuthor the second member whose answer deliberately contradicts AD-4 - the first
+    // being RequireChatParticipant - and RequireReviewOwner one where the override applies in full.
+    // Both arms are asserted here, because "an admin is refused by one and passes the other" is
+    // exactly the kind of asymmetry a later edit smooths away.
+    // =====================================================================================
+
+    [Fact]
+    public void An_anonymous_caller_writing_a_review_is_unauthenticated_not_forbidden()
+    {
+        // 401 for the reason every other member answers 401: FR-13's session-expiry flow branches
+        // on this single code, and an expired cookie on a live circuit reaches exactly here.
+        var guard = new AccessGuard(new StubCurrentUser());
+
+        Assert.Equal(
+            ErrorCode.AUTH_UNAUTHENTICATED,
+            Assert.Throws<ForbiddenException>(() => _ = guard.RequireReviewAuthor()).Code);
+
+        Assert.Equal(
+            ErrorCode.AUTH_UNAUTHENTICATED,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireReviewOwner(new ClientId(9))).Code);
+    }
+
+    [Fact]
+    public void A_client_writes_reviews_as_their_own_client_row()
+    {
+        // The answer is the row, not a boolean: an author the caller could name would be an author
+        // the caller could forge, so the service takes this instead of a field of the payload.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Client, clientId: new ClientId(9)));
+
+        Assert.Equal(new ClientId(9), guard.RequireReviewAuthor());
+    }
+
+    [Fact]
+    public void A_client_carrying_no_client_row_id_may_not_write_a_review()
+    {
+        // Refused rather than widened, exactly as RequireScope refuses a claimless caller - and
+        // here there is no other answer at all, because the return type is the row itself.
+        var guard = new AccessGuard(new StubCurrentUser(Target, UserRole.Client));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(() => _ = guard.RequireReviewAuthor()).Code);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Dispatcher)]
+    [InlineData(UserRole.Driver)]
+    public void Nobody_but_a_client_authors_a_review(UserRole role)
+    {
+        // The admin row is the one a reader will take for a mistake, and it is the product
+        // decision: the PRD retired FR-97 because an administrator authoring customer feedback is
+        // manufacturing it rather than moderating it. A dispatcher runs the deliveries being judged
+        // and a driver is the party being judged.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, role, driverId: new DriverId(4), clientId: new ClientId(9)));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(() => _ = guard.RequireReviewAuthor()).Code);
+    }
+
+    [Fact]
+    public void The_author_of_a_review_may_change_it()
+    {
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Client, clientId: new ClientId(9)));
+
+        guard.RequireReviewOwner(new ClientId(9));
+    }
+
+    [Fact]
+    public void A_client_may_not_change_another_clients_review()
+    {
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Client, clientId: new ClientId(9)));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireReviewOwner(new ClientId(10))).Code);
+    }
+
+    [Fact]
+    public void A_review_that_is_not_there_is_refused_before_anybody_learns_it_is_missing()
+    {
+        // The nullable argument, following RequireAssignedDriver: a missing review reaches the
+        // guard as a null that never equals a caller's client row id, so the service may ask before
+        // it answers 404 - and a client cannot probe which review ids exist.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Client, clientId: new ClientId(9)));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(() => guard.RequireReviewOwner(null)).Code);
+    }
+
+    [Fact]
+    public void An_admin_moderates_any_review_including_one_that_is_not_there()
+    {
+        // AD-4 in full on this half of the pair, null argument included: an administrator passes by
+        // rule, which is what lets the service answer 404 for a review that is genuinely missing
+        // rather than 403 for one they may moderate.
+        var guard = new AccessGuard(new StubCurrentUser(Target, UserRole.Admin));
+
+        guard.RequireReviewOwner(new ClientId(9));
+        guard.RequireReviewOwner(null);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Dispatcher)]
+    [InlineData(UserRole.Driver)]
+    public void Neither_a_dispatcher_nor_a_driver_moderates_a_review(UserRole role)
+    {
+        // FR-64 makes a dispatcher a reader of the collection and never a writer to it, and a
+        // driver has no part in reviews at all. Both land in the member's total arm.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, role, driverId: new DriverId(4), clientId: new ClientId(9)));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireReviewOwner(new ClientId(9))).Code);
+    }
+
     /// <summary>
     /// A caller with no adapter behind it. The guard depends on the port, not on a
     /// <c>ClaimsPrincipal</c>, which is what makes these tests possible without a host.
