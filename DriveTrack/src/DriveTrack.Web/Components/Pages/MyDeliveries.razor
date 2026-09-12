@@ -36,7 +36,7 @@
    which box fills which point is one rule however many forms ask it. Aliased because `Deliveries`
    alone reads as two things in this file - the component type and the Application namespace. *@
 @using PlaceSearch = DriveTrack.Web.Components.Pages.Deliveries.PlaceSearch
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["MyDeliveriesTitle"]</PageTitle>
 
@@ -292,10 +292,6 @@
 }
 
 @code {
-    // The screen's own lifetime. A driver who navigates away mid-load leaves a query running
-    // against a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private IReadOnlyList<AssignedDeliverySummary> _deliveries = [];
 
     /// <summary>The row whose history is open, or null while none is.</summary>
@@ -456,7 +452,7 @@
     {
         try
         {
-            await Mine.RequestAsync(_request.ToCommand(), _cancellation.Token);
+            await Mine.RequestAsync(_request.ToCommand(), CircuitToken);
 
             _failures = [];
 
@@ -491,7 +487,7 @@
     /// </remarks>
     /// <param name="search">The box being searched with.</param>
     private Func<Task> Search(PlaceSearch search) => async () =>
-        _failures = await search.RunAsync(Mine.SearchPlacesAsync, _cancellation.Token);
+        _failures = await search.RunAsync(Mine.SearchPlacesAsync, CircuitToken);
 
     /// <summary>
     /// The same action on Enter, which is the gesture a search box invites. Anything else typed
@@ -508,7 +504,7 @@
     {
         if (args.Key == "Enter" && !search.IsBusy)
         {
-            _failures = await search.RunAsync(Mine.SearchPlacesAsync, _cancellation.Token);
+            _failures = await search.RunAsync(Mine.SearchPlacesAsync, CircuitToken);
         }
     };
 
@@ -589,13 +585,6 @@
 
     private void CloseProof() => _viewing = null;
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
-    }
-
     private async Task LoadAsync()
     {
         _loading = true;
@@ -609,7 +598,7 @@
             // this caller's deliveries rather than the first page of everyone's, filtered.
             _deliveries = await Mine.ListMineAsync(
                 new ListDeliveriesQuery(0, ListDeliveriesQueryValidator.MaximumLimit),
-                _cancellation.Token);
+                CircuitToken);
         }
         finally
         {

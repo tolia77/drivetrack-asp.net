@@ -4,7 +4,7 @@
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 @* FR-46 / FR-47 / FR-48: the client roster, and the two operations an administrator performs on it.
 
@@ -118,10 +118,6 @@
                  OnConfirmed="DeleteAsync" />
 
 @code {
-    // The screen's own lifetime. A user who navigates away mid-load leaves a query running against
-    // a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private readonly ClientEditForm _form = new();
 
     private DtDialog? _editDialog;
@@ -152,13 +148,6 @@
         await ReloadAsync();
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
-    }
-
     private async Task ReloadAsync()
     {
         _isLoading = true;
@@ -169,7 +158,7 @@
 
         try
         {
-            _clients = await Roster.ListAsync(_cancellation.Token);
+            _clients = await Roster.ListAsync(CircuitToken);
         }
         finally
         {
@@ -218,7 +207,7 @@
 
         try
         {
-            await Roster.UpdateAsync(_selected.UserId, _form.ToCommand(), _cancellation.Token);
+            await Roster.UpdateAsync(_selected.UserId, _form.ToCommand(), CircuitToken);
         }
         catch (DriveTrackException failure)
         {
@@ -252,7 +241,7 @@
 
         try
         {
-            await Roster.DeleteAsync(_selected.UserId, _cancellation.Token);
+            await Roster.DeleteAsync(_selected.UserId, CircuitToken);
         }
         catch (DriveTrackException failure)
         {

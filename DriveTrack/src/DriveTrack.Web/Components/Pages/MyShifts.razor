@@ -22,7 +22,7 @@
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["MyShiftsTitle"]</PageTitle>
 
@@ -176,10 +176,6 @@
                  OnConfirmed="ConfirmDeleteAsync" />
 
 @code {
-    // The screen's own lifetime. A driver who navigates away mid-load leaves a query running
-    // against a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private IReadOnlyList<ShiftSummary> _shifts = [];
     private IReadOnlyList<string> _failures = [];
     private ShiftForm _form = new();
@@ -224,13 +220,6 @@
         await LoadAsync();
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
-    }
-
     /// <summary>The row's edit action, bound as a delegate so no lambda has to live in markup.</summary>
     private Func<Task> EditHandler(ShiftSummary shift) => () => OpenEditAsync(shift);
 
@@ -251,7 +240,7 @@
             // second place deciding whose rows a driver may see (AD-3).
             _shifts = await Duty.ListAsync(
                 new ListShiftsQuery(0, ListShiftsQueryValidator.MaximumLimit, null),
-                _cancellation.Token);
+                CircuitToken);
         }
         catch (DriveTrackException failure)
         {
@@ -276,7 +265,7 @@
         {
             // No instant in the command: going on duty is stamped by the server's clock, so a
             // driver cannot report having started an hour ago by pressing the button now (AD-13).
-            await Duty.StartAsync(new StartShiftCommand(driverId), _cancellation.Token);
+            await Duty.StartAsync(new StartShiftCommand(driverId), CircuitToken);
 
             _failures = [];
         }
@@ -301,7 +290,7 @@
 
         try
         {
-            await Duty.EndAsync(new EndShiftCommand(driverId), _cancellation.Token);
+            await Duty.EndAsync(new EndShiftCommand(driverId), CircuitToken);
 
             _failures = [];
         }
@@ -351,7 +340,7 @@
 
         try
         {
-            await Duty.UpdateAsync(shiftId, _form.AsUpdate(), _cancellation.Token);
+            await Duty.UpdateAsync(shiftId, _form.AsUpdate(), CircuitToken);
 
             _failures = [];
 
@@ -392,7 +381,7 @@
 
         try
         {
-            await Duty.DeleteAsync(shift.Id, _cancellation.Token);
+            await Duty.DeleteAsync(shift.Id, CircuitToken);
 
             _failures = [];
         }

@@ -4,7 +4,7 @@
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 @* FR-49 / FR-50: dispatcher accounts, and the first surface in the system that can make one - until
    now the startup seeder was the only thing that could.
@@ -136,8 +136,6 @@
                  OnConfirmed="DeleteAsync" />
 
 @code {
-    private readonly CancellationTokenSource _cancellation = new();
-
     private readonly DispatcherCreateForm _createForm = new();
     private readonly DispatcherEditForm _editForm = new();
 
@@ -162,13 +160,6 @@
         await ReloadAsync();
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
-    }
-
     private async Task ReloadAsync()
     {
         _isLoading = true;
@@ -179,7 +170,7 @@
 
         try
         {
-            _dispatchers = await Roster.ListAsync(_cancellation.Token);
+            _dispatchers = await Roster.ListAsync(CircuitToken);
         }
         finally
         {
@@ -242,7 +233,7 @@
                     _createForm.LastName,
                     _createForm.Email,
                     _createForm.Password),
-                _cancellation.Token);
+                CircuitToken);
         }
         catch (DriveTrackException failure)
         {
@@ -281,7 +272,7 @@
 
                     // FR-50: an empty box leaves the existing password signing in.
                     PasswordBox.ToOptional(_editForm.Password)),
-                _cancellation.Token);
+                CircuitToken);
         }
         catch (DriveTrackException failure)
         {
@@ -306,7 +297,7 @@
 
         try
         {
-            await Roster.DeleteAsync(_selected.UserId, _cancellation.Token);
+            await Roster.DeleteAsync(_selected.UserId, CircuitToken);
         }
         catch (DriveTrackException failure)
         {

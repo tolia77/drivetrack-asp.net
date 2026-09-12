@@ -20,7 +20,7 @@
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["DriversTitle"]</PageTitle>
 
@@ -195,10 +195,6 @@
                  OnConfirmed="ConfirmDeleteAsync" />
 
 @code {
-    // The screen's own lifetime. A dispatcher who navigates away mid-load leaves a query running
-    // against a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     private IReadOnlyList<DriverSummary> _drivers = [];
     private IReadOnlyList<VehicleChoice> _vehicleChoices = [];
     private IReadOnlyList<string> _failures = [];
@@ -232,13 +228,6 @@
         }
 
         await LoadAsync();
-    }
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
     }
 
     /// <summary>
@@ -322,9 +311,9 @@
 
         try
         {
-            _drivers = await Roster.ListAsync(_cancellation.Token);
+            _drivers = await Roster.ListAsync(CircuitToken);
             _vehicleChoices = ChoicesFor(
-                await Fleet.ListUnassignedAsync(_cancellation.Token),
+                await Fleet.ListUnassignedAsync(CircuitToken),
                 driver: null);
         }
         finally
@@ -344,7 +333,7 @@
         try
         {
             _vehicleChoices = ChoicesFor(
-                await Fleet.ListUnassignedAsync(_cancellation.Token),
+                await Fleet.ListUnassignedAsync(CircuitToken),
                 driver);
 
             return true;
@@ -426,7 +415,7 @@
                         // Always present: this screen states the assignment it means, and an
                         // explicit null is FR-38's release.
                         Optional<int?>.Present(_form.VehicleId)),
-                    _cancellation.Token);
+                    CircuitToken);
             }
 
             if (_form.Id is null)
@@ -439,7 +428,7 @@
                         _form.Password,
                         _form.LicenseNumber,
                         _form.VehicleId),
-                    _cancellation.Token);
+                    CircuitToken);
             }
 
             _failures = [];
@@ -484,7 +473,7 @@
 
         try
         {
-            await Roster.DeleteAsync(driver.Id, _cancellation.Token);
+            await Roster.DeleteAsync(driver.Id, CircuitToken);
 
             _failures = [];
         }

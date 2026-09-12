@@ -17,7 +17,7 @@
 @inject IDeliveryService Timeline
 @inject IStringLocalizer<UiText> Localizer
 @inject IStringLocalizer<ErrorMessages> Errors
-@implements IDisposable
+@inherits CircuitScopedComponent
 
 @* NFR-3: a refusal resolves through the same catalogue the REST envelope uses, so the dialog and
    the wire cannot disagree about what went wrong. *@
@@ -127,10 +127,6 @@
 </div>
 
 @code {
-    // The component's own lifetime. A viewer who closes the dialog mid-load leaves a query running
-    // against a pooled connection otherwise, and nothing would ever ask it to stop.
-    private readonly CancellationTokenSource _cancellation = new();
-
     /// <summary>
     /// Generated rather than fixed: two of these on one screen must not share an id, or the note
     /// label would point at the wrong field.
@@ -204,13 +200,6 @@
         await LoadAsync();
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
-    }
-
     /// <summary>A transition button's action, bound as a delegate so no lambda lives in markup.</summary>
     private Func<Task> ChangeHandler(DeliveryStatus next) => () => ChangeStatusAsync(next);
 
@@ -269,7 +258,7 @@
 
         try
         {
-            _entries = await Timeline.ListTimelineAsync(DeliveryId, _cancellation.Token);
+            _entries = await Timeline.ListTimelineAsync(DeliveryId, CircuitToken);
 
             // The buttons are computed from _status, so a reload has to move it as well as the list.
             // This is the arm that makes the refusal path work: after a 409 caused by somebody
@@ -300,7 +289,7 @@
             await Timeline.AddNoteAsync(
                 DeliveryId,
                 new AddDeliveryNoteCommand(_note),
-                _cancellation.Token);
+                CircuitToken);
 
             _failures = [];
             _note = null;
@@ -331,7 +320,7 @@
                 // nobody at the address" is one fact, and splitting it would leave a later reader
                 // joining two rows by their timestamps.
                 new ChangeDeliveryStatusCommand(next, _note),
-                _cancellation.Token);
+                CircuitToken);
 
             // From what was written, not from what was asked for: the two agree, and reading the
             // answer is what keeps this panel honest if they ever stop agreeing.
