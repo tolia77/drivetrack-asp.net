@@ -1,0 +1,30 @@
+/*
+    The reviews screen's own layout, and nothing else. The rating colours are app-level rather than
+    scoped, in _theme.scss: the driver roster renders the same judgement from an average, and a
+    scoped copy here would be the same three tokens written twice - which is where a divergence
+    between "a verdict" and "the average of several verdicts" would start.
+*/
+
+/*
+    The actions cell. Bootstrap's buttons carry no margin of their own, so Edit and Delete would
+    otherwise touch; the gap is a token because NFR-29 scans it as a visual value.
+
+    A row where the buttons are absent - a dispatcher reading the collection under FR-64 - collapses
+    to an empty cell, which is what an empty cell should look like.
+*/
+.dt-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dt-space-2);
+}
+
+/*
+    Two explanations rather than refusals, so both are muted: nothing went wrong in either case.
+    The first is the sentence a driver gets instead of a table - this screen is simply not theirs.
+    The second stands where a client's "write a review" action would be when they have no finished,
+    unreviewed delivery to write about, which is why the action is absent rather than disabled.
+*/
+.dt-review-refused,
+.dt-review-nothing-to-review {
+    color: var(--dt-text-muted);
+}

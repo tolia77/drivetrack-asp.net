@@ -115,6 +115,15 @@
             </div>
         }
 
+        @if (destinations.Contains(NavDestination.Reviews))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="reviews">
+                    <Icon Name="IconName.Reviews" />@Localizer["NavReviews"]
+                </NavLink>
+            </div>
+        }
+
         @if (destinations.Contains(NavDestination.Notifications))
         {
             <div class="nav-item px-3">

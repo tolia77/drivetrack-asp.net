@@ -73,6 +73,45 @@ internal sealed class EfDeliveryRepository(AppDbContext context) : IDeliveryRepo
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Delivery>> ListByIdsAsync(
+        AccessScope scope,
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+
+        if (ids.Count == 0)
+        {
+            // An IN () clause is not a query PostgreSQL can run, and a round trip that can only
+            // answer nothing is a round trip worth not making.
+            return [];
+        }
+
+        // Distinct because the caller's rows may name one delivery more than once; the database
+        // would answer the row once either way, but the parameter list has no reason to repeat.
+        var keys = ids.Distinct().ToArray();
+
+        var rows = context.Deliveries
+            .AsNoTracking()
+            .Where(delivery => keys.Contains(delivery.Id));
+
+        // The same narrowing ListAsync applies (AD-3), and for the same reason: a row outside the
+        // scope is absent from the answer rather than present and then filtered, so no caller can
+        // learn of a delivery they may not see by naming its id.
+        if (scope.DriverId is { } driverId)
+        {
+            rows = rows.Where(delivery => delivery.DriverId == driverId);
+        }
+
+        if (scope.ClientId is { } clientId)
+        {
+            rows = rows.Where(delivery => delivery.ClientId == clientId);
+        }
+
+        return await rows.ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<decimal?> FindHeaviestActiveWeightForDriverAsync(
         DriverId driverId,
         CancellationToken cancellationToken) =>

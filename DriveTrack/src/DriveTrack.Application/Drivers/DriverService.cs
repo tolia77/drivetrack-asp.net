@@ -2,6 +2,7 @@ using System.Globalization;
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Application.Authorization;
 using DriveTrack.Application.Common;
+using DriveTrack.Application.Reviews;
 using DriveTrack.Application.Vehicles;
 using DriveTrack.Domain.Drivers;
 using DriveTrack.Domain.Identity;
@@ -27,10 +28,23 @@ namespace DriveTrack.Application.Drivers;
 /// <c>unitOfWork.Vehicles</c> — the assignment goes through <see cref="VehicleAssignment"/>, the
 /// one writer of <c>drivers.vehicle_id</c>.
 /// </para>
+/// <para>
+/// AD-24 in the other direction, added by story 7.2: a driver's rating is derived from reviews, and
+/// reviews belong to the Reviews capability — so this service asks <see cref="IReviewService"/> for
+/// it and never reads <c>unitOfWork.Reviews</c>. The ask is batched: a roster of forty drivers is
+/// one question about forty driver rows, not forty questions.
+/// </para>
+/// <para>
+/// Every read that needs a rating closes its persistence scope before asking for one. The other
+/// capability opens a scope of its own, and two transactions held open across one screen's read is
+/// a cost with nothing to buy: the rating does not depend on the rows just read, and nothing here
+/// writes.
+/// </para>
 /// </summary>
 public sealed class DriverService(
     IUnitOfWorkFactory unitOfWorkFactory,
     IAccessGuard accessGuard,
+    IReviewService reviews,
     IValidator<CreateDriverCommand> createValidator,
     IValidator<UpdateDriverCommand> updateValidator) : IDriverService
 {
@@ -39,42 +53,52 @@ public sealed class DriverService(
     {
         accessGuard.RequireRole(UserRole.Dispatcher);
 
-        await using var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken);
+        var rows = new List<(Driver Driver, UserAccount Account)>();
 
-        var drivers = await unitOfWork.Drivers.ListAsync(cancellationToken);
-        var summaries = new List<DriverSummary>(drivers.Count);
-
-        foreach (var driver in drivers)
+        // An explicit block rather than a method-wide `await using`: the rating below is another
+        // capability's answer and opens a scope of its own, so this one is closed first. Nothing
+        // was written, so it is disposed without a commit and the empty transaction rolls back -
+        // the ordinary read path, not an omission.
+        await using (var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken))
         {
-            // The account is read per driver rather than joined: Domain declares no relationship
-            // between Driver and the Identity user - it cannot, without naming an Infrastructure
-            // type - so the identity fields are only reachable through the Identity port. The
-            // roster is a small, unpaged set by requirement (the original returned every row), so
-            // the cost is a handful of keyed reads rather than a scan.
-            summaries.Add(await SummaryAsync(unitOfWork, driver, cancellationToken));
+            foreach (var driver in await unitOfWork.Drivers.ListAsync(cancellationToken))
+            {
+                // The account is read per driver rather than joined: Domain declares no
+                // relationship between Driver and the Identity user - it cannot, without naming an
+                // Infrastructure type - so the identity fields are only reachable through the
+                // Identity port. The roster is a small, unpaged set by requirement (the original
+                // returned every row), so the cost is a handful of keyed reads rather than a scan.
+                rows.Add((driver, await AccountAsync(unitOfWork, driver, cancellationToken)));
+            }
         }
 
-        // Nothing was written, so the scope is disposed without a commit and the empty transaction
-        // rolls back. That is the ordinary read path, not an omission.
-        return summaries;
+        // FR-98, batched: one question about every driver on the roster. Asking per row would make
+        // a forty driver roster forty queries for a column that is the same one grouped answer.
+        var ratings = await RatingsAsync([.. rows.Select(row => row.Driver.Id)], cancellationToken);
+
+        return [.. rows.Select(row => Summary(row.Driver, row.Account, Rating(ratings, row.Driver.Id)))];
     }
 
     /// <inheritdoc />
     public async Task<DriverSummary> GetAsync(DriverId id, CancellationToken cancellationToken)
     {
-        await using var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken);
+        Driver driver;
+        UserAccount account;
 
-        // AD-3: load, then guard. Nothing about the row is disclosed unless the guard passes.
-        var driver = await unitOfWork.Drivers.GetByIdAsync(id, cancellationToken);
-
-        accessGuard.RequireRole(UserRole.Dispatcher);
-
-        if (driver is null)
+        await using (var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken))
         {
-            throw NotFound(id);
+            // AD-3: load, then guard. Nothing about the row is disclosed unless the guard passes.
+            var found = await unitOfWork.Drivers.GetByIdAsync(id, cancellationToken);
+
+            accessGuard.RequireRole(UserRole.Dispatcher);
+
+            driver = found ?? throw NotFound(id);
+            account = await AccountAsync(unitOfWork, driver, cancellationToken);
         }
 
-        return await SummaryAsync(unitOfWork, driver, cancellationToken);
+        var ratings = await RatingsAsync([driver.Id], cancellationToken);
+
+        return Summary(driver, account, Rating(ratings, driver.Id));
     }
 
     /// <inheritdoc />
@@ -127,7 +151,10 @@ public sealed class DriverService(
         // here or nowhere.
         await unitOfWork.CommitAsync(cancellationToken);
 
-        return Summary(driver, account);
+        // No rating, and no lookup for one: a driver taken on a moment ago has carried nothing, so
+        // there is no delivery for anybody to have reviewed. Null is the honest answer rather than
+        // a query whose result is known (FR-98).
+        return Summary(driver, account, rating: null);
     }
 
     /// <inheritdoc />
@@ -138,54 +165,66 @@ public sealed class DriverService(
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        await using var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken);
+        Driver driver;
+        UserAccount written;
 
-        var driver = await unitOfWork.Drivers.GetByIdAsync(id, cancellationToken);
-
-        accessGuard.RequireRole(UserRole.Dispatcher);
-
-        if (driver is null)
+        // An explicit block rather than a method-wide `await using`, for the reason ListAsync uses
+        // one: the rating below is another capability's answer and opens a scope of its own, and
+        // this one has nothing left to do once it has committed.
+        await using (var unitOfWork = await unitOfWorkFactory.CreateAsync(cancellationToken))
         {
-            throw NotFound(id);
+            var found = await unitOfWork.Drivers.GetByIdAsync(id, cancellationToken);
+
+            accessGuard.RequireRole(UserRole.Dispatcher);
+
+            driver = found ?? throw NotFound(id);
+
+            // The account is loaded before the merge rather than only for the summary: FR-37's name
+            // lives there, so it is half of the state the validator has to judge.
+            var account = await unitOfWork.Users.GetByIdAsync(driver.UserId, cancellationToken)
+                ?? throw Orphaned(driver);
+
+            // AD-23: the validator reads the state the driver will hold, not the payload.
+            var merged = command.MergedOnto(driver, account);
+
+            await ValidatorExtensions.ValidateAndThrowAsync(updateValidator, merged, cancellationToken);
+
+            var firstName = merged.FirstName.Value!.Trim();
+            var lastName = merged.LastName.Value!.Trim();
+
+            // Only when something actually changed. An edit that leaves the name alone must not
+            // write to the account at all - the narrower the reach into Identity, the easier AD-24
+            // is to read.
+            if (!string.Equals(firstName, account.FirstName, StringComparison.Ordinal)
+                || !string.Equals(lastName, account.LastName, StringComparison.Ordinal))
+            {
+                await unitOfWork.Users.RenameAsync(driver.UserId, firstName, lastName, cancellationToken);
+            }
+
+            driver.LicenseNumber = merged.LicenseNumber.Value!.Trim();
+
+            // The merged value, so an absent VehicleId re-applies what the driver already holds - a
+            // no-op inside the writer - and a present null clears it (FR-38).
+            await VehicleAssignment.ApplyAsync(
+                unitOfWork,
+                driver,
+                merged.VehicleId.Value,
+                cancellationToken);
+
+            await unitOfWork.CommitAsync(cancellationToken);
+
+            // Built from the state just written rather than re-read: the rename was staged against
+            // the same change tracker, so a second read would only be asking the database to
+            // confirm what this scope already knows.
+            written = account with { FirstName = firstName, LastName = lastName };
         }
 
-        // The account is loaded before the merge rather than only for the summary: FR-37's name
-        // lives there, so it is half of the state the validator has to judge.
-        var account = await unitOfWork.Users.GetByIdAsync(driver.UserId, cancellationToken)
-            ?? throw Orphaned(driver);
+        // A driver's standing is not touched by an edit to their licence or their vehicle, but the
+        // payload still has to carry the one they actually hold: a null here would read as "nobody
+        // has reviewed them", which is a different claim (FR-98).
+        var ratings = await RatingsAsync([driver.Id], cancellationToken);
 
-        // AD-23: the validator reads the state the driver will hold, not the payload.
-        var merged = command.MergedOnto(driver, account);
-
-        await ValidatorExtensions.ValidateAndThrowAsync(updateValidator, merged, cancellationToken);
-
-        var firstName = merged.FirstName.Value!.Trim();
-        var lastName = merged.LastName.Value!.Trim();
-
-        // Only when something actually changed. An edit that leaves the name alone must not write
-        // to the account at all - the narrower the reach into Identity, the easier AD-24 is to read.
-        if (!string.Equals(firstName, account.FirstName, StringComparison.Ordinal)
-            || !string.Equals(lastName, account.LastName, StringComparison.Ordinal))
-        {
-            await unitOfWork.Users.RenameAsync(driver.UserId, firstName, lastName, cancellationToken);
-        }
-
-        driver.LicenseNumber = merged.LicenseNumber.Value!.Trim();
-
-        // The merged value, so an absent VehicleId re-applies what the driver already holds - a
-        // no-op inside the writer - and a present null clears it (FR-38).
-        await VehicleAssignment.ApplyAsync(
-            unitOfWork,
-            driver,
-            merged.VehicleId.Value,
-            cancellationToken);
-
-        await unitOfWork.CommitAsync(cancellationToken);
-
-        // Built from the state just written rather than re-read: the rename was staged against the
-        // same change tracker, so a second read would only be asking the database to confirm what
-        // this scope already knows.
-        return Summary(driver, account with { FirstName = firstName, LastName = lastName });
+        return Summary(driver, written, Rating(ratings, driver.Id));
     }
 
     /// <inheritdoc />
@@ -217,17 +256,35 @@ public sealed class DriverService(
             ErrorCode.COMMON_NOT_FOUND,
             "No driver exists with id " + id.Value.ToString(CultureInfo.InvariantCulture) + ".");
 
-    /// <summary>The summary for a loaded driver, reading the account behind them.</summary>
-    private static async Task<DriverSummary> SummaryAsync(
+    /// <summary>The account behind a loaded driver, which is where their identity fields live.</summary>
+    private static async Task<UserAccount> AccountAsync(
         IUnitOfWork unitOfWork,
         Driver driver,
-        CancellationToken cancellationToken)
-    {
-        var account = await unitOfWork.Users.GetByIdAsync(driver.UserId, cancellationToken)
+        CancellationToken cancellationToken) =>
+        await unitOfWork.Users.GetByIdAsync(driver.UserId, cancellationToken)
             ?? throw Orphaned(driver);
 
-        return Summary(driver, account);
-    }
+    /// <summary>
+    /// FR-98's aggregate for a set of drivers, asked of the capability that owns reviews (AD-24)
+    /// and keyed so a mapping is a lookup rather than a scan.
+    /// </summary>
+    private async Task<Dictionary<DriverId, DriverRating>> RatingsAsync(
+        IReadOnlyCollection<DriverId> driverIds,
+        CancellationToken cancellationToken) =>
+        (await reviews.ListDriverRatingsAsync(driverIds, cancellationToken))
+            .ToDictionary(rating => rating.DriverId);
+
+    /// <summary>
+    /// One driver's standing, or null when nobody has reviewed a delivery of theirs.
+    /// <para>
+    /// Absence stays absence. Answering a zero here would be answering the worst rating the scale
+    /// has to a question nobody asked, and it would sort an unrated driver below every rated one.
+    /// </para>
+    /// </summary>
+    private static DriverRating? Rating(
+        IReadOnlyDictionary<DriverId, DriverRating> ratings,
+        DriverId driverId) =>
+        ratings.TryGetValue(driverId, out var rating) ? rating : null;
 
     /// <summary>
     /// A driver row whose account is gone breaks the foreign key the schema declares, so it is a
@@ -241,7 +298,7 @@ public sealed class DriverService(
                 + driver.UserId.Value.ToString(CultureInfo.InvariantCulture)
                 + ", which does not exist.");
 
-    private static DriverSummary Summary(Driver driver, UserAccount account) =>
+    private static DriverSummary Summary(Driver driver, UserAccount account, DriverRating? rating) =>
         new(
             driver.Id,
             account.Id,
@@ -251,5 +308,10 @@ public sealed class DriverService(
             driver.LicenseNumber,
             driver.VehicleId,
             driver.Vehicle?.Model,
-            driver.Vehicle?.LicensePlate);
+            driver.Vehicle?.LicensePlate,
+
+            // Null and zero together, or neither: an average of nothing is not a number, and the
+            // two fields must never disagree about whether anybody has said anything (FR-98).
+            rating?.Average,
+            rating?.ReviewCount ?? 0);
 }

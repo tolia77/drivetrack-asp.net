@@ -433,9 +433,12 @@
                 <label class="form-label" for="delivery-driver">@Localizer["Driver"]</label>
                 <select id="delivery-driver" class="form-select" @bind="_form.DriverId">
                     <option value="">@Localizer["NoDriver"]</option>
+                    @* FR-98: the standing travels with the name, because this is the moment a
+                       dispatcher chooses who carries a parcel. Built in C# rather than as three
+                       markup branches inside an <option>, which may only hold text. *@
                     @foreach (var driver in _drivers)
                     {
-                        <option value="@driver.Id.Value">@driver.FirstName @driver.LastName</option>
+                        <option value="@driver.Id.Value">@DriverOption(driver)</option>
                     }
                 </select>
             </div>
@@ -670,6 +673,21 @@
     /// </remarks>
     private static string Created(DeliverySummary delivery) =>
         delivery.CreatedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
+
+    /// <summary>
+    /// One driver as the assignment picker names them: who they are, and how they are thought of
+    /// (FR-98).
+    /// </summary>
+    /// <remarks>
+    /// Composed here rather than in markup because an <c>&lt;option&gt;</c> holds text and nothing
+    /// else, so the three markup branches the roster uses have nowhere to go. The rating is
+    /// formatted by <see cref="ReviewViews"/>, the same reading the roster gives it; a driver
+    /// nobody has reviewed gets the "no value" text and never a zero — which is a rating, and the
+    /// worst one the scale has.
+    /// </remarks>
+    private string DriverOption(DriverSummary driver) =>
+        driver.FirstName + " " + driver.LastName + " — "
+            + (driver.Rating is { } average ? ReviewViews.Format(average) : Localizer["NoRating"]);
 
     /// <summary>
     /// Whether a delivery survives every filter the dispatcher has set (FR-20).

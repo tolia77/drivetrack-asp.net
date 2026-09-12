@@ -359,6 +359,25 @@ public class AdministrationScreenTests
         // so cannot refuse one, and its answer is about which rows may be read rather than who may
         // open a new one. It serves two call sites, which is the test of a question rather than a
         // convenience: the request path and FR-104's address search behind the same form.
+        //
+        // Story 7.2 adds two, and they are a pair rather than two independent additions - which is
+        // itself the argument, because the split between them is the product decision.
+        // RequireReviewAuthor answers "may this caller write reviews, and as which client row": the
+        // PRD retired FR-97, so an administrator authoring customer feedback is manufacturing it
+        // rather than moderating it, and RequireRole(Client) - which reads as "a client or an
+        // admin" by AD-4's design - is not merely awkward here but wrong. It is the second member
+        // whose answer deliberately contradicts AD-4, and, as with RequireDeliveryComposer, an
+        // admin carries no client row id for a service to fall back on. It serves two call sites:
+        // authoring, and the author's own list, where the answer is also the scope the list is
+        // narrowed by (AD-3).
+        //
+        // RequireReviewOwner answers "may this caller change *this* review" - its author, or an
+        // admin moderating, and never a dispatcher. RequireSelf cannot express it, because a
+        // review's owner is a ClientId rather than a UserId and AD-22 keeps the two from being
+        // compared; RequireScope cannot, because it hands a dispatcher the unrestricted scope and
+        // so cannot refuse one. Its nullable argument follows RequireAssignedDriver: a missing
+        // review reaches the guard as a null that never matches, so it is refused rather than
+        // handed to whoever asked for it.
         var members = typeof(IAccessGuard)
             .GetMethods()
             .Select(method => method.Name)
@@ -370,6 +389,8 @@ public class AdministrationScreenTests
                 "RequireAssignedDriver",
                 "RequireChatParticipant",
                 "RequireDeliveryComposer",
+                "RequireReviewAuthor",
+                "RequireReviewOwner",
                 "RequireRole",
                 "RequireScope",
                 "RequireSelf",

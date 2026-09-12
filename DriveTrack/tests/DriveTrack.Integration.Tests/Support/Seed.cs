@@ -3,6 +3,7 @@ using DriveTrack.Domain.Common;
 using DriveTrack.Domain.Deliveries;
 using DriveTrack.Domain.Drivers;
 using DriveTrack.Domain.Identity;
+using DriveTrack.Domain.Reviews;
 using DriveTrack.Domain.Vehicles;
 using DriveTrack.Infrastructure.Identity;
 using DriveTrack.Infrastructure.Persistence;
@@ -209,6 +210,27 @@ internal static class Seed
 
         return delivery;
     }
+
+    /// <summary>A valid, unsaved review of a delivery.</summary>
+    /// <remarks>
+    /// For the suites that need more reviews than a page holds. Writing one over HTTP means
+    /// carrying a parcel end to end first — a vehicle, a driver, a client, three status changes —
+    /// which is the right arrangement for a test about authoring and the wrong one for a test about
+    /// where a <c>WHERE</c> clause goes.
+    /// </remarks>
+    public static Review NewReview(
+        int deliveryId,
+        ClientId clientId,
+        int rating = 5,
+        string text = "усе добре") =>
+        new()
+        {
+            DeliveryId = deliveryId,
+            ClientId = clientId,
+            Rating = rating,
+            Text = text,
+            CreatedAt = Instant,
+        };
 
     /// <summary>A timeline entry recording a status change, ready to append.</summary>
     public static TimelineEntry NewTimelineEntry(

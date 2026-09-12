@@ -95,4 +95,7 @@ public enum IconName
 
     /// <summary>Sending the message that has been typed (FR-70).</summary>
     Send,
+
+    /// <summary>A client's verdict on a delivery, and the destination that opens them (FR-62, FR-63).</summary>
+    Reviews,
 }

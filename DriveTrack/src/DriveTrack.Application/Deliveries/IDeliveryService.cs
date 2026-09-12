@@ -43,6 +43,61 @@ public interface IDeliveryService
     Task<DeliverySummary> GetAsync(int id, CancellationToken cancellationToken);
 
     /// <summary>
+    /// One of the caller's own deliveries (FR-26, FR-27), carrying no counterparty identity at all.
+    /// <para>
+    /// <see cref="ListMineAsync"/>'s singular, and the only scoped single-delivery read the system
+    /// has. <see cref="GetAsync"/> cannot serve here: it is dispatcher-gated, so a client asking
+    /// about their own parcel is refused by it.
+    /// </para>
+    /// <para>
+    /// It exists because AD-24 needs it to. The Reviews capability has to know whether the delivery
+    /// a client is reviewing is theirs and whether it has finished, and it may not read
+    /// <c>unitOfWork.Deliveries</c> to find out — another capability's rows are read through that
+    /// capability's service. This is that door, and it is a narrow one: the narrowing is the
+    /// guard's scope reaching the <c>WHERE</c> clause (AD-3), so a delivery outside it is answered
+    /// as a 404 rather than a 403 and its existence is never disclosed.
+    /// </para>
+    /// </summary>
+    /// <exception cref="Common.ForbiddenException">The caller has no session, or no row scope.</exception>
+    /// <exception cref="Common.NotFoundException">
+    /// No delivery has that id, or the caller's scope does not admit it — the same answer for both,
+    /// so a client learns nothing about another client's delivery.
+    /// </exception>
+    Task<AssignedDeliverySummary> GetMineAsync(int id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Several deliveries at once, as dispatch reads them, for a caller that already holds a page of
+    /// rows naming them (FR-64).
+    /// <para>
+    /// <see cref="GetAsync"/>'s plural, and the difference is not convenience. Party names are not
+    /// on the delivery row: a client's name lives on the Identity account, so every summary this
+    /// service builds resolves its parties through <c>IUserAccountRepository</c>, and it does that
+    /// once per <em>call</em> by reading the roster of each kind of party the rows name. Asking
+    /// <see cref="GetAsync"/> about a hundred deliveries therefore costs a hundred transactions and
+    /// two hundred roster reads; asking this once costs one transaction and two roster reads.
+    /// </para>
+    /// <para>
+    /// It exists because AD-24 needs it to, exactly as <see cref="GetMineAsync"/> does. The Reviews
+    /// capability's moderation list names both parties to each reviewed delivery and may not read
+    /// <c>unitOfWork.Deliveries</c> or <c>.Users</c> to find them. This is that door, and it is the
+    /// mirror of <c>IReviewService.ListDriverRatingsAsync</c>, which the Drivers capability reads
+    /// its ratings through: a capability that needs N rows of somebody else's data asks once.
+    /// </para>
+    /// <para>
+    /// An id with no row — a delivery deleted between the caller's page read and this call — is
+    /// simply absent from the answer rather than a 404 over the whole batch. One vanished row must
+    /// not take a hundred good ones with it, and the caller already has to decide what an
+    /// unresolvable row looks like on its own screen.
+    /// </para>
+    /// </summary>
+    /// <param name="ids">The deliveries to resolve. Duplicates and unknown ids are harmless.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="Common.ForbiddenException">The caller runs neither dispatch nor the system.</exception>
+    Task<IReadOnlyList<DeliverySummary>> ListByIdsAsync(
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Opens a delivery (FR-14 to FR-17). It starts <c>Pending</c> and is timestamped from the
     /// injected clock (AD-13).
     /// </summary>

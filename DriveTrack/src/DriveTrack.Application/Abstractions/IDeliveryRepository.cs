@@ -64,6 +64,35 @@ public interface IDeliveryRepository
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// The deliveries named by <paramref name="ids"/> that <paramref name="scope"/> admits, in one
+    /// round trip.
+    /// </summary>
+    /// <remarks>
+    /// Not a page and not ordered: the caller already holds the rows it is asking about — a page of
+    /// reviews, each naming the delivery it is written on — and reads these to name their parties.
+    /// It exists so that a capability needing N rows of somebody else's data asks once instead of N
+    /// times; the mirror of <see cref="IReviewRepository.ListDriverRatingsAsync"/>, which the
+    /// Drivers capability reads ratings through for the same reason.
+    /// <para>
+    /// The scope is a parameter for AD-3's reason, unchanged by the ids being explicit: a row the
+    /// caller may not see must be absent from the answer rather than filtered out of it afterwards.
+    /// An id the scope excludes is simply missing from the result, exactly as an id nobody ever
+    /// wrote is.
+    /// </para>
+    /// <para>
+    /// An empty <paramref name="ids"/> answers an empty list without asking the database; every
+    /// caller reaching here with nothing to look up is a caller whose own page was empty.
+    /// </para>
+    /// </remarks>
+    /// <param name="scope">The guard's answer to "whose rows may this caller see".</param>
+    /// <param name="ids">The delivery ids being resolved. Duplicates are harmless.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<IReadOnlyList<Delivery>> ListByIdsAsync(
+        AccessScope scope,
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// The heaviest package among the driver's deliveries that have not been carried yet, or null
     /// when they have none — the one question FR-103's fleet-side arm asks.
     /// <para>

@@ -48,6 +48,28 @@ public class FleetScreenTests
         TimeSpan.FromSeconds(5));
 
     [Fact]
+    public async Task The_roster_shows_a_drivers_standing_and_says_nothing_where_there_is_none()
+    {
+        // FR-98 at the surface the acceptance criterion names. Two drivers, and the distinction the
+        // whole nullable field exists for: one has an average, the other has no reviews at all and
+        // gets the "no value" text rather than a zero - which is a rating, and the worst one the
+        // scale has.
+        var html = await RenderDriversAsync();
+
+        // 4.5 under uk-UA, which uses a comma for the decimal mark (NFR-15). Asserted as the
+        // rendered string rather than as the number, because the formatting is half the claim.
+        Assert.Contains(">4,5<", html, StringComparison.Ordinal);
+        Assert.Contains("Немає оцінок", html, StringComparison.Ordinal);
+
+        // AD-18 and AD-28: the band is Domain's reading of the number and the class is what that
+        // band looks like. 4.5 is favourable; the unrated driver wears neither that class nor any
+        // other band's, because the absence of a verdict is not a verdict.
+        Assert.Contains("dt-rating dt-rating-favourable", html, StringComparison.Ordinal);
+        Assert.Contains("dt-rating dt-rating-none", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-rating-unfavourable", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task The_driver_roster_renders_through_the_shared_table_and_names_each_vehicle()
     {
         var html = await RenderDriversAsync();
@@ -376,7 +398,12 @@ public class FleetScreenTests
             "ВІ123456",
             HeldVehicleId,
             "Рено Мастер",
-            "АА1234ВВ");
+            "АА1234ВВ",
+
+            // FR-98: a driver clients have been pleased with. Half a point, so the roster is also
+            // asserting that an average is rendered as an average rather than rounded to a star.
+            Rating: 4.5,
+            ReviewCount: 2);
 
         /// <summary>A driver holding nothing.</summary>
         internal static readonly DriverSummary WithoutVehicle = new(
@@ -388,7 +415,9 @@ public class FleetScreenTests
             "ВІ654321",
             null,
             null,
-            null);
+            null,
+            null,
+            0);
 
         public Task<IReadOnlyList<DriverSummary>> ListAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<DriverSummary>>([WithVehicle, WithoutVehicle]);

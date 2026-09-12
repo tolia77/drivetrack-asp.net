@@ -60,6 +60,7 @@
         <th scope="col">@Localizer["Email"]</th>
         <th scope="col">@Localizer["LicenseNumber"]</th>
         <th scope="col">@Localizer["Vehicle"]</th>
+        <th scope="col">@Localizer["Rating"]</th>
         <th scope="col">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="driver">
@@ -75,6 +76,21 @@
             @if (driver.VehicleId is not null)
             {
                 <span>@driver.VehicleModel — @driver.VehicleLicensePlate</span>
+            }
+        </td>
+        <td>
+            @* FR-98: the aggregate, derived on demand and never stored. Null and zero are different
+               claims - nobody has said anything, versus everybody said the worst thing - so a
+               driver with no reviews gets the "no value" text rather than a number. The class comes
+               from Domain's band through ReviewViews and resolves to a --dt-rating-* token; no
+               threshold and no colour is written here (AD-18, AD-28). *@
+            @if (driver.Rating is null)
+            {
+                <span class="@ReviewViews.NoRatingClass">@Localizer["NoRating"]</span>
+            }
+            @if (driver.Rating is not null)
+            {
+                <span class="@ReviewViews.ClassFor(driver.Rating.Value)">@ReviewViews.Format(driver.Rating.Value)</span>
             }
         </td>
         <td>

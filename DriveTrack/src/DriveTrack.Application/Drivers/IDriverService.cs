@@ -9,6 +9,13 @@ namespace DriveTrack.Application.Drivers;
 /// Every method takes an authorization decision through <see cref="Authorization.IAccessGuard"/>,
 /// inline in its own body: nothing here is in <see cref="Authorization.PublicEntryPoints"/>.
 /// </para>
+/// <para>
+/// Since story 7.2 a <see cref="DriverSummary"/> also carries FR-98's rating. It is read through
+/// <c>IReviewService</c> rather than computed here, because it is derived from reviews and reviews
+/// belong to another capability (AD-24) — and it is derived on every read rather than stored on the
+/// driver row (DR-18), so a review written, edited or deleted a moment ago is already reflected.
+/// A driver nobody has reviewed carries <c>null</c>, never a zero.
+/// </para>
 /// </summary>
 public interface IDriverService
 {
