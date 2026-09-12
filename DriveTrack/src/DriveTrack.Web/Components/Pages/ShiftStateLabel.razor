@@ -1,0 +1,40 @@
+@* FR-117's two states, named once.
+
+   A shift is running or it is finished, and both screens say so - two copies of one vocabulary
+   otherwise, and the kind of duplication where the second copy is the one that goes stale.
+
+   The words are the shift's and deliberately not the driver's. The two driver pickers say "на
+   зміні" and "не на зміні", which are claims about where somebody is now; this badge labels a row
+   in a history, where last Tuesday's shift is finished and says nothing about whether its driver is
+   working today. Sharing one pair of keys would have put a present-tense claim about a person in a
+   column headed "стан зміни", and it would have been false for every row but the open one.
+
+   Independent @@if blocks rather than a ternary or an if/else chain: an `else` at markup level reads
+   to NFR-14's source scan as a rendered English word, and a key composed at run time would be a key
+   the closed-catalogue test cannot see. The two literal localizer lookups below are what make those
+   two keys reachable.
+
+   The colours are the themed Bootstrap badges' rather than values written here (AD-28, NFR-29):
+   `text-bg-success` and `text-bg-secondary` already wear the palette, so there is no hex anywhere in
+   this file and nothing for the design-token gate to catch. *@
+@inject IStringLocalizer<UiText> Localizer
+
+@if (IsOpen)
+{
+    <span class="badge text-bg-success">@Localizer["ShiftRunning"]</span>
+}
+@if (!IsOpen)
+{
+    <span class="badge text-bg-secondary">@Localizer["ShiftFinished"]</span>
+}
+
+@code {
+    /// <summary>
+    /// Whether the shift is still running. A bool rather than a status enum, because there is no
+    /// status column to mirror: open is <c>EndedAt IS NULL</c>, which is also the filter of the
+    /// index enforcing one open shift per driver (FR-110, FR-117).
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public bool IsOpen { get; set; }
+}

@@ -52,6 +52,19 @@ public enum NavDestination
     /// read and moderate them — and never to a driver, who is the party being judged.
     /// </summary>
     Reviews,
+
+    /// <summary>
+    /// Every driver's shifts (FR-113, FR-114). Dispatch's screen: it shows who is on duty across the
+    /// whole roster and is where a shift somebody logged wrongly gets corrected.
+    /// </summary>
+    Shifts,
+
+    /// <summary>
+    /// The caller's own shifts, and the button that starts and ends one (FR-109, FR-112). A personal
+    /// destination in the sense <see cref="MyDeliveries"/> is: it shows what the caller's own scope
+    /// narrows to rather than a roster somebody administers.
+    /// </summary>
+    MyShifts,
 }
 
 /// <summary>
@@ -103,7 +116,15 @@ internal static class NavDestinations
     /// </para>
     /// </summary>
     private static readonly IReadOnlySet<NavDestination> Driver =
-        new HashSet<NavDestination>(Assigned) { NavDestination.Chat };
+        new HashSet<NavDestination>(Assigned)
+        {
+            NavDestination.Chat,
+
+            // FR-109 and FR-112: going on and off duty, and the log of when they did. A driver's
+            // own, like their deliveries - and not a client's, who has no shifts at all, which is
+            // the second thing this tier has that Assigned does not.
+            NavDestination.MyShifts,
+        };
 
     /// <summary>
     /// What a client is offered: what any party to a delivery is, plus the reviews they write
@@ -136,6 +157,11 @@ internal static class NavDestinations
         // FR-18's dispatch board sits in this tier rather than the personal one: it shows every
         // delivery in the system, which is a thing to run rather than a thing to own.
         NavDestination.Deliveries,
+
+        // FR-113 and FR-114's shift roster, in this tier for the same reason: it shows every
+        // driver's shifts and is where dispatch corrects one, which is running the fleet rather
+        // than owning a row. A driver's own screen is MyShifts, in the tier above.
+        NavDestination.Shifts,
     };
 
     /// <summary>

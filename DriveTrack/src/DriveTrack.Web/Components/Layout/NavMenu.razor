@@ -88,6 +88,24 @@
             </div>
         }
 
+        @if (destinations.Contains(NavDestination.Shifts))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="shifts">
+                    <Icon Name="IconName.Shifts" />@Localizer["NavShifts"]
+                </NavLink>
+            </div>
+        }
+
+        @if (destinations.Contains(NavDestination.MyShifts))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="my-shifts">
+                    <Icon Name="IconName.Shifts" />@Localizer["NavMyShifts"]
+                </NavLink>
+            </div>
+        }
+
         @if (destinations.Contains(NavDestination.Clients))
         {
             <div class="nav-item px-3">

@@ -739,4 +739,79 @@
   <data name="NoRating" xml:space="preserve">
     <value>Немає оцінок</value>
   </data>
+  <!-- Story 4.2's two navigation entries. Short, because they sit in a column of links: the first
+       is dispatch's roster of everybody's shifts, the second a driver's own. -->
+  <data name="NavShifts" xml:space="preserve">
+    <value>Зміни</value>
+  </data>
+  <data name="NavMyShifts" xml:space="preserve">
+    <value>Мої зміни</value>
+  </data>
+  <!-- FR-113 and FR-109: the two screens' headings. The dispatch one names the drivers, because it
+       is the whole roster rather than a personal log. -->
+  <data name="ShiftsTitle" xml:space="preserve">
+    <value>Зміни водіїв</value>
+  </data>
+  <data name="MyShiftsTitle" xml:space="preserve">
+    <value>Мої зміни</value>
+  </data>
+  <data name="ShiftsEmpty" xml:space="preserve">
+    <value>Змін поки немає.</value>
+  </data>
+  <!-- The two instants a shift is, as column headings and as form labels. -->
+  <data name="ShiftStartedAt" xml:space="preserve">
+    <value>Початок зміни</value>
+  </data>
+  <data name="ShiftEndedAt" xml:space="preserve">
+    <value>Кінець зміни</value>
+  </data>
+  <data name="ShiftState" xml:space="preserve">
+    <value>Стан зміни</value>
+  </data>
+  <!-- FR-116's marker beside a driver's name in the two pickers. A claim about the person and about
+       the present moment, which is why it is not the badge's wording below: a driver is on duty now
+       or they are not. -->
+  <data name="ShiftOpen" xml:space="preserve">
+    <value>На зміні</value>
+  </data>
+  <data name="ShiftClosed" xml:space="preserve">
+    <value>Не на зміні</value>
+  </data>
+  <!-- FR-117's two states, and the only two there are: open is ended_at IS NULL and closed is
+       everything else. The badge labels a row in a history, so the words are the shift's rather than
+       the driver's - last Tuesday's shift is finished, which says nothing about where its driver is
+       today. -->
+  <data name="ShiftRunning" xml:space="preserve">
+    <value>Відкрита</value>
+  </data>
+  <data name="ShiftFinished" xml:space="preserve">
+    <value>Завершена</value>
+  </data>
+  <!-- What an open shift's end cell says. A blank cell would read as a missing value rather than as
+       a shift that has not finished yet. -->
+  <data name="ShiftStillOpen" xml:space="preserve">
+    <value>Триває</value>
+  </data>
+  <!-- FR-85: one heading for both recording a shift and correcting one. -->
+  <data name="ShiftForm" xml:space="preserve">
+    <value>Зміна</value>
+  </data>
+  <!-- FR-117 said to a person: an empty end box opens a new shift and leaves a finished one
+       finished. Clearing an end is not something the contract can express. -->
+  <data name="ShiftEndedAtHint" xml:space="preserve">
+    <value>Порожнє поле означає, що зміна триває. Завершену зміну відновити не можна.</value>
+  </data>
+  <!-- FR-109's one action, in whichever direction the driver's current state allows. -->
+  <data name="GoOnDuty" xml:space="preserve">
+    <value>Почати зміну</value>
+  </data>
+  <data name="GoOffDuty" xml:space="preserve">
+    <value>Завершити зміну</value>
+  </data>
+  <data name="DeleteShiftTitle" xml:space="preserve">
+    <value>Видалити зміну</value>
+  </data>
+  <data name="DeleteShiftMessage" xml:space="preserve">
+    <value>Зміну буде видалено остаточно. Продовжити?</value>
+  </data>
 </root>

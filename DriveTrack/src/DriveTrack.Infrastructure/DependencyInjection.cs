@@ -6,6 +6,7 @@ using DriveTrack.Application.Deliveries;
 using DriveTrack.Application.Drivers;
 using DriveTrack.Application.Notifications;
 using DriveTrack.Application.Reviews;
+using DriveTrack.Application.Shifts;
 using DriveTrack.Application.Users;
 using DriveTrack.Application.Vehicles;
 using DriveTrack.Infrastructure.Email;
@@ -230,6 +231,15 @@ public static class DependencyInjection
         // driver capability takes this one, so the two directions are declared rather than
         // discovered. Neither closes a cycle, because the Deliveries capability reads neither.
         services.AddScoped<IReviewService, ReviewService>();
+
+        // FR-109 to FR-117. Scoped like every other capability - it reads the caller of the request
+        // or circuit it is serving - and it takes the clock registered above, so going on and off
+        // duty is stamped from an injected TimeProvider rather than from the machine (AD-13).
+        //
+        // AD-24 shows up in the container here too: the driver capability above takes this one for
+        // FR-116's flag, and this one takes neither it nor the deliveries capability. The edge runs
+        // one way only, which is what makes the pair resolvable at all.
+        services.AddScoped<IShiftService, ShiftService>();
     }
 
     /// <summary>

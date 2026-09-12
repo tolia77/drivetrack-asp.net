@@ -343,4 +343,91 @@ public sealed class AccessGuard(ICurrentUser currentUser) : IAccessGuard
             ErrorCode.AUTH_FORBIDDEN,
             "Role " + currentUser.Role + " does not moderate reviews.");
     }
+
+    /// <inheritdoc />
+    public DriverId? RequireShiftScope()
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            // 401 for the reason every other member answers 401: an expired cookie on a live
+            // circuit is a caller with no credentials left, and FR-13 branches on this one code.
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "An anonymous caller asked whose shifts they are allowed to see.");
+        }
+
+        // AD-4 once more, and still decided in this one file. A dispatcher stands beside the admin
+        // because FR-113 gives dispatch the whole roster of shifts.
+        if (currentUser.Role is UserRole.Admin or UserRole.Dispatcher)
+        {
+            return null;
+        }
+
+        if (currentUser.Role == UserRole.Driver)
+        {
+            // Refused rather than widened, exactly as RequireScope refuses a claimless caller: the
+            // only other answer available is null, which is dispatch's answer and would hand every
+            // driver's shifts to an account with a broken claim.
+            return currentUser.DriverId is { } driverId
+                ? driverId
+                : throw new ForbiddenException(
+                    ErrorCode.AUTH_FORBIDDEN,
+                    "User "
+                        + currentUser.UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        + " holds role Driver and carries no driver row id, so the shifts they may "
+                        + "see cannot be determined.");
+        }
+
+        // Total over the enum, like RequireScope. A Client lands here, and that is FR-115 written
+        // once: a client has no part in shifts, and the narrowing RequireScope would have handed
+        // them - (null, clientId) - has a null driver half that a shift query reads as
+        // "unrestricted by driver", which is every shift in the system.
+        throw new ForbiddenException(
+            ErrorCode.AUTH_FORBIDDEN,
+            "Role " + currentUser.Role + " has no part in driver shifts.");
+    }
+
+    /// <inheritdoc />
+    public void RequireShiftOwner(DriverId? ownerDriverId)
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            // 401 for the reason every other member answers 401: an expired cookie on a live
+            // circuit is a caller with no credentials left, and FR-13 branches on this one code.
+            throw new ForbiddenException(
+                ErrorCode.AUTH_UNAUTHENTICATED,
+                "An anonymous caller attempted to act on a driver's shift.");
+        }
+
+        // AD-4 once more, and still the only place it is written. A dispatcher stands beside the
+        // admin because FR-114 gives dispatch every shift to correct.
+        if (currentUser.Role is UserRole.Admin or UserRole.Dispatcher)
+        {
+            return;
+        }
+
+        if (currentUser.Role == UserRole.Driver)
+        {
+            // Both halves have to be present and equal, exactly as RequireAssignedDriver compares.
+            // A shift that does not exist reaches here as a null that never matches, so it is
+            // refused before anyone learns whether it exists; a driver with no driver claim matches
+            // nothing.
+            if (ownerDriverId is { } owner && currentUser.DriverId == owner)
+            {
+                return;
+            }
+
+            throw new ForbiddenException(
+                ErrorCode.AUTH_FORBIDDEN,
+                "User "
+                    + currentUser.UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + " holds role Driver and is not the driver that shift belongs to.");
+        }
+
+        // Total over the enum, like the members above. A Client lands here: FR-115 gives them no
+        // part in shifts at all, and so would a fifth role added without a decision about theirs.
+        throw new ForbiddenException(
+            ErrorCode.AUTH_FORBIDDEN,
+            "Role " + currentUser.Role + " has no part in driver shifts.");
+    }
 }

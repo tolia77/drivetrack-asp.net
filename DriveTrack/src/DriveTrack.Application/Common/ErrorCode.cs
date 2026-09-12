@@ -171,6 +171,33 @@ public enum ErrorCode
     /// </summary>
     REVIEW_TEXT_TOO_LONG,
 
+    /// <summary>
+    /// The driver already has an open shift, so a second one may not be started (FR-110). 409: the
+    /// request collides with a row that already exists, and the caller's next move is to end the
+    /// shift they are already on rather than to re-spell the request.
+    /// <para>
+    /// The friendly half of a rule the database owns. <c>IX_Shifts_DriverId_Open</c> is what
+    /// actually enforces it — two requests racing both pass a pre-insert lookup — and the loser of
+    /// a race gets <see cref="PERSISTENCE_UNIQUE_VIOLATION"/>, which is the same 409 (NFR-2).
+    /// </para>
+    /// </summary>
+    SHIFT_ALREADY_OPEN,
+
+    /// <summary>
+    /// The driver has no open shift, so there is nothing to end (FR-110). 409 for the same reason
+    /// the code above is one: the payload named a driver who exists and it is the state of their
+    /// shifts that refuses the request.
+    /// </summary>
+    SHIFT_NOT_OPEN,
+
+    /// <summary>
+    /// A shift would end before it started (FR-111). 422, reported as a field key inside
+    /// <c>COMMON_VALIDATION_FAILED</c> so the form can mark the box that was wrong — and judged
+    /// against the state the row will hold rather than against the payload, so a one-field edit is
+    /// refused on the window it actually produces (AD-23).
+    /// </summary>
+    SHIFT_ENDED_BEFORE_STARTED,
+
     /// <summary>PostgreSQL SQLSTATE 23505, translated in Infrastructure. 409 (AD-8).</summary>
     PERSISTENCE_UNIQUE_VIOLATION,
 

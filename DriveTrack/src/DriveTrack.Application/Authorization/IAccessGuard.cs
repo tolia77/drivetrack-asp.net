@@ -22,12 +22,15 @@ namespace DriveTrack.Application.Authorization;
 /// answers "may this caller work in this driver's conversation, or see the list of them";
 /// <c>RequireDeliveryComposer</c> answers "may this caller compose a delivery, and for which client
 /// row"; <c>RequireReviewAuthor</c> answers "may this caller write reviews, and as which client
-/// row"; <c>RequireReviewOwner</c> answers "may this caller change <em>this</em> review". Each
+/// row"; <c>RequireReviewOwner</c> answers "may this caller change <em>this</em> review";
+/// <c>RequireShiftScope</c> answers "whose shifts may this caller be shown"; and
+/// <c>RequireShiftOwner</c> answers "may this caller act on <em>this</em> driver's shift". Each
 /// arrived with the first capability that had a caller for it — the scope with story 5.1, the
 /// assignment with 5.3, the conversation with 8.1, the composer with 7.4, the two review members
-/// with 7.2 — and none is a rewording of another: none of the first three can express "the assigned
-/// driver, or dispatch, but never the client whose delivery it is", and writing that as a role test
-/// inside a service would be a second place authorization lived.
+/// with 7.2, the two shift members with 4.2 — and none is a rewording of another. None of
+/// <c>RequireSelf</c>, <c>RequireRole</c> and <c>RequireScope</c> can express "the assigned driver,
+/// or dispatch, but never the client whose delivery it is", and writing that as a role test inside
+/// a service would be a second place authorization lived.
 /// </para>
 /// <para>
 /// AD-4's "admin satisfies every check" lives inside the implementation, once, so every member
@@ -253,4 +256,55 @@ public interface IAccessGuard
     /// (<c>AUTH_FORBIDDEN</c>, 403).
     /// </exception>
     void RequireReviewOwner(ClientId? ownerId);
+
+    /// <summary>
+    /// Answers which drivers' shifts this caller may be shown — "every driver" for dispatch, "their
+    /// own and no others" for a driver, and nothing at all for a client (FR-112 to FR-115).
+    /// <para>
+    /// <see cref="RequireScope"/> cannot express it, and this is the one member where reusing it
+    /// would be a disclosure rather than a wording problem: a client's scope is
+    /// <c>(null, clientId)</c>, whose driver half is null — which a shift query reads as
+    /// <em>unrestricted by driver</em> and would answer with every shift the system holds. FR-115
+    /// gives a client no part in shifts at all, so the honest answer is a refusal rather than a
+    /// narrowing.
+    /// </para>
+    /// <para>
+    /// AD-4 applies: an administrator is unrestricted by rule, and a dispatcher stands beside them
+    /// because FR-113 gives dispatch the whole roster of shifts.
+    /// </para>
+    /// </summary>
+    /// <returns>
+    /// The driver row the listing is narrowed to, or <c>null</c> for the unrestricted case — which
+    /// reaches the repository unchanged and adds no <c>WHERE</c>.
+    /// </returns>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401); or is a client, or is a driver
+    /// whose claims carry no driver row id — refused rather than widened, exactly as
+    /// <see cref="RequireScope"/> refuses them (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    DriverId? RequireShiftScope();
+
+    /// <summary>
+    /// Requires that the caller may act on one driver's shift: that driver, or dispatch (FR-112,
+    /// FR-114).
+    /// <para>
+    /// The write-side half of the pair, and the same shape as
+    /// <see cref="RequireAssignedDriver"/> — which already answers "this driver, or dispatch, never
+    /// a client" and would behave correctly here. It is a separate member because its refusal says
+    /// <em>delivery lifecycle</em>, so every refused shift request would be logged as a delivery;
+    /// <see cref="RequireReviewOwner"/> beside <see cref="RequireReviewAuthor"/> is the standing
+    /// precedent for a capability-specific member with the same structure.
+    /// </para>
+    /// </summary>
+    /// <param name="ownerDriverId">
+    /// The driver whose shift it is, or null when there is no shift at all — which is why a service
+    /// may ask this before answering 404: a driver who may not touch the row is refused before
+    /// learning whether it exists. A null never equals a caller's driver row id.
+    /// </param>
+    /// <exception cref="Common.ForbiddenException">
+    /// The caller is anonymous (<c>AUTH_UNAUTHENTICATED</c>, 401), or is a driver who is not the
+    /// one the shift belongs to, or holds a role with no part in shifts at all — a client
+    /// (<c>AUTH_FORBIDDEN</c>, 403).
+    /// </exception>
+    void RequireShiftOwner(DriverId? ownerDriverId);
 }

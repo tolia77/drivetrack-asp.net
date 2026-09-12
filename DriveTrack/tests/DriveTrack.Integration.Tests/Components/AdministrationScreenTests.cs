@@ -378,6 +378,21 @@ public class AdministrationScreenTests
         // so cannot refuse one. Its nullable argument follows RequireAssignedDriver: a missing
         // review reaches the guard as a null that never matches, so it is refused rather than
         // handed to whoever asked for it.
+        //
+        // Story 4.2 adds two more, and they are a pair for the same kind of reason. RequireShiftScope
+        // answers "whose shifts may this caller be shown", and it is the one addition where reusing
+        // RequireScope would be a disclosure rather than a wording problem: a client's scope is
+        // (null, clientId), whose driver half is null - which a shift query reads as "unrestricted
+        // by driver" and answers with every shift in the system, when FR-115 gives a client no part
+        // in shifts at all.
+        //
+        // RequireShiftOwner answers "may this caller act on *this* driver's shift". It is the one
+        // member that could have been left out: RequireAssignedDriver already answers "this driver,
+        // or dispatch, never a client" and would behave correctly. Its message says *delivery
+        // lifecycle*, though, so every refused shift request would be logged as a delivery - and
+        // RequireReviewOwner beside RequireReviewAuthor is the standing precedent for a
+        // capability-specific member with the same structure. Its nullable argument follows
+        // RequireAssignedDriver's for the same reason as the review one's.
         var members = typeof(IAccessGuard)
             .GetMethods()
             .Select(method => method.Name)
@@ -394,6 +409,8 @@ public class AdministrationScreenTests
                 "RequireRole",
                 "RequireScope",
                 "RequireSelf",
+                "RequireShiftOwner",
+                "RequireShiftScope",
             ],
             members);
     }

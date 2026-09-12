@@ -3,6 +3,7 @@ using DriveTrack.Application.Abstractions;
 using DriveTrack.Application.Authorization;
 using DriveTrack.Application.Common;
 using DriveTrack.Application.Reviews;
+using DriveTrack.Application.Shifts;
 using DriveTrack.Application.Vehicles;
 using DriveTrack.Domain.Drivers;
 using DriveTrack.Domain.Identity;
@@ -35,6 +36,13 @@ namespace DriveTrack.Application.Drivers;
 /// one question about forty driver rows, not forty questions.
 /// </para>
 /// <para>
+/// Story 4.2 adds a second port of the same shape and for the same reason: FR-116's on-duty flag is
+/// derived from shifts, so it is <see cref="IShiftService"/>'s answer rather than a read of
+/// <c>unitOfWork.Shifts</c>. That capability answers with driver row ids and asks this one for
+/// nothing in return, which is what keeps the two directions from closing a constructor cycle — it
+/// reads a driver's <em>name</em> off the Identity roster, as this service does.
+/// </para>
+/// <para>
 /// Every read that needs a rating closes its persistence scope before asking for one. The other
 /// capability opens a scope of its own, and two transactions held open across one screen's read is
 /// a cost with nothing to buy: the rating does not depend on the rows just read, and nothing here
@@ -45,6 +53,7 @@ public sealed class DriverService(
     IUnitOfWorkFactory unitOfWorkFactory,
     IAccessGuard accessGuard,
     IReviewService reviews,
+    IShiftService shifts,
     IValidator<CreateDriverCommand> createValidator,
     IValidator<UpdateDriverCommand> updateValidator) : IDriverService
 {
@@ -76,7 +85,20 @@ public sealed class DriverService(
         // a forty driver roster forty queries for a column that is the same one grouped answer.
         var ratings = await RatingsAsync([.. rows.Select(row => row.Driver.Id)], cancellationToken);
 
-        return [.. rows.Select(row => Summary(row.Driver, row.Account, Rating(ratings, row.Driver.Id)))];
+        // FR-116, asked the same way and for the same reason: one question about everybody on duty
+        // rather than one per row. The answer is the whole on-duty set rather than a set narrowed to
+        // this page, because "is this driver on duty" is a single indexed predicate and narrowing it
+        // would cost a parameter list to save nothing.
+        var onDuty = await OnDutyAsync(cancellationToken);
+
+        return
+        [
+            .. rows.Select(row => Summary(
+                row.Driver,
+                row.Account,
+                Rating(ratings, row.Driver.Id),
+                onDuty.Contains(row.Driver.Id))),
+        ];
     }
 
     /// <inheritdoc />
@@ -97,8 +119,9 @@ public sealed class DriverService(
         }
 
         var ratings = await RatingsAsync([driver.Id], cancellationToken);
+        var onDuty = await OnDutyAsync(cancellationToken);
 
-        return Summary(driver, account, Rating(ratings, driver.Id));
+        return Summary(driver, account, Rating(ratings, driver.Id), onDuty.Contains(driver.Id));
     }
 
     /// <inheritdoc />
@@ -153,8 +176,9 @@ public sealed class DriverService(
 
         // No rating, and no lookup for one: a driver taken on a moment ago has carried nothing, so
         // there is no delivery for anybody to have reviewed. Null is the honest answer rather than
-        // a query whose result is known (FR-98).
-        return Summary(driver, account, rating: null);
+        // a query whose result is known (FR-98). Off duty for the same reason: nobody can have gone
+        // on duty as a driver who did not exist a moment ago (FR-116).
+        return Summary(driver, account, rating: null, onDuty: false);
     }
 
     /// <inheritdoc />
@@ -224,7 +248,12 @@ public sealed class DriverService(
         // has reviewed them", which is a different claim (FR-98).
         var ratings = await RatingsAsync([driver.Id], cancellationToken);
 
-        return Summary(driver, written, Rating(ratings, driver.Id));
+        // Nor is their duty state touched by an edit to their licence, and the payload still has to
+        // carry the one they actually hold: a false here would read as "off duty", which is a claim
+        // about the world rather than about the edit (FR-116).
+        var onDuty = await OnDutyAsync(cancellationToken);
+
+        return Summary(driver, written, Rating(ratings, driver.Id), onDuty.Contains(driver.Id));
     }
 
     /// <inheritdoc />
@@ -287,6 +316,13 @@ public sealed class DriverService(
         ratings.TryGetValue(driverId, out var rating) ? rating : null;
 
     /// <summary>
+    /// FR-116's on-duty set, asked of the capability that owns shifts (AD-24) and kept as a set so a
+    /// roster's mapping is a lookup rather than a scan.
+    /// </summary>
+    private async Task<HashSet<DriverId>> OnDutyAsync(CancellationToken cancellationToken) =>
+        [.. await shifts.ListOnDutyDriverIdsAsync(cancellationToken)];
+
+    /// <summary>
     /// A driver row whose account is gone breaks the foreign key the schema declares, so it is a
     /// defect rather than a caller error and leaves as the 500 envelope instead of being smoothed
     /// over into a plausible-looking row.
@@ -298,7 +334,11 @@ public sealed class DriverService(
                 + driver.UserId.Value.ToString(CultureInfo.InvariantCulture)
                 + ", which does not exist.");
 
-    private static DriverSummary Summary(Driver driver, UserAccount account, DriverRating? rating) =>
+    private static DriverSummary Summary(
+        Driver driver,
+        UserAccount account,
+        DriverRating? rating,
+        bool onDuty) =>
         new(
             driver.Id,
             account.Id,
@@ -313,5 +353,9 @@ public sealed class DriverService(
             // Null and zero together, or neither: an average of nothing is not a number, and the
             // two fields must never disagree about whether anybody has said anything (FR-98).
             rating?.Average,
-            rating?.ReviewCount ?? 0);
+            rating?.ReviewCount ?? 0,
+
+            // FR-116's flag, and never a filter: the picker on the delivery form reads this to mark
+            // an off-duty driver, and still offers them.
+            onDuty);
 }

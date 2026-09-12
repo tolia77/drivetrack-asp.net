@@ -72,6 +72,10 @@ public class DriverRatingTests(PostgresFixture postgres)
         // the answer to an edit are built by different methods, and either could have been left
         // filling the two fields with null and zero - the whole suite would stay green while a
         // dispatcher who opened one driver saw a rated one as unrated.
+        //
+        // Story 4.2's on-duty flag is the same shape of claim and is checked alongside: it is
+        // derived per read through another capability (FR-116, AD-24), so hardcoding false in either
+        // of the two methods below would regress two of the three payloads undetected.
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var factory = await FleetApi.CreateAsync(postgres.ConnectionString, cancellationToken);
         using var client = factory.CreateClient();
@@ -79,7 +83,13 @@ public class DriverRatingTests(PostgresFixture postgres)
         var dispatcher = await DeliveryApi.DispatcherAsync(factory, client, cancellationToken);
         var driverId = await ReviewedAsync(client, dispatcher, cancellationToken, 5, 4, 3);
 
+        // Started by dispatch rather than by the driver, because the reviewed driver's token is not
+        // what this suite carries around - and the guard lets dispatch put anybody on duty.
+        await ShiftApi.StartedAsync(client, dispatcher, driverId, cancellationToken);
+
         var roster = await DriverAsync(client, dispatcher, driverId, cancellationToken);
+
+        Assert.True(roster.GetProperty("onDuty").GetBoolean());
 
         using (var one = await FleetApi.SendAsync(
                    client,
@@ -97,6 +107,9 @@ public class DriverRatingTests(PostgresFixture postgres)
             Assert.Equal(
                 roster.GetProperty("reviewCount").GetInt32(),
                 payload.GetProperty("reviewCount").GetInt32());
+            Assert.Equal(
+                roster.GetProperty("onDuty").GetBoolean(),
+                payload.GetProperty("onDuty").GetBoolean());
         }
 
         // A licence-only edit touches no review, so the payload it answers has to carry the
@@ -116,6 +129,10 @@ public class DriverRatingTests(PostgresFixture postgres)
             Assert.Equal("ВІ999888", payload.GetProperty("licenseNumber").GetString());
             Assert.Equal(4d, payload.GetProperty("rating").GetDouble());
             Assert.Equal(3, payload.GetProperty("reviewCount").GetInt32());
+
+            // Nor does a licence edit end anybody's shift, so the payload it answers carries the
+            // flag the driver already held (FR-116).
+            Assert.True(payload.GetProperty("onDuty").GetBoolean());
         }
     }
 

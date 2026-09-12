@@ -98,4 +98,7 @@ public enum IconName
 
     /// <summary>A client's verdict on a delivery, and the destination that opens them (FR-62, FR-63).</summary>
     Reviews,
+
+    /// <summary>A driver's stretch of time on duty, and the two destinations that open them (FR-109, FR-113).</summary>
+    Shifts,
 }

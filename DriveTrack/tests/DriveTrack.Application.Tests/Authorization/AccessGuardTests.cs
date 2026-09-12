@@ -707,6 +707,146 @@ public class AccessGuardTests
                 () => guard.RequireReviewOwner(new ClientId(9))).Code);
     }
 
+    [Fact]
+    public void An_anonymous_caller_asking_whose_shifts_they_may_see_is_unauthenticated()
+    {
+        // 401, not 403, like every other member: FR-13's session-expiry flow branches on this one
+        // code, and an expired cookie on a live circuit arrives here.
+        var guard = new AccessGuard(new StubCurrentUser());
+
+        Assert.Equal(
+            ErrorCode.AUTH_UNAUTHENTICATED,
+            Assert.Throws<ForbiddenException>(() => _ = guard.RequireShiftScope()).Code);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Dispatcher)]
+    public void Dispatch_is_unrestricted_by_driver_when_reading_shifts(UserRole role)
+    {
+        // AD-4 and FR-113: an admin is unrestricted by rule and a dispatcher because the roster of
+        // shifts is the thing dispatch runs. Null is the unrestricted case - it reaches the
+        // repository unchanged and adds no WHERE.
+        var guard = new AccessGuard(new StubCurrentUser(Target, role, driverId: new DriverId(4)));
+
+        Assert.Null(guard.RequireShiftScope());
+    }
+
+    [Fact]
+    public void A_driver_reading_shifts_is_narrowed_to_their_own_row()
+    {
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        Assert.Equal(new DriverId(4), guard.RequireShiftScope());
+    }
+
+    [Fact]
+    public void A_driver_with_no_driver_row_id_is_refused_a_shift_scope_rather_than_widened()
+    {
+        // Refused rather than widened, exactly as RequireScope refuses a claimless caller: the only
+        // other answer available here is null, which is dispatch's answer and would hand every
+        // driver's shifts to an account with a broken claim.
+        var guard = new AccessGuard(new StubCurrentUser(Target, UserRole.Driver));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(() => _ = guard.RequireShiftScope()).Code);
+    }
+
+    [Fact]
+    public void A_client_may_not_read_shifts_at_all()
+    {
+        // FR-115, and the reason this member exists rather than RequireScope being reused. That one
+        // would hand a client the scope (null, clientId), whose driver half is null - which a shift
+        // query reads as "unrestricted by driver" and answers with every shift in the system. The
+        // client below carries a perfectly good client row id, so nothing about a broken claim is
+        // doing the work here: it is the role.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Client, clientId: new ClientId(9)));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(() => _ = guard.RequireShiftScope()).Code);
+    }
+
+    [Fact]
+    public void An_anonymous_caller_acting_on_a_shift_is_unauthenticated_not_forbidden()
+    {
+        var guard = new AccessGuard(new StubCurrentUser());
+
+        Assert.Equal(
+            ErrorCode.AUTH_UNAUTHENTICATED,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireShiftOwner(new DriverId(4))).Code);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Dispatcher)]
+    public void Dispatch_acts_on_any_drivers_shift_including_one_that_is_not_there(UserRole role)
+    {
+        // FR-114, null argument included: dispatch passes by rule, which is what lets the service
+        // answer 404 for a shift that is genuinely missing rather than 403 for one they may correct.
+        var guard = new AccessGuard(new StubCurrentUser(Target, role));
+
+        guard.RequireShiftOwner(new DriverId(4));
+        guard.RequireShiftOwner(null);
+    }
+
+    [Fact]
+    public void A_driver_acts_on_their_own_shift()
+    {
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        guard.RequireShiftOwner(new DriverId(4));
+    }
+
+    [Fact]
+    public void A_driver_may_not_act_on_another_drivers_shift()
+    {
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireShiftOwner(new DriverId(5))).Code);
+    }
+
+    [Fact]
+    public void A_shift_that_is_not_there_is_refused_before_a_driver_learns_it_is_missing()
+    {
+        // The nullable argument, following RequireAssignedDriver: a missing shift reaches the guard
+        // as a null that never equals a caller's driver row id, so the service may ask before it
+        // answers 404 - and a driver cannot probe which shift ids exist.
+        var guard = new AccessGuard(
+            new StubCurrentUser(Target, UserRole.Driver, driverId: new DriverId(4)));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(() => guard.RequireShiftOwner(null)).Code);
+    }
+
+    [Fact]
+    public void A_client_may_not_act_on_a_shift()
+    {
+        // FR-115 on the write side. The client carries both row ids, so it is the role that refuses
+        // them rather than a missing claim.
+        var guard = new AccessGuard(
+            new StubCurrentUser(
+                Target,
+                UserRole.Client,
+                driverId: new DriverId(4),
+                clientId: new ClientId(9)));
+
+        Assert.Equal(
+            ErrorCode.AUTH_FORBIDDEN,
+            Assert.Throws<ForbiddenException>(
+                () => guard.RequireShiftOwner(new DriverId(4))).Code);
+    }
+
     /// <summary>
     /// A caller with no adapter behind it. The guard depends on the port, not on a
     /// <c>ClaimsPrincipal</c>, which is what makes these tests possible without a host.

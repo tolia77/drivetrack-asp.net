@@ -41,6 +41,17 @@ namespace DriveTrack.Application.Drivers;
 /// How many reviews the mean was drawn from. Zero when <see cref="Rating"/> is null, and the two
 /// always agree: an average of nothing is not a number.
 /// </param>
+/// <param name="OnDuty">
+/// Whether this driver has an open shift right now (FR-116). Derived on demand through
+/// <c>IShiftService</c> and stored nowhere (AD-24): a column on <c>drivers</c> would be a second
+/// answer that goes stale the moment somebody goes on or off duty, and the one answer the system has
+/// is <c>shifts.ended_at IS NULL</c> — which is also the filter of the index enforcing it (FR-117).
+/// <para>
+/// A flag, never a gate. FR-116 asks the assignment form to <em>mark</em> an off-duty driver, not to
+/// withhold them: dispatch routinely assigns a parcel to a driver who starts their shift in an hour,
+/// and a picker that hid them would turn a note into a refusal nobody asked for.
+/// </para>
+/// </param>
 public sealed record DriverSummary(
     DriverId Id,
     UserId UserId,
@@ -52,4 +63,5 @@ public sealed record DriverSummary(
     string? VehicleModel,
     string? VehicleLicensePlate,
     double? Rating,
-    int ReviewCount);
+    int ReviewCount,
+    bool OnDuty);

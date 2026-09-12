@@ -684,10 +684,20 @@
     /// formatted by <see cref="ReviewViews"/>, the same reading the roster gives it; a driver
     /// nobody has reviewed gets the "no value" text and never a zero — which is a rating, and the
     /// worst one the scale has.
+    /// <para>
+    /// FR-116's marker is appended and nothing else happens: an off-duty driver stays in the list
+    /// and stays selectable. Dispatch routinely assigns a parcel to a driver whose shift starts
+    /// later, so the requirement asks the form to <em>flag</em> rather than to refuse — and the
+    /// words are <c>ShiftOpen</c>/<c>ShiftClosed</c>, the pickers' own pair, which are about the
+    /// driver: whether this person is on duty now. <c>ShiftStateLabel</c> deliberately says
+    /// something else with <c>ShiftRunning</c>/<c>ShiftFinished</c>, because a row in a history is
+    /// a claim about a shift rather than about where its driver is. Do not merge the two pairs.
+    /// </para>
     /// </remarks>
     private string DriverOption(DriverSummary driver) =>
         driver.FirstName + " " + driver.LastName + " — "
-            + (driver.Rating is { } average ? ReviewViews.Format(average) : Localizer["NoRating"]);
+            + (driver.Rating is { } average ? ReviewViews.Format(average) : Localizer["NoRating"])
+            + " — " + (driver.OnDuty ? Localizer["ShiftOpen"] : Localizer["ShiftClosed"]);
 
     /// <summary>
     /// Whether a delivery survives every filter the dispatcher has set (FR-20).

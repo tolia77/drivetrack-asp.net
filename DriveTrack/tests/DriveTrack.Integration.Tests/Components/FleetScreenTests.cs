@@ -403,7 +403,12 @@ public class FleetScreenTests
             // FR-98: a driver clients have been pleased with. Half a point, so the roster is also
             // asserting that an average is rendered as an average rather than rounded to a star.
             Rating: 4.5,
-            ReviewCount: 2);
+            ReviewCount: 2,
+
+            // FR-116: on duty right now. The roster does not render the flag - the assignment form
+            // does - but the record carries it, so a stub that left it out would be asserting
+            // against a shape the service cannot produce.
+            OnDuty: true);
 
         /// <summary>A driver holding nothing.</summary>
         internal static readonly DriverSummary WithoutVehicle = new(
@@ -417,7 +422,8 @@ public class FleetScreenTests
             null,
             null,
             null,
-            0);
+            0,
+            OnDuty: false);
 
         public Task<IReadOnlyList<DriverSummary>> ListAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<DriverSummary>>([WithVehicle, WithoutVehicle]);

@@ -120,6 +120,23 @@ internal static class ErrorContract
         ErrorCode.REVIEW_TEXT_REQUIRED => StatusCodes.Status422UnprocessableEntity,
         ErrorCode.REVIEW_TEXT_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
 
+        // FR-110 and FR-111's three refusals.
+        //
+        // The first two are 409 for the reason FR-32's refusal is one: the payload named a driver
+        // who exists and it is the state of their shifts that refuses the request - they are already
+        // on duty, or they are not on duty at all. A 422 would tell a driver to re-spell a request
+        // that was correct, when what they should do is press the other button. The first is also
+        // the friendly twin of PERSISTENCE_UNIQUE_VIOLATION below: the index raises that one when
+        // two requests race, and NFR-2 is only true because both answer 409.
+        ErrorCode.SHIFT_ALREADY_OPEN => StatusCodes.Status409Conflict,
+        ErrorCode.SHIFT_NOT_OPEN => StatusCodes.Status409Conflict,
+
+        // The third really is about the content: a window that runs backwards is two values the
+        // caller sent. It travels as a field key inside COMMON_VALIDATION_FAILED, so the status the
+        // validator's own code carries is the one that reaches a caller - this arm exists because
+        // AD-7's map is total, and because a future path throwing it directly must not answer 500.
+        ErrorCode.SHIFT_ENDED_BEFORE_STARTED => StatusCodes.Status422UnprocessableEntity,
+
         // AD-8 splits the two constraint kinds where AD-7 folds them together, and AD-8 is the more
         // specific rule: a unique violation is a genuine conflict with another row, a check
         // violation is a value the caller should not have sent. That split is what keeps NFR-2
