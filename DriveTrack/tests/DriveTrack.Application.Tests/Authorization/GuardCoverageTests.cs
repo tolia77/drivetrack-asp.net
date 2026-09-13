@@ -109,6 +109,59 @@ public class GuardCoverageTests
     }
 
     [Fact]
+    public void Every_public_application_class_is_either_scanned_or_named_as_a_blind_spot()
+    {
+        // The claim the three tests above cannot make on their own. They say that everything
+        // `IsService` matches takes an authorization decision; they say nothing about what it does
+        // not match, and a gate whose blind spot is unstated cannot support "the allowlist is
+        // closed" - a capability class the rule never reached would carry no AD-2 obligation and no
+        // test could notice, because a method that was never scanned is not a method that can be
+        // missed.
+        //
+        // So every public concrete class in the assembly is partitioned, and the partition is
+        // total. Anything that falls out of all four buckets fails this test by name.
+        // IsVisible rather than IsPublic, and that is the whole difference between a total
+        // partition and one with a hole in it: IsPublic is false for a public class nested inside
+        // another type, so such a class would be filtered out before any bucket ran and could never
+        // be named. IsVisible answers "reachable from outside this assembly", which is the question.
+        // Static classes stay out because IsAbstract is true for them, and the gate scans public
+        // *instance* methods - a static class has none for AD-2 to be about.
+        var unaccounted = ApplicationAssembly.Assembly
+            .GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false, IsVisible: true })
+            .Where(type => !Services.Contains(type))
+            .Where(type => !NoCaller.Contains(type.Name))
+            .Where(type => !IsInert(type))
+            .Select(type => type.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(unaccounted);
+    }
+
+    [Fact]
+    public void The_named_blind_spot_is_exactly_the_one_component_no_adapter_can_reach()
+    {
+        // Pinned, so a second unguarded component cannot join it quietly. DeliverySideEffectRunner
+        // performs work that was already authorized when it was queued: its one caller is the hosted
+        // worker in Infrastructure, running on its own thread with no caller at all, so there is no
+        // ICurrentUser for a guard to ask and nothing for it to decide. It is invisible to IsService
+        // because neither its name nor IDeliverySideEffectRunner ends in "Service" - which is how a
+        // blind spot arrives, and why this line exists rather than a wider matching rule that would
+        // pull the runner in and then need an allowlist entry to let it back out.
+        //
+        // The other half of this claim - that nothing in the Web adapter references the type at all
+        // - is asserted in the integration suite, which is the project that can see that assembly.
+        Assert.Equal(["DeliverySideEffectRunner"], NoCaller.Order(StringComparer.Ordinal).ToArray());
+
+        var runner = ApplicationAssembly.Assembly.GetType(
+            "DriveTrack.Application.Deliveries.DeliverySideEffectRunner");
+
+        Assert.NotNull(runner);
+        Assert.DoesNotContain(runner, Services);
+    }
+
+    [Fact]
     public void A_method_with_no_guard_call_is_actually_detected()
     {
         // A coverage test that cannot fail is worthless, so the detector is pointed at a method that
@@ -120,6 +173,33 @@ public class GuardCoverageTests
         Assert.False(CallsTheGuard(unguarded));
         Assert.True(CallsTheGuard(guarded));
     }
+
+    /// <summary>
+    /// The components this gate deliberately does not scan, by name.
+    /// <para>
+    /// Declared as a set rather than as a condition so that adding one is an edit somebody has to
+    /// argue for, exactly as <see cref="PublicEntryPoints"/> is - and so that the partition test
+    /// above can name what is left over rather than quietly widening.
+    /// </para>
+    /// </summary>
+    private static readonly IReadOnlySet<string> NoCaller =
+        new HashSet<string>(StringComparer.Ordinal) { "DeliverySideEffectRunner" };
+
+    /// <summary>
+    /// True for a type that takes no operation on anybody's behalf: a data contract, a validator,
+    /// a failure, or the guard itself.
+    /// <para>
+    /// Each clause is a structural test rather than a naming one. A record carries a compiler
+    /// generated <c>&lt;Clone&gt;$</c> method and nothing else in this assembly does; a validator
+    /// implements FluentValidation's marker; a failure derives from <see cref="Exception"/>; and the
+    /// guard is the one implementation of <see cref="IAccessGuard"/>, which cannot call itself.
+    /// </para>
+    /// </summary>
+    private static bool IsInert(Type type) =>
+        type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) is not null
+        || typeof(FluentValidation.IValidator).IsAssignableFrom(type)
+        || typeof(Exception).IsAssignableFrom(type)
+        || typeof(IAccessGuard).IsAssignableFrom(type);
 
     private static bool IsService(Type type) =>
         type.Name.EndsWith("Service", StringComparison.Ordinal)
