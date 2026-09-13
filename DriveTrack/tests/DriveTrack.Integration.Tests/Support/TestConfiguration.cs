@@ -26,6 +26,13 @@ internal static class TestConfiguration
     /// <summary>The seeded administrator's password in a test host.</summary>
     public const string AdminPassword = "Admin-Passw0rd";
 
+    /// <summary>
+    /// The one cross-origin caller a test host allows (NFR-12). Configured for every host so the
+    /// CORS policy is exercised as it ships, with an explicit origin rather than an empty list, and
+    /// so <c>CorsPolicyTests</c> needs no factory parameter of its own.
+    /// </summary>
+    public const string AllowedOrigin = "https://app.drivetrack.test";
+
     /// <summary>The settings a host needs beyond its connection string.</summary>
     public static Dictionary<string, string?> Defaults() => new(StringComparer.Ordinal)
     {
@@ -37,5 +44,6 @@ internal static class TestConfiguration
         ["Admin:Password"] = AdminPassword,
         ["Admin:FirstName"] = "Адміністратор",
         ["Admin:LastName"] = "Системи",
+        ["Cors:AllowedOrigins:0"] = AllowedOrigin,
     };
 }
