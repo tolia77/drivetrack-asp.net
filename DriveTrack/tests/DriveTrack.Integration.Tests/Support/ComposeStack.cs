@@ -107,9 +107,44 @@ internal static class ComposeStack
     /// </summary>
     /// <param name="service">The service name, as it appears under <c>services:</c>.</param>
     /// <exception cref="InvalidOperationException">No such service, or it declares no environment.</exception>
-    public static IReadOnlyList<string> EnvironmentKeysOf(string service)
+    public static IReadOnlyList<string> EnvironmentKeysOf(string service) =>
+        EnvironmentOf(service).Select(entry => entry.Key).ToArray();
+
+    /// <summary>
+    /// The interpolation a compose service declares for one environment key — the right-hand side
+    /// verbatim, <c>${Jwt__Issuer:-DriveTrack}</c> and all.
+    /// <para>
+    /// The <em>value</em> rather than only the name, because for a key with a working default the
+    /// difference between <c>${X}</c> and <c>${X:-default}</c> is the difference between a container
+    /// that starts and one that does not: compose forwards a bare reference to an unset variable as
+    /// the empty string, and the app refuses a blank setting. A test that read only the names could
+    /// not tell those two lines apart.
+    /// </para>
+    /// </summary>
+    /// <param name="service">The service name, as it appears under <c>services:</c>.</param>
+    /// <param name="key">The environment variable name, in its double-underscore spelling.</param>
+    /// <exception cref="InvalidOperationException">
+    /// No such service, it declares no environment, or that block names no such key.
+    /// </exception>
+    public static string EnvironmentValueOf(string service, string key)
     {
-        var keys = new List<string>();
+        foreach (var entry in EnvironmentOf(service))
+        {
+            if (string.Equals(entry.Key, key, StringComparison.Ordinal))
+            {
+                return entry.Value;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Service '{service}' in '{ComposeFile}' declares no '{key}' in its 'environment:' "
+                + "block, so a container brought up from this file is never given it.");
+    }
+
+    /// <summary>The whole <c>environment:</c> block of one service, in declaration order.</summary>
+    private static IReadOnlyList<KeyValuePair<string, string>> EnvironmentOf(string service)
+    {
+        var entries = new List<KeyValuePair<string, string>>();
         var inside = false;
 
         foreach (var line in ServiceBlock(service))
@@ -152,16 +187,16 @@ internal static class ComposeStack
                         + $"key: '{line}'.");
             }
 
-            keys.Add(entry[..colon]);
+            entries.Add(new KeyValuePair<string, string>(entry[..colon], entry[(colon + 1)..].Trim()));
         }
 
-        if (keys.Count == 0)
+        if (entries.Count == 0)
         {
             throw new InvalidOperationException(
                 $"Service '{service}' in '{ComposeFile}' declares no environment variables.");
         }
 
-        return keys;
+        return entries;
     }
 
     /// <summary>The value of a key in <c>.env.example</c>.</summary>

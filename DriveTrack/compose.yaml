@@ -224,6 +224,12 @@ services:
       # fallback rather than falling back to it, and seeds an administrator with no name.
       Admin__FirstName: ${Admin__FirstName:-Адміністратор}
       Admin__LastName: ${Admin__LastName:-Системи}
+      # The Secure flag on the session cookie. Defaulted rather than forwarded bare, for the reason
+      # the JWT keys above are: an .env predating this key would otherwise forward the empty string,
+      # and blank is a value the start-up check refuses outright - the container would stop coming up
+      # for every operator whose .env is older than this line. This stack terminates plain HTTP, so
+      # the default has to stay SameAsRequest; Always belongs to a deployment that terminates TLS.
+      Session__CookieSecurePolicy: ${Session__CookieSecurePolicy:-SameAsRequest}
       # Host stays bare on purpose: blank is a state this system has an answer for - no relay is
       # configured, and the notification becomes a Failed attempt saying so.
       Smtp__Host: ${Smtp__Host}

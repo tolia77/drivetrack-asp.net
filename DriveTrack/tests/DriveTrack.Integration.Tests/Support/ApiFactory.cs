@@ -22,17 +22,20 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
     private readonly bool _useProbeAuthentication;
     private readonly TimeProvider? _clock;
     private readonly Action<IServiceCollection>? _configureServices;
+    private readonly IReadOnlyDictionary<string, string?>? _settings;
 
     private ApiFactory(
         TestDatabase database,
         bool useProbeAuthentication,
         TimeProvider? clock,
-        Action<IServiceCollection>? configureServices)
+        Action<IServiceCollection>? configureServices,
+        IReadOnlyDictionary<string, string?>? settings)
     {
         _database = database;
         _useProbeAuthentication = useProbeAuthentication;
         _clock = clock;
         _configureServices = configureServices;
+        _settings = settings;
     }
 
     /// <summary>
@@ -63,16 +66,23 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
     /// real adapter: AD-12's ports are the two things in this system that reach outside the
     /// process, and a suite that let them do it would be asserting against somebody else's uptime.
     /// </param>
+    /// <param name="settings">
+    /// Configuration applied after <see cref="TestConfiguration.Defaults"/>, so a suite can add a key
+    /// the defaults leave out or override one they set. This is how a behaviour that is chosen by
+    /// configuration - <c>Session:CookieSecurePolicy</c> is the first - gets asserted against a real
+    /// host booted the way the container boots, rather than against the option object in isolation.
+    /// </param>
     public static async Task<ApiFactory> CreateAsync(
         string adminConnectionString,
         CancellationToken cancellationToken,
         bool useProbeAuthentication = true,
         TimeProvider? clock = null,
-        Action<IServiceCollection>? configureServices = null)
+        Action<IServiceCollection>? configureServices = null,
+        IReadOnlyDictionary<string, string?>? settings = null)
     {
         var database = await TestDatabase.CreateAsync(adminConnectionString, cancellationToken);
 
-        return new ApiFactory(database, useProbeAuthentication, clock, configureServices);
+        return new ApiFactory(database, useProbeAuthentication, clock, configureServices, settings);
     }
 
     /// <inheritdoc />
@@ -93,6 +103,18 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         foreach (var setting in TestConfiguration.Defaults())
         {
             builder.UseSetting(setting.Key, setting.Value);
+        }
+
+        // After the defaults, so a suite's own key wins over one of theirs. Leaving a key out of
+        // Defaults() and setting it here is what keeps "nothing configured" an honest case: the
+        // default-behaviour test boots with no entry at all, exactly as a container with no such
+        // line in its environment block does.
+        if (_settings is not null)
+        {
+            foreach (var setting in _settings)
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
         }
 
         builder.ConfigureTestServices(services =>

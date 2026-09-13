@@ -23,6 +23,11 @@ using Microsoft.IdentityModel.Tokens;
 
 const string CorsPolicyName = "DriveTrackCors";
 
+// DW-6: the session cookie's Secure policy, read from configuration rather than compiled in. The
+// compose topology terminates plain HTTP, so the default stays SameAsRequest; a deployment that does
+// terminate TLS sets Session__CookieSecurePolicy=Always and gets the flag without a rebuild.
+const string SessionCookieSecurePolicyKey = "Session:CookieSecurePolicy";
+
 // AD-3's first step, made concrete. Two schemes, chosen by path: a browser navigating the Blazor
 // shell carries a cookie, a REST client carries a bearer token, and the policy scheme below is what
 // decides which handler a given request is even offered to.
@@ -133,6 +138,14 @@ builder.Services.AddScoped<HubCaller>();
 // ignored - it is never looked at, because the JWT handler is the only one that runs there.
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 
+// Read here, before builder.Build(), rather than inside the AddCookie lambda below: the options
+// callback does not run until the cookie handler is first resolved, which is the first sign-in - so
+// a misspelled value configured there would abort a user's sign-in rather than the container's
+// start-up. Same placement and same reason as the CORS check further down.
+var sessionCookieSecurePolicy = RequireCookieSecurePolicy(
+    builder.Configuration[SessionCookieSecurePolicyKey],
+    SessionCookieSecurePolicyKey);
+
 builder.Services.AddAuthentication(SelectorScheme)
     .AddPolicyScheme(SelectorScheme, SelectorScheme, options =>
         options.ForwardDefaultSelector = context =>
@@ -144,7 +157,9 @@ builder.Services.AddAuthentication(SelectorScheme)
         options.Cookie.Name = "drivetrack.session";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        // DW-6: whatever the eager check above accepted. SameAsRequest when nothing is configured,
+        // which is what the plain-HTTP compose stack needs and what every existing deployment gets.
+        options.Cookie.SecurePolicy = sessionCookieSecurePolicy;
         options.LoginPath = "/sign-in";
         // FR-79: forbidden and unauthenticated are different failures. A signed-in caller the
         // handler refuses is told they lack access, not told to sign in - which they already have.
@@ -456,6 +471,45 @@ static void RequireExplicitOrigin(string? origin, string key)
                 + $"fragment or trailing slash. Set the '{variable}' environment variable (see "
                 + ".env.example) to the origin exactly as the browser sends it.");
     }
+}
+
+// DW-6, enforced where the value is read, with the same message anatomy RequireExplicitOrigin uses:
+// the offending value, the key in the spelling the code uses and the spelling the environment does,
+// and .env.example.
+static CookieSecurePolicy RequireCookieSecurePolicy(string? configured, string key)
+{
+    // Absent is not blank, exactly as AddInfrastructure's checks have it: a deployment that never set
+    // the variable takes the default and has to keep working. Blank is a different thing - a line
+    // somebody emptied - and emptying a line is not a way to ask for a default, so it is refused
+    // below with everything else that names no policy.
+    if (configured is null)
+    {
+        return CookieSecurePolicy.SameAsRequest;
+    }
+
+    foreach (var policy in Enum.GetValues<CookieSecurePolicy>())
+    {
+        if (string.Equals(configured, policy.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            return policy;
+        }
+    }
+
+    // Matched by name above rather than with Enum.TryParse, which would also accept the ordinals -
+    // SameAsRequest is 0, Always is 1, None is 2, an order no name reveals and nothing in this
+    // system pins - and comma-separated combinations. Both are values the framework would take and
+    // an operator would never have meant.
+    var variable = key.Replace(":", "__", StringComparison.Ordinal);
+
+    throw new InvalidOperationException(
+        $"Configuration value '{key}' is '{configured}', which does not name a cookie Secure "
+            + $"policy. Set the '{variable}' environment variable (see .env.example) to one of "
+            + $"'{string.Join("', '", Enum.GetNames<CookieSecurePolicy>())}' - matched by name, "
+            + "case-insensitively - or remove it entirely to take the 'SameAsRequest' default. A "
+            + "number is not a spelling of any of them: the ordinals behind these names run 0, 1, 2 "
+            + "in the order listed above, which no name reveals and nothing here promises to keep, "
+            + "so a digit selects a policy by accident. A blank value is refused rather than taken "
+            + "as absent, so an emptied line is never mistaken for a request for the default.");
 }
 
 /// <summary>
