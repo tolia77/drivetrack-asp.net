@@ -214,9 +214,27 @@ builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 
 // NFR-12: an explicit origin list, never a wildcard. An unset list means no cross-origin
 // caller is allowed, which is the safe default rather than an accidental open door.
-var allowedOrigins = builder.Configuration
-    .GetSection("Cors:AllowedOrigins")
-    .Get<string[]>() ?? [];
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins");
+
+var allowedOrigins = corsOrigins.Get<string[]>() ?? [];
+
+// Checked here, at the read, rather than inside the policy below: the policy lambda is lazy, so
+// nothing looks at these values until the first cross-origin request arrives. What that cost
+// before is worth stating precisely, because neither case was an open door - a sole `*` made
+// CorsPolicyBuilder.Build() throw ("the CORS protocol does not allow specifying a wildcard (any)
+// origin and credentials at the same time"), so the caller got a 500 and start-up stayed silent;
+// and a `*` beside a real origin threw nothing at all and simply matched nobody. This moves the
+// first failure to start-up and refuses the second outright - a value the framework accepts and
+// then silently never matches is the misconfiguration nobody ever finds. Before builder.Build(),
+// so the refusal precedes the migrator and needs no database.
+//
+// Driven from GetChildren() rather than from the bound array: Get<string[]>() binds by position and
+// discards the child's key, so a list configured at __0 and __2 would report the second value's
+// problem against __1 - a line the operator never wrote.
+foreach (var configured in corsOrigins.GetChildren())
+{
+    RequireExplicitOrigin(configured.Value, configured.Path);
+}
 
 builder.Services.AddCors(options =>
 {
@@ -378,6 +396,66 @@ static Task Redirect(RedirectContext<CookieAuthenticationOptions> context)
     context.Response.Redirect(context.RedirectUri);
 
     return Task.CompletedTask;
+}
+
+// NFR-12, enforced where the list is read rather than asserted in a comment above it. Each message
+// follows the house style AddInfrastructure sets for a refused setting: the offending value, the key
+// in the spelling the code uses and the spelling the environment does, and .env.example.
+static void RequireExplicitOrigin(string? origin, string key)
+{
+    var variable = key.Replace(":", "__", StringComparison.Ordinal);
+
+    // Blank rather than absent, because compose forwards Cors__AllowedOrigins__0 unconditionally:
+    // an unset variable arrives as an empty entry, not as no entry, so "leave it blank" is not a
+    // way to allow no cross-origin caller - removing the line from both files is.
+    if (string.IsNullOrWhiteSpace(origin))
+    {
+        throw new InvalidOperationException(
+            $"Configuration value '{key}' is missing or blank. Set the '{variable}' environment "
+                + "variable (see .env.example) to an origin of the form scheme://host[:port], or "
+                + "remove that line from .env and from the app service's environment block in "
+                + "compose.yaml to allow no cross-origin caller at all.");
+    }
+
+    // Every wildcard, including a subdomain one: this policy sends Access-Control-Allow-Credentials,
+    // and a wildcard origin with credentials is precisely what NFR-12 forbids. A subdomain wildcard
+    // would additionally need SetIsOriginAllowedToAllowWildcardSubdomains, which this policy
+    // deliberately does not call, so the value would silently match nothing anyway.
+    if (origin.Contains('*', StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            $"Configuration value '{key}' is '{origin}', which is a wildcard. NFR-12 requires an "
+                + "explicit origin list: this policy allows credentials, and a wildcard paired with "
+                + $"credentials is exactly what that forbids. Set the '{variable}' environment "
+                + "variable (see .env.example) to one concrete origin, and give every further "
+                + "origin its own numbered key here and in compose.yaml.");
+    }
+
+    // The comparison is deliberately exact, and the message below has to say so: WithOrigins matches
+    // the Origin header by ordinal equality, so anything Uri would normalize away - a default port,
+    // an upper-case scheme or host, surrounding whitespace - is a value that parses perfectly and
+    // then matches nobody. GetLeftPart(UriPartial.Authority) rejects all of those in the same
+    // comparison that rejects a path, a query, a fragment or a trailing slash.
+    //
+    // The '@' test is a plain character search rather than uri.UserInfo.Length, because the authority
+    // part keeps userinfo verbatim: a pasted https://user:pass@host round-trips and would be accepted,
+    // and so would a stray https://@host, whose UserInfo is empty. An Origin header never carries
+    // either, so any '@' at all is a value that would be configured and then match nobody - and a
+    // password in .env that buys nothing.
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+        || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        || origin.Contains('@', StringComparison.Ordinal)
+        || !string.Equals(uri.GetLeftPart(UriPartial.Authority), origin, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            $"Configuration value '{key}' is '{origin}', which is not the origin a browser would "
+                + "send. The value is compared against the Origin header character for character, so "
+                + "it must be exactly http:// or https://, a lower-case host, and a port only when it "
+                + "is not the default one - no ':80' on http and no ':443' on https, no upper case, "
+                + "no surrounding whitespace, no credentials before the host, and no path, query, "
+                + $"fragment or trailing slash. Set the '{variable}' environment variable (see "
+                + ".env.example) to the origin exactly as the browser sends it.");
+    }
 }
 
 /// <summary>
