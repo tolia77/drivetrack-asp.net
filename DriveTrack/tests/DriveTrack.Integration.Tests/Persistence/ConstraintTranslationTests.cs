@@ -1,5 +1,6 @@
 using DriveTrack.Application.Common;
 using DriveTrack.Domain.Clients;
+using DriveTrack.Domain.Common;
 using DriveTrack.Domain.Deliveries;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Domain.Reviews;
@@ -51,6 +52,44 @@ public class ConstraintTranslationTests(PostgresFixture postgres)
 
         // The cause is kept, so the log still has the SQL detail the wire never sees (NFR-3).
         Assert.IsType<DbUpdateException>(failure.InnerException);
+    }
+
+    [Fact]
+    public async Task A_second_proof_for_one_delivery_becomes_the_capability_s_own_conflict()
+    {
+        // The one constraint the translator names. FR-123's "one proof per delivery" is stated twice
+        // - by ProofOfDeliveryService's re-check inside its writing transaction, and by
+        // ix_proof_of_deliveries_delivery_id behind it - and two captures closer together than a
+        // round trip are refused by the second rather than the first. Without this arm the same
+        // refusal for the same reason carries a different code depending on timing the caller cannot
+        // see, so the driver whose upload lost a race is told something the other one is not.
+        //
+        // Driven through IUnitOfWork rather than through two racing requests, so what is pinned here
+        // is the translation itself: the race is asserted over HTTP in ProofOfDeliveryTests, where
+        // it is a race, and this case is deterministic.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var database = await TestDatabase.CreateAsync(postgres.ConnectionString, cancellationToken);
+
+        var (deliveryId, _) = await SeedDeliveryAsync(database, cancellationToken);
+
+        await using (var first = await database.UnitOfWorkFactory.CreateAsync(cancellationToken))
+        {
+            first.ProofOfDeliveries.Add(NewProof(deliveryId));
+            await first.CommitAsync(cancellationToken);
+        }
+
+        await using var second = await database.UnitOfWorkFactory.CreateAsync(cancellationToken);
+        second.ProofOfDeliveries.Add(NewProof(deliveryId));
+
+        var failure = await Assert.ThrowsAsync<ConflictException>(
+            () => second.CommitAsync(cancellationToken));
+
+        Assert.Equal(ErrorCode.DELIVERY_PROOF_ALREADY_CAPTURED, failure.Code);
+
+        // Still 23505, and the constraint name is still in the message for the log - the code is
+        // what changed, and the wire never sees either (NFR-3).
+        Assert.IsType<DbUpdateException>(failure.InnerException);
+        Assert.Contains("ix_proof_of_deliveries_delivery_id", failure.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -152,6 +191,15 @@ public class ConstraintTranslationTests(PostgresFixture postgres)
 
         return (delivery.Id, client.Id);
     }
+
+    /// <summary>A proof for a delivery, with no assets: the unique index is on the parent row.</summary>
+    private static ProofOfDelivery NewProof(int deliveryId) => new()
+    {
+        DeliveryId = deliveryId,
+        RecipientName = "Translation probe",
+        CaptureLocation = new Location(50.4501, 30.5234, Address: null, AddressResolvedAt: null),
+        CapturedAt = Seed.Instant,
+    };
 
     private static Review NewReview(int deliveryId, ClientId clientId, int rating) => new()
     {

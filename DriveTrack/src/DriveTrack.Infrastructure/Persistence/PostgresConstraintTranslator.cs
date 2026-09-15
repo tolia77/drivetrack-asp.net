@@ -29,12 +29,31 @@ internal static class PostgresConstraintTranslator
     private const string CheckViolation = "23514";
 
     /// <summary>
+    /// The unique index behind FR-123's "one proof per delivery".
+    /// <para>
+    /// Named here because the capability refuses the same thing twice and the two refusals must say
+    /// the same sentence. <c>ProofOfDeliveryService.CaptureAsync</c> re-checks inside its writing
+    /// transaction and throws <c>DELIVERY_PROOF_ALREADY_CAPTURED</c>; two captures closer together
+    /// than a round trip both pass that check and the index refuses the loser instead. Without this
+    /// arm that loser hears the generic <c>PERSISTENCE_UNIQUE_VIOLATION</c> — a different code, for
+    /// the same 409, for the same reason, decided by timing the caller cannot see.
+    /// </para>
+    /// <para>
+    /// One name and not a registry. Every other constraint keeps the generic answer, because a code
+    /// per index would make the failure vocabulary a mirror of the schema — and AD-8's point is that
+    /// it is a contract instead.
+    /// </para>
+    /// </summary>
+    private const string ProofOfDeliveryPerDelivery = "ix_proof_of_deliveries_delivery_id";
+
+    /// <summary>
     /// Maps a failed save onto the failure vocabulary, or returns it unchanged.
     /// </summary>
     /// <param name="exception">The exception EF raised from <c>SaveChangesAsync</c>.</param>
     /// <returns>
-    /// A <see cref="ConflictException"/> for SQLSTATE 23505, a <see cref="ValidationException"/> for
-    /// 23514, and <paramref name="exception"/> itself for anything else - a foreign-key violation
+    /// A <see cref="ConflictException"/> for SQLSTATE 23505 - carrying the generic code, or the
+    /// capability's own where the constraint is one it also states - a <see cref="ValidationException"/>
+    /// for 23514, and <paramref name="exception"/> itself for anything else - a foreign-key violation
     /// (23503) or a serialization failure is not a caller error, and dressing it as one would hide
     /// a defect behind a 4xx. Those surface as the 500 envelope.
     /// </returns>
@@ -58,7 +77,7 @@ internal static class PostgresConstraintTranslator
         return postgres.SqlState switch
         {
             UniqueViolation => new ConflictException(
-                ErrorCode.PERSISTENCE_UNIQUE_VIOLATION,
+                UniqueViolationCode(constraint),
                 "Unique constraint '" + constraint + "' rejected the write (SQLSTATE 23505).",
                 exception),
 
@@ -71,6 +90,18 @@ internal static class PostgresConstraintTranslator
             _ => exception,
         };
     }
+
+    /// <summary>
+    /// The contract code a 23505 answers with: the capability's own conflict where one constraint is
+    /// the database's spelling of a rule the capability also states, and the generic one everywhere
+    /// else.
+    /// </summary>
+    /// <param name="constraint">The constraint name PostgreSQL reported, or <c>(unnamed)</c>.</param>
+    /// <returns>The code the envelope carries. Both are 409.</returns>
+    private static ErrorCode UniqueViolationCode(string constraint) =>
+        string.Equals(constraint, ProofOfDeliveryPerDelivery, StringComparison.Ordinal)
+            ? ErrorCode.DELIVERY_PROOF_ALREADY_CAPTURED
+            : ErrorCode.PERSISTENCE_UNIQUE_VIOLATION;
 
     /// <summary>
     /// Walks the cause chain for the PostgreSQL error. EF wraps it, and a retrying execution

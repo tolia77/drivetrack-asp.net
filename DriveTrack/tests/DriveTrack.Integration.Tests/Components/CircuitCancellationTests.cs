@@ -366,7 +366,10 @@ public class CircuitCancellationTests
         Assert.True(panel.Reports(new InvalidOperationException("The object store is not configured.")));
 
         // Including a cancellation that is not this screen's. An outbound port that gave up on its
-        // own raises the same type, and the driver has to be told the capture did not happen.
+        // own raises the same type, and the driver has to be told the capture did not come off -
+        // which is not the same as "nothing happened". Since the bytes are written after the row
+        // commits, a store that failed may have left a committed proof whose assets are missing, and
+        // the panel says only that the capture failed for exactly that reason.
         Assert.True(panel.Reports(new OperationCanceledException()));
     }
 

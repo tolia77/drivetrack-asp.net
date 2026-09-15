@@ -17,15 +17,27 @@ namespace DriveTrack.Application.Deliveries;
 /// gate walks each method's IL and does not follow a call it makes.
 /// </para>
 /// <para>
-/// <b>Why <see cref="CaptureAsync"/> opens two scopes.</b> AD-26 fixes the ordering: an asset is
-/// written and confirmed <em>before</em> the transaction that references it opens, so a committed
-/// <c>storage_key</c> always resolves and the worst a failure can leave behind is an object no row
-/// names — garbage, never a broken proof. But authorizing first needs the delivery row, and the only
-/// way to read a row here is a unit of work, which begins a transaction. So the capture reads and
-/// authorizes in a scope that never commits (the established read pattern), disposes it, writes to
-/// the store with nothing open, and only then opens the scope that commits. The alternative
+/// <b>Why <see cref="CaptureAsync"/> opens two scopes.</b> AD-26's rule that no store call happens
+/// with a unit of work open still holds; what moved is which side of the commit the writing happens
+/// on. The bytes go in <em>after</em> the row that names them is committed, because the alternative —
+/// writing first — leaves an object no row will ever name behind every refusal the later steps can
+/// raise, and <c>IAssetStore</c> has no delete to take it back with. Minting a key creates nothing,
+/// so the keys can be named up front and the bucket stays untouched until the proof is safe.
+/// </para>
+/// <para>
+/// That still needs two scopes. Authorizing first needs the delivery row, and the only way to read a
+/// row here is a unit of work, which begins a transaction. So the capture reads, authorizes and
+/// validates in a scope that never commits (the established read pattern), disposes it, mints the
+/// keys, opens the scope that commits, and writes the bytes last with nothing open. The alternative
 /// ordering — store first, guard second — is one method shorter and lets any signed-in caller push
 /// bytes into the bucket before being refused.
+/// </para>
+/// <para>
+/// The trade, stated rather than hidden: a store that refuses the final write leaves a committed
+/// proof naming an object that is not there. That is the state <see cref="OpenAssetAsync"/> already
+/// answers — 404, as for a bucket emptied out of band — while an unreferenced object is permanent,
+/// invisible and unanswerable. The row is kept precisely because it is what names whatever bytes
+/// <em>did</em> land before the failure.
 /// </para>
 /// <para>
 /// <c>ValidatorExtensions.ValidateAndThrowAsync</c> is called in static form, for the reason
@@ -51,8 +63,8 @@ public sealed class ProofOfDeliveryService(
         ArgumentNullException.ThrowIfNull(command);
 
         // Step one: read, authorize and validate in a scope that commits nothing. The block is
-        // explicit rather than an `await using var` declaration because where this scope ends is the
-        // whole point - the store calls below must happen with no transaction open (AD-26).
+        // explicit rather than an `await using var` declaration because where this scope ends is
+        // still the whole point - the store write below happens with no transaction open (AD-26).
         await using (var reading = await unitOfWorkFactory.CreateAsync(cancellationToken))
         {
             var delivery = await reading.Deliveries.GetByIdAsync(deliveryId, cancellationToken);
@@ -67,16 +79,17 @@ public sealed class ProofOfDeliveryService(
                 throw NotFound(deliveryId);
             }
 
-            // NFR-28, and before the store rather than after: an asset refused after it was written
-            // is an object in the bucket that no row will ever name.
+            // NFR-28, and here rather than later: a caller whose upload is refused costs the store
+            // no call at all - not even a minted key - so the whole set is judged while the cheapest
+            // thing to do about it is nothing.
             await ValidatorExtensions.ValidateAndThrowAsync(
                 captureValidator,
                 command,
                 cancellationToken);
 
             // FR-123: a proof is immutable, so the second capture is refused rather than merged.
-            // Asked here so the refusal costs no upload; asked again after the writes, below,
-            // because two captures racing would both pass this check.
+            // Asked here so the refusal costs no round trip to the store; asked again inside the
+            // writing transaction, below, because two captures racing would both pass this check.
             if (await reading.ProofOfDeliveries.ExistsForDeliveryAsync(deliveryId, cancellationToken))
             {
                 throw AlreadyCaptured(deliveryId);
@@ -86,10 +99,10 @@ public sealed class ProofOfDeliveryService(
             // is the ordinary read path here as it is everywhere else.
         }
 
-        // Step two: the store, with nothing open. A save that fails throws, and because no
-        // transaction has been opened yet there is nothing to roll back - the capture simply did not
-        // happen, and whatever was written before the failure is unreferenced garbage (AD-26).
-        var stored = new List<StoredAsset>(command.Assets!.Count);
+        // Step two: the keys, and only the keys. Minting names an object; it does not create one, so
+        // every refusal below - the re-check, the unique index, a failed commit - still leaves the
+        // bucket exactly as it was found. This is the whole reason NewKey exists.
+        var pending = new List<PendingAsset>(command.Assets!.Count);
 
         foreach (var upload in command.Assets)
         {
@@ -101,61 +114,99 @@ public sealed class ProofOfDeliveryService(
             // This is the single site every one of those reads from.
             var contentType = upload.ContentType!.Trim().ToLowerInvariant();
 
-            stored.Add(new StoredAsset(
+            pending.Add(new PendingAsset(
                 upload.Kind,
                 contentType,
-                await assetStore.SaveAsync(upload.Content, contentType, cancellationToken)));
+                assetStore.NewKey(contentType),
+                upload.Content));
         }
 
-        // Step three: the transaction that names the keys, opened only now that every one of them
-        // resolves.
-        await using var writing = await unitOfWorkFactory.CreateAsync(cancellationToken);
+        // Step three: the transaction that names the keys, opened while the bucket is still empty of
+        // this capture. A block rather than a declaration, for the reason the reading scope is one:
+        // the store writes below must happen with no unit of work open (AD-26), and a declaration
+        // would hold this one - and the pooled connection under it - for the whole time the bytes
+        // are travelling.
+        ProofOfDelivery proof;
+        string? capturedBy;
 
-        // Re-asked inside the transaction. Two captures a second apart both pass the check above and
-        // both reach here; this one loses, and the unique index on delivery_id is the backstop
-        // behind it should they arrive closer than that.
-        if (await writing.ProofOfDeliveries.ExistsForDeliveryAsync(deliveryId, cancellationToken))
+        await using (var writing = await unitOfWorkFactory.CreateAsync(cancellationToken))
         {
-            throw AlreadyCaptured(deliveryId);
-        }
-
-        var proof = new ProofOfDelivery
-        {
-            DeliveryId = deliveryId,
-            RecipientName = command.RecipientName!.Trim(),
-
-            // No address and no resolution timestamp: the coordinates are the record, and the
-            // address is a cache nothing has filled in yet (DR-11).
-            CaptureLocation = new Location(
-                command.CaptureLocation!.Latitude!.Value,
-                command.CaptureLocation.Longitude!.Value,
-                Address: null,
-                AddressResolvedAt: null),
-
-            // AD-13's injected clock, at offset zero. A capture instant the caller could name is an
-            // instant a caller could choose, which is the one thing evidence must not permit.
-            CapturedAt = timeProvider.GetUtcNow(),
-            CapturedByUserId = currentUser.UserId,
-        };
-
-        foreach (var asset in stored)
-        {
-            proof.Assets.Add(new ProofAsset
+            // Re-asked inside the transaction. Two captures a second apart both pass the check above
+            // and both reach here; this one loses, and the unique index on delivery_id is the
+            // backstop behind it should they arrive closer than that - which answers the same code,
+            // because PostgresConstraintTranslator maps ix_proof_of_deliveries_delivery_id onto it.
+            if (await writing.ProofOfDeliveries.ExistsForDeliveryAsync(deliveryId, cancellationToken))
             {
-                Kind = asset.Kind,
-                StorageKey = asset.Key,
-                ContentType = asset.ContentType,
-            });
+                throw AlreadyCaptured(deliveryId);
+            }
+
+            proof = new ProofOfDelivery
+            {
+                DeliveryId = deliveryId,
+                RecipientName = command.RecipientName!.Trim(),
+
+                // No address and no resolution timestamp: the coordinates are the record, and the
+                // address is a cache nothing has filled in yet (DR-11).
+                CaptureLocation = new Location(
+                    command.CaptureLocation!.Latitude!.Value,
+                    command.CaptureLocation.Longitude!.Value,
+                    Address: null,
+                    AddressResolvedAt: null),
+
+                // AD-13's injected clock, at offset zero. A capture instant the caller could name is
+                // an instant a caller could choose, which is the one thing evidence must not permit.
+                CapturedAt = timeProvider.GetUtcNow(),
+                CapturedByUserId = currentUser.UserId,
+            };
+
+            foreach (var asset in pending)
+            {
+                proof.Assets.Add(new ProofAsset
+                {
+                    Kind = asset.Kind,
+                    StorageKey = asset.Key,
+                    ContentType = asset.ContentType,
+                });
+            }
+
+            writing.ProofOfDeliveries.Add(proof);
+
+            // Read before the commit, inside the transaction that is about to close, as the delivery
+            // capability reads its parties: a query issued after CommitAsync would run outside the
+            // scope AD-5 gave this operation.
+            capturedBy = await CapturerNameAsync(writing, currentUser.UserId, cancellationToken);
+
+            await writing.CommitAsync(cancellationToken);
         }
 
-        writing.ProofOfDeliveries.Add(proof);
-
-        // Read before the commit, inside the transaction that is about to close, as the delivery
-        // capability reads its parties: a query issued after CommitAsync would run outside the scope
-        // AD-5 gave this operation.
-        var capturedBy = await CapturerNameAsync(writing, currentUser.UserId, cancellationToken);
-
-        await writing.CommitAsync(cancellationToken);
+        // Step four: the bytes, with the row already safe and every scope closed. Both surfaces hold
+        // their streams open for the whole call - the REST adapter reads over the buffered request
+        // body, the capture panel disposes its browser files in a finally - so reading them here is
+        // as valid as reading them before the commit was. Not equally robust, though: the REST
+        // body is already buffered, while a browser file is still a read over a live circuit, which
+        // this ordering now holds open across the commit. The proof is read after its scope closes
+        // as well, which is safe because nothing on it is lazily loaded: every asset on it was put
+        // there above.
+        //
+        // A failure throws and the exception propagates, leaving a committed proof naming an object
+        // the store does not hold. That is deliberate: it is the state the asset route already
+        // answers 404 for, and it is what names the assets that did land before the failure. The
+        // alternative - keeping the old order - buries an unreferenced object in the bucket for
+        // every refusal instead, and nothing in the system can ever find one again.
+        //
+        // CancellationToken.None, and the only place in this capability that refuses the caller's
+        // token. Everything above it is cancellable because cancelling it abandons a request that
+        // changed nothing; this loop is not, because the row is already committed and the request is
+        // no longer what the work is about. A driver who closes the dialog - or a client that hangs
+        // up - would otherwise cancel between CommitAsync and the first upload and leave a proof
+        // whose evidence was never written, with nobody left to be told. It holds for a closed
+        // dialog and a hung-up client, which cancel a token while the connection carrying the bytes
+        // stays up; it cannot hold for a circuit that dies outright, because the panel's photographs
+        // are read over that circuit and no token choice makes a dead one readable.
+        foreach (var asset in pending)
+        {
+            await assetStore.SaveAsync(asset.Key, asset.Content, asset.ContentType, CancellationToken.None);
+        }
 
         return View(proof, capturedBy);
     }
@@ -212,8 +263,24 @@ public sealed class ProofOfDeliveryService(
         return new ProofAssetContent(contentType, content);
     }
 
-    /// <summary>One asset as it now exists in the store: what it is, and the key it answers to.</summary>
-    private sealed record StoredAsset(ProofAssetKind Kind, string ContentType, string Key);
+    /// <summary>
+    /// One asset on its way to the store: what it is, the key it has been promised, and the bytes
+    /// that are not there yet.
+    /// <para>
+    /// Named for the gap it spans. Between minting and writing the key exists and the object does
+    /// not, and this record is what carries the pair across the transaction that commits the first
+    /// half — which is why it holds the caller's stream rather than a key it has already earned.
+    /// </para>
+    /// </summary>
+    /// <param name="Kind">Signature or photograph (FR-119).</param>
+    /// <param name="ContentType">The normalised MIME type, stored on the row and with the object.</param>
+    /// <param name="Key">The key the store minted, committed before anything is written under it.</param>
+    /// <param name="Content">The caller's stream, read once the row is safe.</param>
+    private sealed record PendingAsset(
+        ProofAssetKind Kind,
+        string ContentType,
+        string Key,
+        Stream Content);
 
     /// <summary>
     /// AD-17's disclosure decision, taken here and nowhere else: dispatch is told who captured the

@@ -71,22 +71,38 @@ internal sealed class GarageAssetStore : IAssetStore, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<string> SaveAsync(
-        Stream content,
-        string contentType,
-        CancellationToken cancellationToken)
+    public string NewKey(string contentType)
     {
-        ArgumentNullException.ThrowIfNull(content);
         ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
 
-        var client = Configured();
+        // Asked for its refusal rather than for the client: minting is the first thing a capture
+        // does, so an unconfigured deployment is answered here - before a transaction opens - rather
+        // than after one has committed a row naming a key nothing can ever be written under.
+        Configured();
 
         // The key is minted here and nowhere else, which is what makes it opaque above this layer:
         // a GUID carries no delivery id, no driver and no date, so a key that escaped into a log
         // discloses nothing and a key cannot be guessed from another one. The extension is a
         // courtesy to whoever browses the bucket - nothing reads it back, because the content type
         // travels on the row (DR-14).
-        var key = "proof/" + Guid.NewGuid().ToString("N") + ExtensionFor(contentType);
+        //
+        // Nothing is created by saying the name: the bucket is untouched until SaveAsync is called,
+        // which is what lets the caller commit the row that names this key first.
+        return "proof/" + Guid.NewGuid().ToString("N") + ExtensionFor(contentType);
+    }
+
+    /// <inheritdoc />
+    public async Task SaveAsync(
+        string key,
+        Stream content,
+        string contentType,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+
+        var client = Configured();
 
         // Buffered so the request carries Content-Length and a signature over the whole body.
         using var buffer = new MemoryStream();
@@ -108,12 +124,10 @@ internal sealed class GarageAssetStore : IAssetStore, IDisposable
             UseChunkEncoding = false,
         };
 
-        // Nothing is caught. The port's contract is that a failed save throws, so that no row is
-        // ever committed against a key the store does not hold - the opposite of the geocoder's
-        // contract, and for the opposite reason.
+        // Nothing is caught. The port's contract is that a failed save throws, so that a capture
+        // whose evidence did not reach the store is a failed request rather than a 200 whose assets
+        // do not resolve - the opposite of the geocoder's contract, and for the opposite reason.
         await client.PutObjectAsync(request, cancellationToken);
-
-        return key;
     }
 
     /// <inheritdoc />

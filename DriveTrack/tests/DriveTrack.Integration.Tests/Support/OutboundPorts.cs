@@ -193,12 +193,23 @@ internal sealed class FakeGeocoder : IGeocoder
 /// AD-26's object store, answered inside the process: a dictionary of keys to bytes.
 /// <para>
 /// Garage is a container and an S3 protocol, and a suite that ran one to prove the ordering rule
-/// would be asserting against somebody else's daemon. What story 6.1 actually claims is about
-/// <em>this</em> system: that a refused capture writes nothing at all, that the bytes are written
-/// before the transaction that names them opens, and that a committed key always resolves. All
-/// three are claims about what happens on either side of the port, which is exactly what a fake can
-/// stand in for — and the real adapter's own protocol is asserted separately, against a loopback
-/// socket, in <c>ObjectStoreAdapterTests</c>.
+/// would be asserting against somebody else's daemon. What the proof capability actually claims is
+/// about <em>this</em> system: that a refused capture writes nothing at all, that the bytes are
+/// written only once the row naming them has committed, and that every object the store holds is
+/// named by a committed key. All three are claims about what happens on either side of the port,
+/// which is exactly what a fake can stand in for — and the real adapter's own protocol is asserted
+/// separately, against a loopback socket, in <c>ObjectStoreAdapterTests</c>.
+/// </para>
+/// <para>
+/// The split between <see cref="NewKey"/> and <see cref="SaveAsync"/> is the fake's half of that
+/// last claim: minting records nothing, so <see cref="Saved"/> holding an entry means bytes really
+/// arrived rather than merely that a key was asked for.
+/// </para>
+/// <para>
+/// It records one thing beyond the bytes: the <see cref="SavedAsset.Token"/> each write was handed.
+/// A post-commit write that could still be cancelled by the request that started it is the one way
+/// this ordering fails silently, and nothing else in the suite can see which token the capability
+/// passes down.
 /// </para>
 /// <para>
 /// Written for two threads, like the two fakes above it: a capture runs on the request's thread and
@@ -215,15 +226,36 @@ internal sealed class FakeAssetStore : IAssetStore
     /// <param name="Key">The key it was minted under.</param>
     /// <param name="ContentType">The type it was stored with.</param>
     /// <param name="Content">The bytes, copied, so a disposed source stream cannot change them.</param>
-    internal sealed record SavedAsset(string Key, string ContentType, byte[] Content);
+    /// <param name="Token">
+    /// The token the write was handed. Recorded because the capture deliberately refuses the
+    /// caller's one here: the row is already committed by the time these bytes travel, so a client
+    /// that hangs up must not be able to abandon the evidence its own commit now depends on.
+    /// Passing <c>cancellationToken</c> through instead reads like a tidy-up and leaves every
+    /// assertion in the suite green, which is why the token itself is asserted on.
+    /// </param>
+    internal sealed record SavedAsset(
+        string Key,
+        string ContentType,
+        byte[] Content,
+        CancellationToken Token);
 
     /// <summary>When set, every save throws it instead of succeeding.</summary>
     /// <remarks>
     /// This is how the "store write fails" row of the matrix is reached. The port's contract is that
-    /// a failed save throws so that nothing is committed against a key the store does not hold, and
-    /// a fake that could only succeed could not assert the half that matters.
+    /// a failed save throws so that a capture whose evidence never arrived is a failed request
+    /// rather than a 200, and a fake that could only succeed could not assert the half that matters.
     /// </remarks>
     public Exception? Failure { get; set; }
+
+    /// <summary>When set, every mint throws it instead of answering a key.</summary>
+    /// <remarks>
+    /// The "store unconfigured" row of the matrix. <see cref="NewKey"/> has a failure of its own in
+    /// the port's contract — a deployment with no endpoint refuses there — and it is a different
+    /// claim from <see cref="Failure"/>'s: minting runs before the writing transaction is opened, so
+    /// a refusal here must leave no proof row at all, where a refusal in <see cref="SaveAsync"/>
+    /// deliberately leaves one. Separate knobs, because a single one could not tell the two apart.
+    /// </remarks>
+    public Exception? MintingFailure { get; set; }
 
     /// <summary>
     /// When set, <see cref="OpenAsync"/> answers null for every key, whatever was saved. The "row
@@ -244,11 +276,32 @@ internal sealed class FakeAssetStore : IAssetStore
     }
 
     /// <inheritdoc />
-    public async Task<string> SaveAsync(
+    /// <remarks>
+    /// Nothing is recorded here, which is the point: a capture mints a key for every upload and then
+    /// may still be refused, so a fake that counted mints would report objects the bucket never held.
+    /// <see cref="Failure"/> is not raised here either — the two refusals happen on opposite sides of
+    /// the commit, so <see cref="MintingFailure"/> is what reaches this one.
+    /// </remarks>
+    public string NewKey(string contentType)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+
+        if (MintingFailure is not null)
+        {
+            throw MintingFailure;
+        }
+
+        return "proof/" + Guid.NewGuid().ToString("N");
+    }
+
+    /// <inheritdoc />
+    public async Task SaveAsync(
+        string key,
         Stream content,
         string contentType,
         CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentNullException.ThrowIfNull(content);
 
         if (Failure is not null)
@@ -263,15 +316,12 @@ internal sealed class FakeAssetStore : IAssetStore
         await content.CopyToAsync(buffer, cancellationToken);
 
         var bytes = buffer.ToArray();
-        var key = "proof/" + Guid.NewGuid().ToString("N");
 
         lock (_gate)
         {
             _objects[key] = bytes;
-            _saved.Add(new SavedAsset(key, contentType, bytes));
+            _saved.Add(new SavedAsset(key, contentType, bytes, cancellationToken));
         }
-
-        return key;
     }
 
     /// <inheritdoc />

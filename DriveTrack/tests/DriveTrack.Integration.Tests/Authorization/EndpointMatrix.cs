@@ -259,8 +259,8 @@ internal static class EndpointMatrix
     /// </summary>
     /// <remarks>
     /// It never reaches the store. The delivery id is a missing one, so an allowed caller is
-    /// answered 404 inside the first, uncommitted scope — before the assets are written (AD-26) —
-    /// and a refused caller never gets that far.
+    /// answered 404 inside the first, uncommitted scope — before a key is even minted (AD-26) — and
+    /// a refused caller never gets that far.
     /// </remarks>
     private static HttpRequestMessage Capture(string path)
     {

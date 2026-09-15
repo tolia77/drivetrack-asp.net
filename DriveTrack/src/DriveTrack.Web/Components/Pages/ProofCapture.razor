@@ -229,8 +229,9 @@
         catch (Exception failure) when (Reports(failure))
         {
             // The arm no other screen in this product needs, and the reason is AD-26: this is the
-            // only action whose capability calls a network port inline, before its transaction. An
-            // unreachable object store raises the SDK's own exception and an unconfigured one raises
+            // only action whose capability calls a network port inline - it mints a key before its
+            // transaction and writes the bytes after the commit, and either can fail. An unreachable
+            // object store raises the SDK's own exception and an unconfigured one raises
             // InvalidOperationException, and neither is a DriveTrackException - so without this they
             // would escape the panel and kill the circuit, which loses the screen behind it as well.
             //
@@ -244,8 +245,17 @@
             // reported below.
             //
             // Reported as COMMON_UNEXPECTED_ERROR, which is what the REST surface answers for the
-            // same failure (AD-7): the capture did not happen, nothing committed, and the driver's
-            // next move is to try again.
+            // same failure (AD-7). What it leaves behind depends on where the store failed, and the
+            // panel cannot tell: a refusal while minting leaves nothing at all, and a refusal while
+            // writing leaves a committed proof whose assets are missing. So the message says only
+            // that the capture failed, and this arm returns - the dialog stays open with the failure
+            // on it rather than closing as a success would, and the screen behind is left as it was.
+            //
+            // A retry is the driver's next move only in the first case. In the second the proof
+            // exists, so a second capture is refused as DELIVERY_PROOF_ALREADY_CAPTURED (FR-123) and
+            // the evidence has to be sorted out by someone who can see both the row and the bucket.
+            // Telling the two apart from here would need the capability to say which side of its
+            // commit it failed on, which it does not.
             _failures = [new ScreenFailure(null, nameof(ErrorCode.COMMON_UNEXPECTED_ERROR))];
 
             return;

@@ -58,10 +58,11 @@ public sealed record CaptureProofCommand(
 /// <summary>
 /// FR-119 and NFR-28's rules for a capture, applied before a single byte reaches the store.
 /// <para>
-/// Every rule here is one the object store cannot undo. AD-26 has the store written first and the
-/// row second, so an asset refused after the write is an object in the bucket that no row will ever
-/// name — and a capture refused halfway is several. That is why the shape of the whole set is judged
-/// here, in one pass, rather than asset by asset as they are uploaded.
+/// Every rule here is one nothing downstream can undo. The capture commits its row before it writes
+/// a single byte, so a set refused halfway through the writing would leave a committed proof naming
+/// objects that were never stored — and <c>IAssetStore</c> has neither a delete to take an object
+/// back with nor a way to un-commit a row. That is why the shape of the whole set is judged here, in
+/// one pass, before anything is minted or opened, rather than asset by asset as they are uploaded.
 /// </para>
 /// <para>
 /// Two failures carry their own message key rather than the generic one, because they are the two a
