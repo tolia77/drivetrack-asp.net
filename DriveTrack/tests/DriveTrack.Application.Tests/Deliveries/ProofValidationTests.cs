@@ -8,11 +8,13 @@ namespace DriveTrack.Application.Tests.Deliveries;
 /// The validation rows of story 6.1's edge-case matrix, asserted against
 /// <see cref="CaptureProofCommandValidator"/>.
 /// <para>
-/// Every claim here is one AD-26 makes expensive to get wrong. The store is written before the
-/// transaction that names the keys, so a rule that failed to refuse an upload would let bytes reach
-/// the bucket that no row will ever reference — and a rule that refused a legal one would leave a
-/// driver standing at a door unable to record that the parcel arrived. Both are decided by this
-/// class, before a single byte moves, which is why they are asserted here rather than over HTTP.
+/// Every claim here is one the capture's ordering makes expensive to get wrong. The proof row
+/// commits before a single byte is written, and the store judges nothing it is handed — so a rule
+/// that failed to refuse an upload would commit a proof and then write the illegal asset under it,
+/// with FR-123 leaving no way to take either back — and a rule that refused a legal one would leave
+/// a driver standing at a door unable to record that the parcel arrived. Both are decided by this
+/// class, before anything is minted or committed, which is why they are asserted here rather than
+/// over HTTP.
 /// </para>
 /// </summary>
 public class ProofValidationTests

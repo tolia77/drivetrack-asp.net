@@ -80,14 +80,24 @@ public class ProofOfDeliveryTests(PostgresFixture postgres)
         Assert.Equal(2, store.Saved.Count);
         Assert.Equal(ProofApi.Png, store.Saved[0].Content);
         Assert.Equal("image/png", store.Saved[0].ContentType);
+
+        // And they arrived on a token nobody can cancel. These writes run after CommitAsync, so a
+        // client that hangs up between the commit and the first upload would otherwise abandon the
+        // evidence a committed, immutable proof (FR-123) already names - unfixable afterwards,
+        // because a second capture is refused with DELIVERY_PROOF_ALREADY_CAPTURED. Passing the
+        // request's token down here instead looks like an ordinary tidy-up and breaks nothing else
+        // in this suite, which is why the token is asserted rather than left to the reader.
+        Assert.All(store.Saved, saved => Assert.False(saved.Token.CanBeCanceled));
     }
 
     [Fact]
     public async Task Every_committed_storage_key_resolves_in_the_store()
     {
-        // AD-26's guarantee, read off both sides at once: the keys the database holds are exactly
-        // the keys the store was asked to mint, so a committed proof can always be shown. The
-        // inverse - an object nothing references - is garbage and deliberately not an error.
+        // The ordering's guarantee, read off both sides at once: the keys the database holds are
+        // exactly the keys the store was written under, so a committed proof can be shown. The
+        // equality is what carries it in both directions - an object the row does not name would
+        // fail it just as a named key with no object would, and the first of those is the permanent,
+        // unfindable garbage this ordering exists to make impossible.
         var cancellationToken = TestContext.Current.CancellationToken;
         var store = new FakeAssetStore();
 
@@ -252,6 +262,96 @@ public class ProofOfDeliveryTests(PostgresFixture postgres)
         Assert.Equal(
             first.GetProperty("capturedAt").GetString(),
             second.GetProperty("capturedAt").GetString());
+
+        // And the refused capture wrote nothing: still the first capture's two objects and no more.
+        // This refusal was always cheap - the reading scope answers it before any key is minted -
+        // so what the count pins is that moving the writes past the commit did not make it
+        // expensive. The refusals that used to cost objects are the ones no early check can reach,
+        // and those are asserted by the racing case above.
+        Assert.Equal(2, store.Saved.Count);
+    }
+
+    [Fact]
+    public async Task Two_captures_racing_for_one_delivery_leave_one_proof_and_one_409()
+    {
+        // The row of the matrix that neither guard can be held to on its own. The sequential case
+        // above is refused by the reading scope's check; here both requests are in flight before
+        // either has committed, so both pass it and the loser meets either the in-transaction
+        // re-check or the unique index behind it. Both must speak the same sentence, which is why
+        // PostgresConstraintTranslator maps ix_proof_of_deliveries_delivery_id onto the capability's
+        // own code - otherwise which refusal a driver is shown depends on a millisecond.
+        //
+        // The shape is ReviewTests' concurrency case: fire both, sort the answers, assert the pair
+        // rather than which one won. Which request wins is the database's business.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var store = new FakeAssetStore();
+
+        await using var factory = await FleetApi.CreateAsync(
+            postgres.ConnectionString, cancellationToken, OutboundPorts.Replace(store));
+        using var client = factory.CreateClient();
+
+        var dispatcher = await DeliveryApi.DispatcherAsync(factory, client, cancellationToken);
+        var driver = await DeliveryApi.DriverAsync(client, dispatcher, vehicleId: null, cancellationToken);
+
+        var deliveryId = await DeliveryApi.PostAsync(
+            client,
+            dispatcher,
+            DeliveryApi.NewDelivery(driverId: driver.DriverId),
+            cancellationToken);
+
+        var first = ProofApi.CaptureAsync(
+            client, driver.Token, deliveryId, cancellationToken, signature: ProofApi.Png);
+        var second = ProofApi.CaptureAsync(
+            client,
+            driver.Token,
+            deliveryId,
+            cancellationToken,
+            recipientName: "Хтось інший",
+            signature: ProofApi.Png);
+
+        var responses = await Task.WhenAll(first, second);
+
+        try
+        {
+            var statuses = responses.Select(response => response.StatusCode).Order().ToArray();
+
+            Assert.Equal([HttpStatusCode.OK, HttpStatusCode.Conflict], statuses);
+
+            // The loser hears FR-123's own refusal, whichever guard produced it - and AssertFailureAsync
+            // is also where NFR-3 is checked, so a message carrying the index name or a SQLSTATE
+            // would fail here.
+            var loser = responses.Single(response => response.StatusCode == HttpStatusCode.Conflict);
+
+            await FleetApi.AssertFailureAsync(
+                loser,
+                HttpStatusCode.Conflict,
+                ErrorCode.DELIVERY_PROOF_ALREADY_CAPTURED,
+                cancellationToken);
+        }
+        finally
+        {
+            foreach (var response in responses)
+            {
+                response.Dispose();
+            }
+        }
+
+        await using var context = await factory.Database.ContextFactory
+            .CreateDbContextAsync(cancellationToken);
+
+        var stored = await context.ProofOfDeliveries
+            .AsNoTracking()
+            .Include(proof => proof.Assets)
+            .SingleAsync(proof => proof.DeliveryId == deliveryId, cancellationToken);
+
+        // Exactly the winner's objects and no others, which is the half the status codes cannot
+        // prove: under the old ordering the loser's signature and photograph were in the bucket
+        // before it was refused, referenced by nothing and removable by nothing.
+        Assert.Equal(
+            stored.Assets.Select(asset => asset.StorageKey).Order(StringComparer.Ordinal),
+            store.Saved.Select(saved => saved.Key).Order(StringComparer.Ordinal));
+
+        Assert.Equal(2, store.Saved.Count);
     }
 
     // =====================================================================================
@@ -496,11 +596,15 @@ public class ProofOfDeliveryTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task A_store_that_will_not_write_leaves_no_proof_behind()
+    public async Task A_store_that_will_not_write_keeps_the_proof_and_leaves_nothing_in_the_bucket()
     {
-        // The last row of the matrix. The port's contract is that a failed save throws, and AD-26's
-        // ordering is what makes that safe: the transaction that would have referenced the key was
-        // never opened, so there is nothing to roll back and nothing half-written to find.
+        // The last row of the matrix, and the one this ordering deliberately inverts. The port's
+        // contract is that a failed save throws, so the capture is still a 500 - a 200 whose assets
+        // do not resolve would be the system asserting evidence it does not hold. What changes is
+        // what survives: the row is already committed and is kept, because it is what names whatever
+        // objects did land before the failure, and a row whose object is absent is a state the
+        // system already answers. The old ordering's residue - objects in a bucket that no row will
+        // ever name and nothing can delete - was neither findable nor answerable.
         var cancellationToken = TestContext.Current.CancellationToken;
         var store = new FakeAssetStore
         {
@@ -529,6 +633,77 @@ public class ProofOfDeliveryTests(PostgresFixture postgres)
                 ErrorCode.COMMON_UNEXPECTED_ERROR,
                 cancellationToken);
         }
+
+        // Nothing reached the store, so nothing unreferenced was left there. Minting a key is not
+        // writing an object, which is the whole reason the keys could be committed first.
+        Assert.Empty(store.Saved);
+
+        await using (var context = await factory.Database.ContextFactory
+                         .CreateDbContextAsync(cancellationToken))
+        {
+            Assert.True(await context.ProofOfDeliveries
+                .AsNoTracking()
+                .AnyAsync(proof => proof.DeliveryId == deliveryId, cancellationToken));
+        }
+
+        // And the residue is the answered state rather than a crash: the proof reads back, and the
+        // asset route says there is no such image - the same 404 a bucket emptied out of band gets.
+        var proof = await ProofAsync(client, dispatcher, deliveryId, cancellationToken);
+        var assets = proof.GetProperty("assets").EnumerateArray().ToArray();
+
+        Assert.Equal(2, assets.Length);
+
+        foreach (var asset in assets)
+        {
+            using var bytes = await ProofApi.AssetAsync(
+                client, asset.GetProperty("id").GetInt32(), cancellationToken, dispatcher);
+
+            await FleetApi.AssertFailureAsync(
+                bytes,
+                HttpStatusCode.NotFound,
+                ErrorCode.COMMON_NOT_FOUND,
+                cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task A_store_that_cannot_even_mint_a_key_leaves_no_proof_behind()
+    {
+        // The other side of the row above, and the reason the two refusals are separate knobs. A
+        // deployment with no ObjectStore endpoint refuses at NewKey, which the capture calls before
+        // it opens the transaction that would commit anything - so here the old guarantee still
+        // holds in full: no row, no object, nothing to find. The inversion above is the price of a
+        // write that fails after the commit, not of every store failure.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var store = new FakeAssetStore
+        {
+            MintingFailure = new InvalidOperationException("Set ObjectStore__ServiceUrl."),
+        };
+
+        await using var factory = await FleetApi.CreateAsync(
+            postgres.ConnectionString, cancellationToken, OutboundPorts.Replace(store));
+        using var client = factory.CreateClient();
+
+        var dispatcher = await DeliveryApi.DispatcherAsync(factory, client, cancellationToken);
+        var driver = await DeliveryApi.DriverAsync(client, dispatcher, vehicleId: null, cancellationToken);
+
+        var deliveryId = await DeliveryApi.PostAsync(
+            client,
+            dispatcher,
+            DeliveryApi.NewDelivery(driverId: driver.DriverId),
+            cancellationToken);
+
+        using (var failed = await ProofApi.CaptureAsync(
+                   client, driver.Token, deliveryId, cancellationToken, signature: ProofApi.Png))
+        {
+            await FleetApi.AssertFailureAsync(
+                failed,
+                HttpStatusCode.InternalServerError,
+                ErrorCode.COMMON_UNEXPECTED_ERROR,
+                cancellationToken);
+        }
+
+        Assert.Empty(store.Saved);
 
         await using var context = await factory.Database.ContextFactory
             .CreateDbContextAsync(cancellationToken);

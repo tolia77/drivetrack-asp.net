@@ -51,10 +51,12 @@ public class ObjectStoreDaemonTests(GarageFixture garage) : IDisposable
 
         using var upload = new MemoryStream(bytes);
 
-        var key = await store.SaveAsync(upload, "image/png", cancellationToken);
+        var key = store.NewKey("image/png");
 
         Assert.StartsWith("proof/", key, StringComparison.Ordinal);
         Assert.EndsWith(".png", key, StringComparison.Ordinal);
+
+        await store.SaveAsync(key, upload, "image/png", cancellationToken);
 
         await using var content = await store.OpenAsync(key, cancellationToken);
 
@@ -183,9 +185,9 @@ public class ObjectStoreDaemonTests(GarageFixture garage) : IDisposable
     [Fact]
     public async Task A_write_to_a_bucket_nobody_created_throws()
     {
-        // AD-26: a save that failed quietly would let a proof row commit against a key that resolves
-        // to nothing. The refusal here comes from Garage rather than from a canned status line, so
-        // it also pins that the adapter does not swallow a real NoSuchBucket.
+        // AD-26: a save that failed quietly would let a capture answer 200 with none of its evidence
+        // in the bucket. The refusal here comes from Garage rather than from a canned status line,
+        // so it also pins that the adapter does not swallow a real NoSuchBucket.
         var cancellationToken = TestContext.Current.CancellationToken;
 
         var store = Resolve(GarageFixture.Bucket + "-was-never-created");
@@ -196,7 +198,7 @@ public class ObjectStoreDaemonTests(GarageFixture garage) : IDisposable
         using var upload = new MemoryStream(Encoding.UTF8.GetBytes("evidence"));
 
         var failure = await Assert.ThrowsAsync<AmazonS3Exception>(() =>
-            store.SaveAsync(upload, "image/png", cancellationToken));
+            store.SaveAsync(store.NewKey("image/png"), upload, "image/png", cancellationToken));
 
         Assert.Equal(HttpStatusCode.NotFound, failure.StatusCode);
         Assert.Equal("NoSuchBucket", failure.ErrorCode);

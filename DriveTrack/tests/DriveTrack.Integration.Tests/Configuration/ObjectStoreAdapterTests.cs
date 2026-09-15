@@ -57,17 +57,49 @@ public class ObjectStoreAdapterTests : IDisposable
 
         var store = Resolve(server);
 
-        var key = await store.SaveAsync(Content("evidence"), "image/png", cancellationToken);
+        var key = store.NewKey("image/png");
+
+        await store.SaveAsync(key, Content("evidence"), "image/png", cancellationToken);
 
         var request = Assert.Single(server.Requests);
 
         Assert.Equal("PUT", request.Method);
         Assert.StartsWith("/" + Bucket + "/proof/", request.Target, StringComparison.Ordinal);
 
-        // The key the port answered is the key the object was written under, which is the whole of
+        // The key the port minted is the key the object was written under, which is the whole of
         // what "opaque" has to mean: the caller stores this string and nothing else.
         Assert.EndsWith(key, request.Target, StringComparison.Ordinal);
         Assert.StartsWith("proof/", key, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Minting_a_key_touches_the_node_not_at_all()
+    {
+        // The single property the capture's whole ordering rests on, asserted against the real
+        // adapter: NewKey names an object and does not create one. If minting put anything on the
+        // wire, a capture refused after it - by the re-check, by the unique index, by a failed
+        // commit - would be leaving exactly the garbage this ordering exists to prevent, and every
+        // in-process test would still pass because the fake cannot show it.
+        await using var server = LoopbackHttpServer.Start(_ => new LoopbackHttpServer.CannedResponse(
+            200,
+            string.Empty,
+            "application/xml"));
+
+        var store = Resolve(server);
+
+        var first = store.NewKey("image/png");
+        var second = store.NewKey("image/png");
+
+        Assert.Empty(server.Requests);
+
+        // And two mints are two objects. A key reused between captures would have the second
+        // overwrite the first's evidence, silently, under a row that still names it.
+        Assert.NotEqual(first, second);
+
+        // The call really is the one the capture makes, so "no requests" is not vacuous.
+        await store.SaveAsync(first, Content("evidence"), "image/png", TestContext.Current.CancellationToken);
+
+        Assert.Single(server.Requests);
     }
 
     [Fact]
@@ -84,7 +116,9 @@ public class ObjectStoreAdapterTests : IDisposable
             string.Empty,
             "application/xml"));
 
-        await Resolve(server).SaveAsync(Content("evidence"), "image/png", cancellationToken);
+        var store = Resolve(server);
+
+        await store.SaveAsync(store.NewKey("image/png"), Content("evidence"), "image/png", cancellationToken);
 
         var authorization = Assert.Single(server.Requests).Header("Authorization");
 
@@ -107,7 +141,9 @@ public class ObjectStoreAdapterTests : IDisposable
             string.Empty,
             "application/xml"));
 
-        await Resolve(server).SaveAsync(Content("докази"), "image/webp", cancellationToken);
+        var store = Resolve(server);
+
+        await store.SaveAsync(store.NewKey("image/webp"), Content("докази"), "image/webp", cancellationToken);
 
         var request = Assert.Single(server.Requests);
 
@@ -140,7 +176,9 @@ public class ObjectStoreAdapterTests : IDisposable
 
         var store = Resolve(server);
 
-        var key = await store.SaveAsync(Content("докази"), "image/png", cancellationToken);
+        var key = store.NewKey("image/png");
+
+        await store.SaveAsync(key, Content("докази"), "image/png", cancellationToken);
 
         await using var content = await store.OpenAsync(key, cancellationToken);
 
@@ -172,11 +210,11 @@ public class ObjectStoreAdapterTests : IDisposable
     }
 
     [Fact]
-    public async Task A_store_that_refuses_the_write_throws_rather_than_answering_a_key()
+    public async Task A_store_that_refuses_the_write_throws_rather_than_reporting_success()
     {
         // The opposite of the geocoder's contract, and deliberately so: a save that failed quietly
-        // would let a proof row commit against a key that resolves to nothing, which is evidence
-        // that says it exists and does not (AD-26).
+        // would let a capture answer 200 while the evidence it asserts never reached the bucket,
+        // which is the system claiming proof it does not hold (AD-26).
         var cancellationToken = TestContext.Current.CancellationToken;
 
         await using var server = LoopbackHttpServer.Start(_ => new LoopbackHttpServer.CannedResponse(
@@ -184,8 +222,10 @@ public class ObjectStoreAdapterTests : IDisposable
             "<Error><Code>AccessDenied</Code></Error>",
             "application/xml"));
 
+        var store = Resolve(server);
+
         await Assert.ThrowsAnyAsync<Exception>(() =>
-            Resolve(server).SaveAsync(Content("evidence"), "image/png", cancellationToken));
+            store.SaveAsync(store.NewKey("image/png"), Content("evidence"), "image/png", cancellationToken));
     }
 
     [Fact]
@@ -194,6 +234,10 @@ public class ObjectStoreAdapterTests : IDisposable
         // ServiceUrl has no committed default, and this is why: the SDK's own default is Amazon S3,
         // so a deployment that never configured an endpoint would sign requests to a service nobody
         // chose. Blank is answered here, naming the variable an operator would search for.
+        //
+        // Both members are asked, and NewKey is the one that matters: it is the first thing a
+        // capture calls, so refusing there is what keeps an unconfigured deployment from committing
+        // a proof row naming keys nothing can ever be written under.
         var cancellationToken = TestContext.Current.CancellationToken;
 
         var values = TestConfiguration.Defaults();
@@ -208,11 +252,16 @@ public class ObjectStoreAdapterTests : IDisposable
         var provider = services.BuildServiceProvider();
         _providers.Add(provider);
 
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            provider.GetRequiredService<IAssetStore>()
-                .SaveAsync(Content("evidence"), "image/png", cancellationToken));
+        var store = provider.GetRequiredService<IAssetStore>();
 
-        Assert.Contains("ObjectStore__ServiceUrl", failure.Message, StringComparison.Ordinal);
+        var minting = Assert.Throws<InvalidOperationException>(() => store.NewKey("image/png"));
+
+        Assert.Contains("ObjectStore__ServiceUrl", minting.Message, StringComparison.Ordinal);
+
+        var writing = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            store.SaveAsync("proof/never-minted", Content("evidence"), "image/png", cancellationToken));
+
+        Assert.Contains("ObjectStore__ServiceUrl", writing.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

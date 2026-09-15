@@ -12,16 +12,16 @@ namespace DriveTrack.Application.Deliveries;
 /// <para>
 /// It is a capability of its own rather than three more members on <see cref="IDeliveryService"/>
 /// because it owns a different outbound port — <c>IAssetStore</c> — and a different ordering rule:
-/// AD-26 has bytes written before the transaction that names them, which is the opposite of every
-/// other write in the system. Folding that into the delivery service would put an object-store call
-/// inside a type whose every other method is one unit of work.
+/// a capture mints its keys before its transaction and writes the bytes after the commit, so it is
+/// three steps around a unit of work rather than one. Folding that into the delivery service would
+/// put an object-store call inside a type whose every other method is one unit of work.
 /// </para>
 /// </summary>
 public interface IProofOfDeliveryService
 {
     /// <summary>
-    /// Records the hand-over (FR-119): the assets are stored first, then one proof row and its
-    /// assets commit together.
+    /// Records the hand-over (FR-119): one proof row and its assets commit together, and the bytes
+    /// are written into the store afterwards, under keys the row already names.
     /// <para>
     /// Reserved to the assigned driver and to dispatch, which is the same predicate the status
     /// change uses — a client may never capture proof of their own delivery. It is allowed on a
@@ -43,6 +43,15 @@ public interface IProofOfDeliveryService
     /// </exception>
     /// <exception cref="Common.ConflictException">
     /// The delivery already has a proof (<c>DELIVERY_PROOF_ALREADY_CAPTURED</c>, FR-123).
+    /// </exception>
+    /// <exception cref="Exception">
+    /// The object store refused a write. The one failure here that does not mean "nothing happened":
+    /// the bytes go in after the row is committed, so this may be raised with the proof already
+    /// saved and some or none of its assets stored. Every exception above leaves the delivery
+    /// exactly as it was found; this one does not, and a caller that reports a failed capture by
+    /// redrawing the delivery has to refetch it rather than assume. The proof is deliberately kept —
+    /// it is what names whatever did reach the store — and an asset whose object is missing is read
+    /// back as a 404 by <see cref="OpenAssetAsync"/>, not as an error.
     /// </exception>
     Task<ProofOfDeliveryView> CaptureAsync(
         int deliveryId,
