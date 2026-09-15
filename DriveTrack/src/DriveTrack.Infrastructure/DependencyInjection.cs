@@ -21,6 +21,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace DriveTrack.Infrastructure;
@@ -296,6 +297,10 @@ public static class DependencyInjection
     private static void AddSideEffects(IServiceCollection services, IConfiguration configuration)
     {
         RequirePositiveInteger(configuration, GeocoderOptions.TimeoutSecondsConfigurationKey, "seconds");
+        RequireNonNegativeInteger(
+            configuration,
+            GeocoderOptions.MinimumRequestIntervalMillisecondsConfigurationKey,
+            "milliseconds");
         RequirePositiveInteger(configuration, SmtpOptions.PortConfigurationKey, "port number");
         RequireBoolean(configuration, SmtpOptions.UseStartTlsConfigurationKey);
 
@@ -318,7 +323,9 @@ public static class DependencyInjection
         // declares and nobody would look for.
         services.AddSingleton<IGeocoder>(provider => new NominatimGeocoder(
             new HttpClient { Timeout = TimeSpan.FromSeconds(geocoder.TimeoutSeconds) },
-            provider.GetRequiredService<IOptions<GeocoderOptions>>()));
+            provider.GetRequiredService<IOptions<GeocoderOptions>>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<NominatimGeocoder>>()));
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
         // Singletons, like the factory and the clock they are built from. A side effect belongs to
@@ -364,6 +371,39 @@ public static class DependencyInjection
                 $"Configuration value '{key}' is '{value}', which is not a positive whole number of "
                     + $"{unit}. Set the '{EnvironmentSpelling(key)}' environment variable "
                     + "(see .env.example), or remove it to take the default.");
+        }
+    }
+
+    /// <summary>
+    /// Refuses a configuration value that is present but is not a whole number of zero or more,
+    /// naming the key in both the spelling the code uses and the spelling the environment does.
+    /// </summary>
+    /// <remarks>
+    /// Zero is a setting rather than an absence for the value this guards: it turns the geocoder's
+    /// request pacing off, which is what a self-hosted provider with no usage policy wants. Blank is
+    /// still refused, for the reason <see cref="RequirePositiveInteger"/> refuses it — an
+    /// <c>.env</c> predating the key forwards the empty string, and an empty string overrides the
+    /// option's default rather than falling back to it.
+    /// </remarks>
+    private static void RequireNonNegativeInteger(
+        IConfiguration configuration,
+        string key,
+        string unit)
+    {
+        var value = configuration[key];
+
+        if (value is null)
+        {
+            return;
+        }
+
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            || parsed < 0)
+        {
+            throw new InvalidOperationException(
+                $"Configuration value '{key}' is '{value}', which is not a whole number of {unit} "
+                    + $"of zero or more. Set the '{EnvironmentSpelling(key)}' environment variable "
+                    + "(see .env.example) to 0 to disable pacing, or remove it to take the default.");
         }
     }
 
