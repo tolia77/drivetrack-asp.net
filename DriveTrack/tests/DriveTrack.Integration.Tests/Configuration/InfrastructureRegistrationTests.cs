@@ -227,7 +227,15 @@ public class InfrastructureRegistrationTests
         registrations.AddLogging();
         registrations.AddInfrastructure(BuildConfiguration(ValidConnectionString), new TestHostEnvironment());
 
-        Assert.Contains(registrations, descriptor => descriptor.ServiceType == typeof(IGeocoder));
+        // The geocoder's lifetime is load-bearing rather than a style choice: the pacing gate is
+        // instance state, so one instance per scope would be one gate per scope, and the provider
+        // would see the burst the gate exists to prevent. Every adapter test resolves exactly once,
+        // so a lifetime changed to scoped would leave all of them - and this one, on presence alone
+        // - green while the deployment was refused.
+        Assert.Contains(
+            registrations,
+            descriptor => descriptor.ServiceType == typeof(IGeocoder)
+                && descriptor.Lifetime == ServiceLifetime.Singleton);
         Assert.Contains(registrations, descriptor => descriptor.ServiceType == typeof(IEmailSender));
         Assert.Contains(
             registrations,
@@ -283,6 +291,103 @@ public class InfrastructureRegistrationTests
 
         Assert.Contains("Geocoder:TimeoutSeconds", exception.Message, StringComparison.Ordinal);
         Assert.Contains("Geocoder__TimeoutSeconds", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("often")]
+    [InlineData("-1")]
+    [InlineData("1.5")]
+    public void A_geocoder_pacing_interval_that_is_not_a_whole_number_throws_naming_the_variable(
+        string interval)
+    {
+        // The timeout's trap, one key over, with one difference: zero is a setting here rather than
+        // an unusable value - it turns the pacing off, which is what a self-hosted Nominatim wants,
+        // so it is absent from the theory deliberately and asserted as accepted below.
+        var services = new ServiceCollection();
+        var configuration = BuildConfiguration(ValidConnectionString);
+        configuration[GeocoderOptions.MinimumRequestIntervalMillisecondsConfigurationKey] = interval;
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddInfrastructure(configuration, new TestHostEnvironment()));
+
+        Assert.Contains(
+            "Geocoder:MinimumRequestIntervalMilliseconds",
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Geocoder__MinimumRequestIntervalMilliseconds",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_geocoder_pacing_interval_of_zero_is_accepted_as_pacing_turned_off()
+    {
+        // Zero has to pass the check the empty string fails, or a deployment against its own
+        // Nominatim could not turn the gate off without deleting the key and taking the default -
+        // which is the opposite of what it asked for.
+        var services = new ServiceCollection();
+        var configuration = BuildConfiguration(ValidConnectionString);
+        configuration[GeocoderOptions.MinimumRequestIntervalMillisecondsConfigurationKey] = "0";
+
+        services.AddInfrastructure(configuration, new TestHostEnvironment());
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Equal(
+            0,
+            provider.GetRequiredService<IOptions<GeocoderOptions>>()
+                .Value.MinimumRequestIntervalMilliseconds);
+    }
+
+    [Fact]
+    public void Compose_and_env_example_ship_a_pacing_interval_the_check_accepts()
+    {
+        // The check above only ever sees values a test wrote. The two lines that actually reach a
+        // container are compose.yaml's and .env.example's, and neither is read by anything else in
+        // this solution - so editing either to a spelling the check refuses would abort every
+        // `docker compose up` with the whole suite green, which is the exact failure the check was
+        // brought forward to startup to prevent.
+        const string key = "Geocoder__MinimumRequestIntervalMilliseconds";
+
+        Assert.Contains(key, ComposeStack.EnvironmentKeysOf("app"), StringComparer.Ordinal);
+
+        // Defaulted, not forwarded bare. The two neighbouring Geocoder__Endpoint lines are bare on
+        // purpose, so `${...}` is a shape somebody could copy here in good faith - and it would be
+        // wrong: compose substitutes an unset variable with the empty string, and a blank value is
+        // one this key refuses to start on. Every .env written before this story leaves it unset.
+        var forwarded = ComposeStack.EnvironmentValueOf("app", key);
+
+        var prefix = "${" + key + ":-";
+
+        Assert.True(
+            forwarded.StartsWith(prefix, StringComparison.Ordinal) && forwarded.EndsWith('}'),
+            $"compose.yaml forwards '{key}' as '{forwarded}', which supplies no default. It has to "
+                + $"read '{prefix}<value>}}': a bare reference to an unset variable forwards the "
+                + "empty string, and a blank value is one the app refuses to start on.");
+
+        // Both values a deployment can boot with - compose's default when .env says nothing, and
+        // the line .env.example hands every operator who copies it - run through the real check.
+        foreach (var shipped in new[] { forwarded[prefix.Length..^1], ComposeStack.EnvExample(key) })
+        {
+            var services = new ServiceCollection();
+            var configuration = BuildConfiguration(ValidConnectionString);
+            configuration[GeocoderOptions.MinimumRequestIntervalMillisecondsConfigurationKey] =
+                shipped;
+
+            services.AddInfrastructure(configuration, new TestHostEnvironment());
+
+            using var provider = services.BuildServiceProvider();
+
+            // Accepted is not the whole claim: zero is accepted too, and shipping it would take the
+            // gate away from every deployment that follows Nominatim's policy by doing nothing.
+            Assert.True(
+                provider.GetRequiredService<IOptions<GeocoderOptions>>()
+                    .Value.MinimumRequestIntervalMilliseconds > 0,
+                $"'{shipped}' is shipped as the pacing interval, which paces nothing.");
+        }
     }
 
     [Theory]
@@ -456,6 +561,12 @@ public class InfrastructureRegistrationTests
         Assert.Equal(string.Empty, options.SearchEndpoint);
         Assert.True(options.TimeoutSeconds > 0);
         Assert.False(string.IsNullOrWhiteSpace(options.UserAgent));
+
+        // The pacing default is on, and it has to be asserted rather than assumed: zero is a
+        // documented, valid setting for this key, so an initializer changed to it would read as a
+        // deliberate choice and would take the gate away from every host that sets no variable -
+        // which is every host that follows Nominatim's policy by doing nothing.
+        Assert.True(options.MinimumRequestIntervalMilliseconds > 0);
     }
 
     private static ServiceProvider BuildProvider()
