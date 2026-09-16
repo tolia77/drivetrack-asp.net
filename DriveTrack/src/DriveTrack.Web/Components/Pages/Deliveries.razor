@@ -275,7 +275,7 @@
 
 @* FR-85: the shared dialog. One heading for both create and edit - a title composed at run time
    would be a key no test can see, and the catalogue is closed against the keys components ask for. *@
-<DtDialog @ref="_formDialog" Title="@Localizer["DeliveryForm"]" OnClosed="ClearFailures">
+<DtDialog @ref="_formDialog" Title="@Localizer["DeliveryForm"]" OnClosed="ClearFailures" Wide="true">
     <ChildContent>
         @* A second copy of the banner, deliberately. A DtDialog opens with showModal(), so
            everything outside it is inert behind the backdrop: a refusal rendered only at page level
@@ -302,91 +302,99 @@
 
            Every handler is built in C# below rather than written as a lambda in an attribute: a
            `=>` here would close the tag as far as NFR-14's markup scan is concerned, and everything
-           after it would be read as rendered English. *@
-        <div class="mb-3">
-            @* No `for` on the map's label: a map is a region rather than a labelable control, and a
-               `for` pointing at one would be an association a browser ignores. DtMap carries its own
-               aria-label. The search box above it is an input and has one. *@
-            <label class="form-label" for="pickup-search">@Localizer["AddressSearch"]</label>
-            <div class="input-group">
-                <input id="pickup-search" class="form-control"
-                       @bind="_form.PickupSearch.Query"
-                       @bind:event="oninput"
-                       @onkeydown="Enter(_form.PickupSearch)" />
-                <button type="button" class="btn btn-secondary dt-pickup-search"
-                        disabled="@_form.PickupSearch.IsBusy"
-                        @onclick="Search(_form.PickupSearch)">
-                    <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
-                </button>
+           after it would be read as rendered English.
+
+           The two are columns of one row rather than one above the other: a pickup and a dropoff
+           are read together - the whole question is where this goes from and to - and stacking two
+           half-screen maps put the second one below the fold. They fall back to full width under
+           `lg`, where side-by-side maps would be too narrow to aim at, and the dialog asks for the
+           wide panel so the desktop pair has room. *@
+        <div class="row g-3 mb-3">
+            <div class="col-lg-6">
+                @* No `for` on the map's label: a map is a region rather than a labelable control, and a
+                   `for` pointing at one would be an association a browser ignores. DtMap carries its own
+                   aria-label. The search box above it is an input and has one. *@
+                <label class="form-label" for="pickup-search">@Localizer["AddressSearch"]</label>
+                <div class="input-group">
+                    <input id="pickup-search" class="form-control"
+                           @bind="_form.PickupSearch.Query"
+                           @bind:event="oninput"
+                           @onkeydown="Enter(_form.PickupSearch)" />
+                    <button type="button" class="btn btn-secondary dt-pickup-search"
+                            disabled="@_form.PickupSearch.IsBusy"
+                            @onclick="Search(_form.PickupSearch)">
+                        <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
+                    </button>
+                </div>
+                <div class="form-text">@Localizer["AddressSearchHint"]</div>
+                @* The box's own banner, under the box it is about (DW-41). The dialog's banner above
+                   belongs to Save and Delete, and a search that writes into it is a search that can
+                   erase a refusal nobody has read. *@
+                <DtFailureBanner Failures="_form.PickupSearch.Failures" />
+                @if (_form.PickupSearch.FoundNothing)
+                {
+                    @* role="status", like the timeline's empty line: "the search found nothing" is the
+                       one outcome with no visible change to notice, and a dispatcher who cannot see the
+                       box is otherwise told nothing at all (NFR-22). *@
+                    <div class="form-text dt-pickup-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
+                }
+                @if (_form.PickupSearch.Matches.Count > 0)
+                {
+                    <ul class="list-group mb-2">
+                        @foreach (var match in _form.PickupSearch.Matches)
+                        {
+                            <li class="list-group-item">
+                                <button type="button" class="btn btn-link dt-pickup-match"
+                                        @onclick="Choose(_form.PickupSearch, match)">@match.Address</button>
+                            </li>
+                        }
+                    </ul>
+                }
+                <label class="form-label">@Localizer["Pickup"]</label>
+                <DtMap Value="_form.Pickup" ValueChanged="PickPickup" Picker="true" />
+                @* Under the map rather than in the dialog's banner: an unpicked point is refused with
+                   COMMON_FIELD_REQUIRED - "Обов’язкове поле" - which says nothing at all about which
+                   control, and the map is half a screen tall. Beneath it, the sentence needs nothing
+                   more. *@
+                <DtFieldError Field="Pickup" Failures="_failures" />
             </div>
-            <div class="form-text">@Localizer["AddressSearchHint"]</div>
-            @* The box's own banner, under the box it is about (DW-41). The dialog's banner above
-               belongs to Save and Delete, and a search that writes into it is a search that can
-               erase a refusal nobody has read. *@
-            <DtFailureBanner Failures="_form.PickupSearch.Failures" />
-            @if (_form.PickupSearch.FoundNothing)
-            {
-                @* role="status", like the timeline's empty line: "the search found nothing" is the
-                   one outcome with no visible change to notice, and a dispatcher who cannot see the
-                   box is otherwise told nothing at all (NFR-22). *@
-                <div class="form-text dt-pickup-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
-            }
-            @if (_form.PickupSearch.Matches.Count > 0)
-            {
-                <ul class="list-group mb-2">
-                    @foreach (var match in _form.PickupSearch.Matches)
-                    {
-                        <li class="list-group-item">
-                            <button type="button" class="btn btn-link dt-pickup-match"
-                                    @onclick="Choose(_form.PickupSearch, match)">@match.Address</button>
-                        </li>
-                    }
-                </ul>
-            }
-            <label class="form-label">@Localizer["Pickup"]</label>
-            <DtMap Value="_form.Pickup" ValueChanged="PickPickup" Picker="true" />
-            @* Under the map rather than in the dialog's banner: an unpicked point is refused with
-               COMMON_FIELD_REQUIRED - "Обов’язкове поле" - which says nothing at all about which
-               control, and the map is half a screen tall. Beneath it, the sentence needs nothing
-               more. *@
-            <DtFieldError Field="Pickup" Failures="_failures" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label" for="dropoff-search">@Localizer["AddressSearch"]</label>
-            <div class="input-group">
-                <input id="dropoff-search" class="form-control"
-                       @bind="_form.DropoffSearch.Query"
-                       @bind:event="oninput"
-                       @onkeydown="Enter(_form.DropoffSearch)" />
-                <button type="button" class="btn btn-secondary dt-dropoff-search"
-                        disabled="@_form.DropoffSearch.IsBusy"
-                        @onclick="Search(_form.DropoffSearch)">
-                    <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
-                </button>
-            </div>
-            <div class="form-text">@Localizer["AddressSearchHint"]</div>
-            @* See the pickup box above. *@
-            <DtFailureBanner Failures="_form.DropoffSearch.Failures" />
-            @if (_form.DropoffSearch.FoundNothing)
-            {
+            <div class="col-lg-6">
+                <label class="form-label" for="dropoff-search">@Localizer["AddressSearch"]</label>
+                <div class="input-group">
+                    <input id="dropoff-search" class="form-control"
+                           @bind="_form.DropoffSearch.Query"
+                           @bind:event="oninput"
+                           @onkeydown="Enter(_form.DropoffSearch)" />
+                    <button type="button" class="btn btn-secondary dt-dropoff-search"
+                            disabled="@_form.DropoffSearch.IsBusy"
+                            @onclick="Search(_form.DropoffSearch)">
+                        <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
+                    </button>
+                </div>
+                <div class="form-text">@Localizer["AddressSearchHint"]</div>
                 @* See the pickup box above. *@
-                <div class="form-text dt-dropoff-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
-            }
-            @if (_form.DropoffSearch.Matches.Count > 0)
-            {
-                <ul class="list-group mb-2">
-                    @foreach (var match in _form.DropoffSearch.Matches)
-                    {
-                        <li class="list-group-item">
-                            <button type="button" class="btn btn-link dt-dropoff-match"
-                                    @onclick="Choose(_form.DropoffSearch, match)">@match.Address</button>
-                        </li>
-                    }
-                </ul>
-            }
-            <label class="form-label">@Localizer["Dropoff"]</label>
-            <DtMap Value="_form.Dropoff" ValueChanged="PickDropoff" Picker="true" />
-            <DtFieldError Field="Dropoff" Failures="_failures" />
+                <DtFailureBanner Failures="_form.DropoffSearch.Failures" />
+                @if (_form.DropoffSearch.FoundNothing)
+                {
+                    @* See the pickup box above. *@
+                    <div class="form-text dt-dropoff-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
+                }
+                @if (_form.DropoffSearch.Matches.Count > 0)
+                {
+                    <ul class="list-group mb-2">
+                        @foreach (var match in _form.DropoffSearch.Matches)
+                        {
+                            <li class="list-group-item">
+                                <button type="button" class="btn btn-link dt-dropoff-match"
+                                        @onclick="Choose(_form.DropoffSearch, match)">@match.Address</button>
+                            </li>
+                        }
+                    </ul>
+                }
+                <label class="form-label">@Localizer["Dropoff"]</label>
+                <DtMap Value="_form.Dropoff" ValueChanged="PickDropoff" Picker="true" />
+                <DtFieldError Field="Dropoff" Failures="_failures" />
+            </div>
         </div>
 
         <EditForm id="delivery-form" Model="_form" OnValidSubmit="SaveAsync">

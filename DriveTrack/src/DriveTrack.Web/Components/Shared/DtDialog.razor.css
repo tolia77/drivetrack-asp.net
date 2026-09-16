@@ -20,6 +20,15 @@
 }
 
 /*
+    The opt-in wide panel. Same `width` as the default, so a phone is unaffected and the dialog
+    still sits inside the viewport; only the desktop ceiling moves, far enough for two map columns
+    to be worth looking at. Geometry again, which is why neither figure is a token.
+*/
+.dt-dialog-wide {
+    max-width: 64rem;
+}
+
+/*
     The scrim. `::backdrop` is the browser's own pseudo-element for a modal dialog - the same
     mechanism ReconnectModal already styles - so the overlay needs no extra element and no z-index
     of its own.
