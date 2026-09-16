@@ -150,6 +150,9 @@
   <data name="RecipientName" xml:space="preserve">
     <value>Хто отримав</value>
   </data>
+  <data name="Signature" xml:space="preserve">
+    <value>Підпис отримувача</value>
+  </data>
   <data name="StartedAt" xml:space="preserve">
     <value>Початок зміни</value>
   </data>

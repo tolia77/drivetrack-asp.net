@@ -13,34 +13,42 @@
 
 <h1>@Localizer["RegisterTitle"]</h1>
 
-<DtFailureBanner Failures="_failures" />
+@* AUTH_EMAIL_ALREADY_IN_USE is a 409 carrying no field, so it stays here while every refusal a
+   rule states about one box moves under that box. *@
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <EditForm Model="Form!" FormName="register" OnValidSubmit="SubmitAsync">
     <div class="mb-3">
         <label class="form-label" for="register-first-name">@Localizer["FirstName"]</label>
         <InputText id="register-first-name" class="form-control" @bind-Value="Form!.FirstName" />
+        <DtFieldError Field="FirstName" Failures="_failures" />
     </div>
     <div class="mb-3">
         <label class="form-label" for="register-last-name">@Localizer["LastName"]</label>
         <InputText id="register-last-name" class="form-control" @bind-Value="Form!.LastName" />
+        <DtFieldError Field="LastName" Failures="_failures" />
     </div>
     <div class="mb-3">
         <label class="form-label" for="register-email">@Localizer["Email"]</label>
         <InputText id="register-email" class="form-control" @bind-Value="Form!.Email" />
+        <DtFieldError Field="Email" Failures="_failures" />
     </div>
     <div class="mb-3">
         <label class="form-label" for="register-phone">@Localizer["PhoneNumber"]</label>
         <InputText id="register-phone" class="form-control" @bind-Value="Form!.PhoneNumber" />
         <div class="form-text">@Localizer["PhoneNumberHint"]</div>
+        <DtFieldError Field="PhoneNumber" Failures="_failures" />
     </div>
     <div class="mb-3">
         <label class="form-label" for="register-password">@Localizer["Password"]</label>
         <InputText id="register-password" type="password" class="form-control" @bind-Value="Form!.Password" />
+        <DtFieldError Field="Password" Failures="_failures" />
     </div>
     <div class="mb-3">
         <label class="form-label" for="register-password-confirmation">@Localizer["PasswordConfirmation"]</label>
         <InputText id="register-password-confirmation" type="password" class="form-control"
                    @bind-Value="Form!.PasswordConfirmation" />
+        <DtFieldError Field="PasswordConfirmation" Failures="_failures" />
     </div>
     <button class="btn btn-primary" type="submit">@Localizer["Register"]</button>
 </EditForm>
@@ -48,6 +56,14 @@
 <p class="mt-3">@Localizer["HaveAccount"] <a href="/sign-in">@Localizer["SignIn"]</a></p>
 
 @code {
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "FirstName,LastName,Email,PhoneNumber,Password,PasswordConfirmation";
+
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 

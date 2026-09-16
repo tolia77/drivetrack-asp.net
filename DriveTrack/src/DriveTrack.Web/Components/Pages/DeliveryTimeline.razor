@@ -19,8 +19,10 @@
 @inherits CircuitScopedComponent
 
 @* NFR-3: a refusal resolves through the same catalogue the REST envelope uses, so the dialog and
-   the wire cannot disagree about what went wrong. *@
-<DtFailureBanner Failures="_failures" />
+   the wire cannot disagree about what went wrong. It keeps what the note box below has not
+   claimed: DELIVERY_INVALID_STATUS_TRANSITION and DELIVERY_PROOF_REQUIRED are about the delivery
+   rather than about anything typed here, and neither names a field. *@
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 @if (_loading)
 {
@@ -101,6 +103,7 @@
        in the browser rather than costing a refused round trip to be told the same thing. *@
     <textarea id="@_noteFieldId" class="form-control"
               maxlength="@TimelineEntry.NoteMaximumLength" @bind="_note"></textarea>
+    <DtFieldError Field="Note" Failures="_failures" />
     @* Disabled while a note is in flight: the circuit yields at the await, so a second click would
        write the same note onto the timeline twice.
        And while the reload that follows one is in flight, which no other screen needs: every other
@@ -131,6 +134,14 @@
 </div>
 
 @code {
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "Note";
+
     /// <summary>
     /// Generated rather than fixed: two of these on one screen must not share an id, or the note
     /// label would point at the wrong field.

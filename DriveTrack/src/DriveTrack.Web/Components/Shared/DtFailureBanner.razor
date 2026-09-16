@@ -13,9 +13,15 @@
 
    The label is resolved into a local before the markup, and the condition then tests that local.
    A call inside an @@if would read as rendered English to NFR-14's markup scan, which stops at the
-   first closing parenthesis. *@
+   first closing parenthesis.
 
-@foreach (var failure in Failures)
+   It renders what no input on the screen has claimed. DtFieldError puts a refusal under the box
+   that produced it, and InlineFields names those boxes - so on a screen with per-field messages
+   this block is left holding what has nowhere else to go: a field the open dialog does not
+   render, and every 403, 404 and 409 that names no field at all. Subtracting rather than hiding is
+   what keeps FR-83 true when a form later drops an input. *@
+
+@foreach (var failure in Unclaimed)
 {
     var label = Label(failure);
 
@@ -35,6 +41,17 @@
     /// </summary>
     [Parameter]
     public IReadOnlyList<ScreenFailure> Failures { get; set; } = [];
+
+    /// <summary>
+    /// The fields this screen renders a <c>DtFieldError</c> for, comma-separated and spelled the
+    /// way those controls spell them. Their refusals are shown there instead of here. Left unset on
+    /// a screen with no per-field messages, which is why such a screen still shows everything.
+    /// </summary>
+    [Parameter]
+    public string? InlineFields { get; set; }
+
+    /// <summary>The refusals no field on the screen claimed (FR-83).</summary>
+    private IReadOnlyList<ScreenFailure> Unclaimed => FailureKeys.Unclaimed(Failures, InlineFields);
 
     /// <summary>
     /// The localized name of the offending input, or null when there is none to show.

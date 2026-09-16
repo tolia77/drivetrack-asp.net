@@ -75,6 +75,22 @@
   <data name="COMMON_CONFLICT" xml:space="preserve">
     <value>Операція суперечить поточному стану даних.</value>
   </data>
+  <!-- The shared presence code. It says nothing about which box, and does not have to: the field
+       travels beside it, so DtFieldError renders it under the input and DtFailureBanner puts the
+       localized label in front of it. -->
+  <data name="COMMON_FIELD_REQUIRED" xml:space="preserve">
+    <value>Обов’язкове поле.</value>
+  </data>
+  <data name="COMMON_PAGING_OFFSET_INVALID" xml:space="preserve">
+    <value>Зміщення не може бути від’ємним.</value>
+  </data>
+  <!-- The figure is every list validator's MaximumLimit, which is 100 on all of them. -->
+  <data name="COMMON_PAGING_LIMIT_INVALID" xml:space="preserve">
+    <value>Кількість записів має бути від 1 до 100.</value>
+  </data>
+  <data name="COMMON_COORDINATE_OUT_OF_RANGE" xml:space="preserve">
+    <value>Координати точки виходять за межі карти.</value>
+  </data>
   <data name="AUTH_UNAUTHENTICATED" xml:space="preserve">
     <value>Потрібна автентифікація. Увійдіть до системи.</value>
   </data>
@@ -108,6 +124,17 @@
   <data name="AUTH_CURRENT_PASSWORD_INCORRECT" xml:space="preserve">
     <value>Поточний пароль указано неправильно.</value>
   </data>
+  <!-- The three figures below are the columns', stated so the writer knows how much to cut rather
+       than only that it was too much. BoundedMessageTests pins each against its constant. -->
+  <data name="AUTH_FIRST_NAME_TOO_LONG" xml:space="preserve">
+    <value>Ім’я задовге: максимум 100 символів.</value>
+  </data>
+  <data name="AUTH_LAST_NAME_TOO_LONG" xml:space="preserve">
+    <value>Прізвище задовге: максимум 100 символів.</value>
+  </data>
+  <data name="AUTH_PASSWORD_TOO_LONG" xml:space="preserve">
+    <value>Пароль задовгий: максимум 128 символів.</value>
+  </data>
   <data name="FLEET_VEHICLE_ALREADY_ASSIGNED" xml:space="preserve">
     <value>Цей автомобіль уже закріплено за іншим водієм.</value>
   </data>
@@ -117,6 +144,24 @@
   <data name="FLEET_LICENSE_PLATE_IN_USE" xml:space="preserve">
     <value>Автомобіль із таким номерним знаком уже є у парку.</value>
   </data>
+  <data name="FLEET_MODEL_TOO_LONG" xml:space="preserve">
+    <value>Модель задовга: максимум 100 символів.</value>
+  </data>
+  <data name="FLEET_LICENSE_PLATE_TOO_LONG" xml:space="preserve">
+    <value>Номерний знак задовгий: максимум 20 символів.</value>
+  </data>
+  <data name="FLEET_CAPACITY_NOT_POSITIVE" xml:space="preserve">
+    <value>Вантажопідйомність має бути більшою за нуль.</value>
+  </data>
+  <data name="FLEET_CAPACITY_TOO_LARGE" xml:space="preserve">
+    <value>Вантажопідйомність завелика: максимум 99999999,99 кг.</value>
+  </data>
+  <data name="FLEET_MILEAGE_NEGATIVE" xml:space="preserve">
+    <value>Пробіг не може бути від’ємним.</value>
+  </data>
+  <data name="FLEET_LICENSE_NUMBER_TOO_LONG" xml:space="preserve">
+    <value>Номер посвідчення водія задовгий: максимум 50 символів.</value>
+  </data>
   <data name="DELIVERY_DRIVER_NOT_FOUND" xml:space="preserve">
     <value>Такого водія не існує. Оберіть іншого водія.</value>
   </data>
@@ -125,6 +170,45 @@
   </data>
   <data name="DELIVERY_EXCEEDS_VEHICLE_CAPACITY" xml:space="preserve">
     <value>Вага вантажу перевищує вантажопідйомність автомобіля водія.</value>
+  </data>
+  <data name="DELIVERY_PACKAGE_DETAILS_TOO_LONG" xml:space="preserve">
+    <value>Опис вантажу задовгий: максимум 1000 символів.</value>
+  </data>
+  <data name="DELIVERY_NOTES_TOO_LONG" xml:space="preserve">
+    <value>Примітки задовгі: максимум 1000 символів.</value>
+  </data>
+  <data name="DELIVERY_PACKAGE_WEIGHT_NOT_POSITIVE" xml:space="preserve">
+    <value>Вага вантажу має бути більшою за нуль.</value>
+  </data>
+  <data name="DELIVERY_PACKAGE_WEIGHT_TOO_LARGE" xml:space="preserve">
+    <value>Вага вантажу завелика: максимум 9999999,999 кг.</value>
+  </data>
+  <!-- FR-100. States which end has to be later, for the reason SHIFT_ENDED_BEFORE_STARTED does. -->
+  <data name="DELIVERY_WINDOW_ENDS_BEFORE_IT_STARTS" xml:space="preserve">
+    <value>Кінець вікна доставки має бути пізніше за його початок.</value>
+  </data>
+  <data name="DELIVERY_NOTE_TOO_LONG" xml:space="preserve">
+    <value>Коментар задовгий: максимум 1000 символів.</value>
+  </data>
+  <data name="DELIVERY_STATUS_UNKNOWN" xml:space="preserve">
+    <value>Такого стану доставки не існує.</value>
+  </data>
+  <data name="DELIVERY_RECIPIENT_NAME_TOO_LONG" xml:space="preserve">
+    <value>Ім’я отримувача задовге: максимум 200 символів.</value>
+  </data>
+  <!-- FR-119's three shape refusals, said as three sentences: whoever meets one is standing at a
+       door holding a phone, and "підтвердження неповне" would leave them guessing which. -->
+  <data name="DELIVERY_PROOF_SIGNATURE_REQUIRED" xml:space="preserve">
+    <value>Потрібен рівно один підпис отримувача.</value>
+  </data>
+  <data name="DELIVERY_PROOF_PHOTO_REQUIRED" xml:space="preserve">
+    <value>Потрібне щонайменше одне фото вручення.</value>
+  </data>
+  <data name="DELIVERY_PROOF_TOO_MANY_PHOTOS" xml:space="preserve">
+    <value>Забагато фото: максимум 5.</value>
+  </data>
+  <data name="DELIVERY_PLACE_QUERY_TOO_SHORT" xml:space="preserve">
+    <value>Для пошуку введіть щонайменше 3 символи.</value>
   </data>
   <!-- FR-32. The wire carries one message per code (NFR-3), so the sentence names neither status:
        the two statuses travel in the log message, and the screen already shows where the delivery

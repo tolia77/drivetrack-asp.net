@@ -24,25 +24,25 @@ public sealed class UpdateVehicleCommandValidator : AbstractValidator<UpdateVehi
     public UpdateVehicleCommandValidator()
     {
         RuleFor(command => command.Model.Value)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(CreateVehicleCommandValidator.ModelMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.FLEET_MODEL_TOO_LONG))
             .OverridePropertyName(nameof(UpdateVehicleCommand.Model));
 
         RuleFor(command => command.LicensePlate.Value)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(CreateVehicleCommandValidator.LicensePlateMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.FLEET_LICENSE_PLATE_TOO_LONG))
             .OverridePropertyName(nameof(UpdateVehicleCommand.LicensePlate));
 
         RuleFor(command => command.CapacityKg.Value)
-            .GreaterThan(0m).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .GreaterThan(0m).WithMessage(nameof(ErrorCode.FLEET_CAPACITY_NOT_POSITIVE))
             .LessThanOrEqualTo(CreateVehicleCommandValidator.CapacityMaximum)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.FLEET_CAPACITY_TOO_LARGE))
             .OverridePropertyName(nameof(UpdateVehicleCommand.CapacityKg));
 
         RuleFor(command => command.Mileage.Value)
-            .GreaterThanOrEqualTo(0).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .GreaterThanOrEqualTo(0).WithMessage(nameof(ErrorCode.FLEET_MILEAGE_NEGATIVE))
             .OverridePropertyName(nameof(UpdateVehicleCommand.Mileage));
 
         // No rule for NextMaintenanceDate: it is nullable on the row, so every value the wire can

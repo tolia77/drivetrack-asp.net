@@ -148,6 +148,9 @@
   <data name="RecipientName" xml:space="preserve">
     <value>Who received it</value>
   </data>
+  <data name="Signature" xml:space="preserve">
+    <value>Recipient’s signature</value>
+  </data>
   <data name="StartedAt" xml:space="preserve">
     <value>Start of the shift</value>
   </data>

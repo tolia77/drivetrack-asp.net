@@ -28,7 +28,7 @@
 
 @* Rendered at page level as well as inside each dialog: a refusal the user can act on has to be
    visible whether the dialog is still open or has already been dismissed. *@
-<DtFailureBanner Failures="_failures" />
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 @if (_profile is null)
 {
@@ -98,19 +98,25 @@
     </div>
 }
 
-<DtDialog @ref="_editDialog" Title="@Localizer["EditProfileTitle"]">
+<DtDialog @ref="_editDialog" Title="@Localizer["EditProfileTitle"]" OnClosed="ClearFailures">
     <ChildContent>
         @* Repeated inside the dialog, not only at the top of the page: a native <dialog> opened with
            showModal() sits in the top layer with everything behind it inert, so a banner rendered up
-           there is invisible to the user who just pressed Save and got a 422. *@
-        <DtFailureBanner Failures="_failures" />
+           there is invisible to the user who just pressed Save and got a 422.
+
+           InlineFields is computed rather than written out, because the phone box is only offered
+           to a client: claiming a field this render does not show would be the one way a refusal
+           could go missing (FR-83). *@
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
         <div class="mb-3">
             <label class="form-label" for="profile-first-name">@Localizer["FirstName"]</label>
             <input id="profile-first-name" class="form-control" @bind="_form.FirstName" />
+            <DtFieldError Field="FirstName" Failures="_failures" />
         </div>
         <div class="mb-3">
             <label class="form-label" for="profile-last-name">@Localizer["LastName"]</label>
             <input id="profile-last-name" class="form-control" @bind="_form.LastName" />
+            <DtFieldError Field="LastName" Failures="_failures" />
         </div>
         @* FR-87 / DR-3: only a client has a row to store a number in, so only a client is offered
            the box. ProfileEdit.ToProfileCommand leaves the field absent for everybody else, which is
@@ -121,6 +127,7 @@
                 <label class="form-label" for="profile-phone">@Localizer["PhoneNumber"]</label>
                 <input id="profile-phone" class="form-control" @bind="_form.PhoneNumber" />
                 <div class="form-text">@Localizer["PhoneNumberHint"]</div>
+                <DtFieldError Field="PhoneNumber" Failures="_failures" />
             </div>
         }
     </ChildContent>
@@ -141,23 +148,26 @@
     </Actions>
 </DtDialog>
 
-<DtDialog @ref="_passwordDialog" Title="@Localizer["ChangePasswordTitle"]">
+<DtDialog @ref="_passwordDialog" Title="@Localizer["ChangePasswordTitle"]" OnClosed="ClearFailures">
     <ChildContent>
-        <DtFailureBanner Failures="_failures" />
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
         <div class="mb-3">
             <label class="form-label" for="profile-current-password">@Localizer["CurrentPassword"]</label>
             <input id="profile-current-password" type="password" autocomplete="current-password"
                    class="form-control" @bind="_form.CurrentPassword" />
+            <DtFieldError Field="CurrentPassword" Failures="_failures" />
         </div>
         <div class="mb-3">
             <label class="form-label" for="profile-new-password">@Localizer["NewPassword"]</label>
             <input id="profile-new-password" type="password" autocomplete="new-password"
                    class="form-control" @bind="_form.NewPassword" />
+            <DtFieldError Field="NewPassword" Failures="_failures" />
         </div>
         <div class="mb-3">
             <label class="form-label" for="profile-new-password-confirmation">@Localizer["NewPasswordConfirmation"]</label>
             <input id="profile-new-password-confirmation" type="password" autocomplete="new-password"
                    class="form-control" @bind="_form.NewPasswordConfirmation" />
+            <DtFieldError Field="NewPasswordConfirmation" Failures="_failures" />
         </div>
     </ChildContent>
     <Actions>
@@ -174,12 +184,13 @@
     </Actions>
 </DtDialog>
 
-<DtDialog @ref="_emailDialog" Title="@Localizer["ChangeEmailTitle"]">
+<DtDialog @ref="_emailDialog" Title="@Localizer["ChangeEmailTitle"]" OnClosed="ClearFailures">
     <ChildContent>
-        <DtFailureBanner Failures="_failures" />
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
         <div class="mb-3">
             <label class="form-label" for="profile-email">@Localizer["Email"]</label>
             <input id="profile-email" type="email" class="form-control" @bind="_form.Email" />
+            <DtFieldError Field="Email" Failures="_failures" />
         </div>
     </ChildContent>
     <Actions>
@@ -195,7 +206,34 @@
 </DtDialog>
 
 @code {
+
+    /// <summary>
+    /// Drops the refusals when the form is dismissed, however it was dismissed.
+    /// <para>
+    /// FR-83. A refusal claimed by a box inside the dialog is subtracted from the banner outside it,
+    /// so leaving the list populated past the close would leave that sentence with nowhere on the
+    /// page to render - invisible, which is the outcome this whole change exists to prevent.
+    /// Hung off <c>OnClosed</c> rather than off the cancel handler because Escape and the backdrop
+    /// dismiss the dialog too, and the component routes all three through one event.
+    /// </para>
+    /// </summary>
+    private void ClearFailures() => _failures = [];
     private readonly ProfileEditForm _form = new();
+
+    /// <summary>
+    /// The boxes the three dialogs between them render, which is what every banner on this page
+    /// subtracts. One list for all of them, because they share <c>_failures</c>: a per-dialog list
+    /// would leave a password refusal showing twice - inline in its own dialog, and again in the
+    /// banner of the other two.
+    /// <para>
+    /// The phone number joins it only for a client, for the reason DR-3 offers that box only to a
+    /// client. Everything not named here still reaches the banner, which is where
+    /// <c>AUTH_CURRENT_PASSWORD_INCORRECT</c> lands - the service raises it with no field at all.
+    /// </para>
+    /// </summary>
+    private string InlineFields => _isClient
+        ? "FirstName,LastName,PhoneNumber,CurrentPassword,NewPassword,NewPasswordConfirmation,Email"
+        : "FirstName,LastName,CurrentPassword,NewPassword,NewPasswordConfirmation,Email";
 
     private DtDialog? _editDialog;
     private DtDialog? _passwordDialog;

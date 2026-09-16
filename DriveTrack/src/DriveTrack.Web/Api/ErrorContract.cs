@@ -26,6 +26,14 @@ internal static class ErrorContract
         ErrorCode.COMMON_NOT_FOUND => StatusCodes.Status404NotFound,
         ErrorCode.COMMON_VALIDATION_FAILED => StatusCodes.Status422UnprocessableEntity,
         ErrorCode.COMMON_CONFLICT => StatusCodes.Status409Conflict,
+
+        // Every refusal a validator states about one field of the request (NFR-4). They travel as
+        // field keys inside COMMON_VALIDATION_FAILED, which is itself 422, so the arm and the
+        // envelope agree whichever way the failure is reached.
+        ErrorCode.COMMON_FIELD_REQUIRED => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.COMMON_PAGING_OFFSET_INVALID => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.COMMON_PAGING_LIMIT_INVALID => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.COMMON_COORDINATE_OUT_OF_RANGE => StatusCodes.Status422UnprocessableEntity,
         ErrorCode.AUTH_UNAUTHENTICATED => StatusCodes.Status401Unauthorized,
         ErrorCode.AUTH_FORBIDDEN => StatusCodes.Status403Forbidden,
 
@@ -48,12 +56,25 @@ internal static class ErrorContract
         // FR-13's boundary as an expired session and send them back to sign-in.
         ErrorCode.AUTH_CURRENT_PASSWORD_INCORRECT => StatusCodes.Status422UnprocessableEntity,
 
+        // Three more refusals on the content, stated per field rather than per request.
+        ErrorCode.AUTH_FIRST_NAME_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.AUTH_LAST_NAME_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.AUTH_PASSWORD_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+
         // Three genuine collisions with the current state of another row (FR-41, FR-43, FR-44).
         // Each is a refusal the caller can act on - free the vehicle, unassign the driver, choose
         // another plate - which is why they are distinct codes rather than one COMMON_CONFLICT.
         ErrorCode.FLEET_VEHICLE_ALREADY_ASSIGNED => StatusCodes.Status409Conflict,
         ErrorCode.FLEET_VEHICLE_IN_USE => StatusCodes.Status409Conflict,
         ErrorCode.FLEET_LICENSE_PLATE_IN_USE => StatusCodes.Status409Conflict,
+
+        // The fleet's own field refusals: a value the caller sent, not a collision with a row.
+        ErrorCode.FLEET_MODEL_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.FLEET_LICENSE_PLATE_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.FLEET_CAPACITY_NOT_POSITIVE => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.FLEET_CAPACITY_TOO_LARGE => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.FLEET_MILEAGE_NEGATIVE => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.FLEET_LICENSE_NUMBER_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
 
         // FR-29: a delivery named a party that is not there. 404 rather than 422, because the
         // failure is a row that does not exist and not a value that is malformed - and distinct
@@ -67,6 +88,23 @@ internal static class ErrorContract
         // with the current state of another row - the vehicle the driver holds - and the caller's
         // next move is to change one of the two figures.
         ErrorCode.DELIVERY_EXCEEDS_VEHICLE_CAPACITY => StatusCodes.Status409Conflict,
+
+        // The delivery capability's field refusals, every one of them a value the payload carried.
+        // DELIVERY_WINDOW_ENDS_BEFORE_IT_STARTS is 422 rather than 409 for the reason
+        // SHIFT_ENDED_BEFORE_STARTED is: the two instants are both in the request, so it is the
+        // content that is wrong and not the state of a row.
+        ErrorCode.DELIVERY_PACKAGE_DETAILS_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_NOTES_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_PACKAGE_WEIGHT_NOT_POSITIVE => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_PACKAGE_WEIGHT_TOO_LARGE => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_WINDOW_ENDS_BEFORE_IT_STARTS => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_NOTE_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_STATUS_UNKNOWN => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_RECIPIENT_NAME_TOO_LONG => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_PROOF_SIGNATURE_REQUIRED => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_PROOF_PHOTO_REQUIRED => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_PROOF_TOO_MANY_PHOTOS => StatusCodes.Status422UnprocessableEntity,
+        ErrorCode.DELIVERY_PLACE_QUERY_TOO_SHORT => StatusCodes.Status422UnprocessableEntity,
 
         // FR-32, and AD-10's "never a validation error" written as a status: the request named a
         // status that exists and a delivery that exists, and what refused it is where that delivery

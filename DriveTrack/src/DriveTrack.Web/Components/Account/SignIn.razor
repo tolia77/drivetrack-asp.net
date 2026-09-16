@@ -14,16 +14,20 @@
 
 <h1>@Localizer["SignInTitle"]</h1>
 
-<DtFailureBanner Failures="_failures" />
+@* The banner keeps what no box below claims - AUTH_INVALID_CREDENTIALS names no field, and
+   saying so under one of the two inputs would tell an attacker which one was wrong (FR-4). *@
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <EditForm Model="Form!" FormName="signIn" OnValidSubmit="SubmitAsync">
     <div class="mb-3">
         <label class="form-label" for="sign-in-email">@Localizer["Email"]</label>
         <InputText id="sign-in-email" class="form-control" @bind-Value="Form!.Email" />
+        <DtFieldError Field="Email" Failures="_failures" />
     </div>
     <div class="mb-3">
         <label class="form-label" for="sign-in-password">@Localizer["Password"]</label>
         <InputText id="sign-in-password" type="password" class="form-control" @bind-Value="Form!.Password" />
+        <DtFieldError Field="Password" Failures="_failures" />
     </div>
     <button class="btn btn-primary" type="submit">@Localizer["SignIn"]</button>
 </EditForm>
@@ -31,6 +35,14 @@
 <p class="mt-3">@Localizer["NoAccount"] <a href="/register">@Localizer["Register"]</a></p>
 
 @code {
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "Email,Password";
+
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 

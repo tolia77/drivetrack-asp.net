@@ -22,14 +22,14 @@ public sealed class CreateDriverCommandValidator : AbstractValidator<CreateDrive
     public CreateDriverCommandValidator()
     {
         RuleFor(command => command.FirstName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_FIRST_NAME_TOO_LONG));
 
         RuleFor(command => command.LastName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG));
 
         RuleFor(command => command.Email)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_EMAIL_INVALID))
@@ -37,17 +37,18 @@ public sealed class CreateDriverCommandValidator : AbstractValidator<CreateDrive
                 .WithMessage(nameof(ErrorCode.AUTH_EMAIL_INVALID))
             .EmailAddress().WithMessage(nameof(ErrorCode.AUTH_EMAIL_INVALID));
 
-        // Presence and a ceiling only. The strength policy is Identity's, configured once in
-        // AddIdentityCore and reported back through the same code, so the two cannot disagree.
+        // Presence and a ceiling, keyed apart: the strength policy is Identity's, configured once
+        // in AddIdentityCore and reported back through AUTH_PASSWORD_TOO_WEAK, and a password over
+        // the ceiling is long rather than weak.
         RuleFor(command => command.Password)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK))
             .MaximumLength(RegisterClientCommandValidator.PasswordMaximumLength)
-                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
+                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
 
         RuleFor(command => command.LicenseNumber)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(LicenseNumberMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.FLEET_LICENSE_NUMBER_TOO_LONG));
 
         // Nothing about VehicleId: whether that vehicle exists and whether it is free are questions
         // about other rows, and AD-24 answers them in the one writer of drivers.vehicle_id.

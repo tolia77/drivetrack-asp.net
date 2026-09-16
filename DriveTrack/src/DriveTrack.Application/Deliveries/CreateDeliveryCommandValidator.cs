@@ -24,8 +24,9 @@ namespace DriveTrack.Application.Deliveries;
 /// decimals rather than refusing it, so 12.5004 is stored as 12.5 and nobody is told — an accepted
 /// rounding of a figure nobody weighs to a tenth of a gram. The one case that is not merely
 /// cosmetic is a weight under 0.0005, which rounds to zero and is refused by
-/// <c>ck_deliveries_package_weight_kg</c> with no field name attached; that is a 422 with a
-/// generic message rather than the friendly one this validator gives, and it is left that way
+/// <c>ck_deliveries_package_weight_kg</c> with no field name attached; that is a 422 carrying the
+/// constraint's own generic message rather than the friendly one this validator gives, and it is
+/// left that way
 /// because a scale rule here would be a second, narrower definition of "a weight" than the column
 /// has.
 /// </para>
@@ -48,7 +49,7 @@ public sealed class CreateDeliveryCommandValidator : AbstractValidator<CreateDel
     public CreateDeliveryCommandValidator()
     {
         RuleFor(command => command.Pickup)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED));
 
         // A separate rule rather than a chained SetValidator, so the coordinate rules run against
         // the value and the presence rule runs against its absence. FluentValidation skips a child
@@ -58,34 +59,34 @@ public sealed class CreateDeliveryCommandValidator : AbstractValidator<CreateDel
             .OverridePropertyName(nameof(CreateDeliveryCommand.Pickup));
 
         RuleFor(command => command.Dropoff)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED));
 
         RuleFor(command => command.Dropoff!)
             .SetValidator(new LocationInputValidator())
             .OverridePropertyName(nameof(CreateDeliveryCommand.Dropoff));
 
         RuleFor(command => command.PackageDetails)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(PackageDetailsMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_PACKAGE_DETAILS_TOO_LONG));
 
         // Bounded only. No format rule and no required note: FR-17 makes notes free text, and a
         // guess about their shape is how a legitimate instruction gets refused.
         RuleFor(command => command.DeliveryNotes)
             .MaximumLength(DeliveryNotesMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_NOTES_TOO_LONG));
 
         RuleFor(command => command.PackageWeightKg)
-            .GreaterThan(0m).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .GreaterThan(0m).WithMessage(nameof(ErrorCode.DELIVERY_PACKAGE_WEIGHT_NOT_POSITIVE))
             .LessThanOrEqualTo(PackageWeightMaximum)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_PACKAGE_WEIGHT_TOO_LARGE));
 
         // FR-100: either bound may stand alone and both may be absent; only an inverted pair is
         // refused, which is exactly what the check constraint says. The message names the latest
         // bound because that is the field a dispatcher would move to fix it.
         RuleFor(command => command.WindowLatestAt)
             .Must((command, latest) => IsOrderedWindow(command.WindowEarliestAt, latest))
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_WINDOW_ENDS_BEFORE_IT_STARTS));
     }
 
     /// <summary>

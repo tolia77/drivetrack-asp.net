@@ -22,14 +22,14 @@ public sealed class ProfileStateValidator : AbstractValidator<ProfileState>
     public ProfileStateValidator()
     {
         RuleFor(state => state.FirstName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_FIRST_NAME_TOO_LONG));
 
         RuleFor(state => state.LastName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG));
 
         // A client must end up with a number: clearing one is not an operation FR-3 leaves open, so
         // a present-null is a 422 rather than an empty string in the column.
@@ -64,17 +64,18 @@ public sealed class ChangePasswordCommandValidator : AbstractValidator<ChangePas
     /// <summary>Declares the rules.</summary>
     public ChangePasswordCommandValidator()
     {
-        // COMMON_VALIDATION_FAILED rather than the strength code: an absent current password is a
-        // field the caller left out, not a password that is too weak to store.
+        // Neither rule is the strength code: an absent current password is a field the caller left
+        // out, and one over the ceiling is long rather than weak. AUTH_PASSWORD_TOO_WEAK names the
+        // policy - eight characters, both cases, a digit - which is advice about neither.
         RuleFor(command => command.CurrentPassword)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.PasswordMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
 
         RuleFor(command => command.NewPassword)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK))
             .MaximumLength(RegisterClientCommandValidator.PasswordMaximumLength)
-                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
+                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
 
         RuleFor(command => command.NewPasswordConfirmation)
             .Equal(command => command.NewPassword)

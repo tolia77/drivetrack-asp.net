@@ -29,23 +29,24 @@ public sealed class CreateVehicleCommandValidator : AbstractValidator<CreateVehi
     public CreateVehicleCommandValidator()
     {
         RuleFor(command => command.Model)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
-            .MaximumLength(ModelMaximumLength).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
+            .MaximumLength(ModelMaximumLength).WithMessage(nameof(ErrorCode.FLEET_MODEL_TOO_LONG));
 
         // Bounded and required, and nothing else: a plate format rule is exactly the kind of
         // guess that made the original refuse legitimate plates.
         RuleFor(command => command.LicensePlate)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(LicensePlateMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.FLEET_LICENSE_PLATE_TOO_LONG));
 
         RuleFor(command => command.CapacityKg)
-            .GreaterThan(0m).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
-            .LessThanOrEqualTo(CapacityMaximum).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .GreaterThan(0m).WithMessage(nameof(ErrorCode.FLEET_CAPACITY_NOT_POSITIVE))
+            .LessThanOrEqualTo(CapacityMaximum)
+                .WithMessage(nameof(ErrorCode.FLEET_CAPACITY_TOO_LARGE));
 
         // An odometer does not run backwards. Zero is legal - a vehicle can arrive new.
         RuleFor(command => command.Mileage)
-            .GreaterThanOrEqualTo(0).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .GreaterThanOrEqualTo(0).WithMessage(nameof(ErrorCode.FLEET_MILEAGE_NEGATIVE));
 
         // Nothing about NextMaintenanceDate beyond its nullability: no requirement constrains when
         // servicing may be due, and a rule invented here would refuse a date a dispatcher meant.

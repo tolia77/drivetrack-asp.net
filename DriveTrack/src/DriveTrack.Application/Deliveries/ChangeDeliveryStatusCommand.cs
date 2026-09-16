@@ -47,14 +47,14 @@ public sealed class ChangeDeliveryStatusCommandValidator : AbstractValidator<Cha
     public ChangeDeliveryStatusCommandValidator()
     {
         RuleFor(command => command.Status)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
-            .IsInEnum().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
+            .IsInEnum().WithMessage(nameof(ErrorCode.DELIVERY_STATUS_UNKNOWN));
 
         // Bounded only, and not required: a status change explains itself, and demanding a sentence
         // for every one would put "ok" in a thousand rows.
         // The rule lives on the entity that owns the column, so the standalone-note path applies the
         // same one without either validator depending on the other.
         RuleFor(command => command.Note)
-            .Must(TimelineEntry.NoteFits).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .Must(TimelineEntry.NoteFits).WithMessage(nameof(ErrorCode.DELIVERY_NOTE_TOO_LONG));
     }
 }

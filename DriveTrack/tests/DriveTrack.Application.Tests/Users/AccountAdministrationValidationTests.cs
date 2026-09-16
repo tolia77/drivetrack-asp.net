@@ -68,7 +68,7 @@ public class AccountAdministrationValidationTests
     {
         var failure = await Refuse(ClientState, ValidClient() with { FirstName = null });
 
-        AssertField(failure, "FirstName", nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+        AssertField(failure, "FirstName", nameof(ErrorCode.COMMON_FIELD_REQUIRED));
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class AccountAdministrationValidationTests
             ClientState,
             ValidClient() with { LastName = new string('я', 101) });
 
-        AssertField(failure, "LastName", nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+        AssertField(failure, "LastName", nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG));
     }
 
     [Fact]
@@ -98,7 +98,8 @@ public class AccountAdministrationValidationTests
             ClientState,
             ValidClient() with { Password = new string('a', 129) });
 
-        AssertField(failure, "Password", nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
+        // The ceiling, not the strength policy: what is wrong with this password is its length.
+        AssertField(failure, "Password", nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
     }
 
     [Theory]
@@ -149,7 +150,7 @@ public class AccountAdministrationValidationTests
     {
         var failure = await Refuse(DispatcherState, ValidDispatcher() with { LastName = null });
 
-        AssertField(failure, "LastName", nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+        AssertField(failure, "LastName", nameof(ErrorCode.COMMON_FIELD_REQUIRED));
     }
 
     [Fact]
@@ -187,7 +188,7 @@ public class AccountAdministrationValidationTests
     {
         var failure = await Refuse(CreateDispatcher, ValidCreate() with { FirstName = " " });
 
-        AssertField(failure, "FirstName", nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+        AssertField(failure, "FirstName", nameof(ErrorCode.COMMON_FIELD_REQUIRED));
     }
 
     [Fact]

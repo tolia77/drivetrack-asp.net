@@ -89,11 +89,15 @@ public sealed class ListShiftsQueryValidator : AbstractValidator<ListShiftsQuery
     /// <summary>Declares the rules.</summary>
     public ListShiftsQueryValidator()
     {
+        // The two paging codes rather than a code per query: Offset and Limit are the same two
+        // values on every list in the system, no screen offers a box for either, and a caller who
+        // typed them into a URL is served by one sentence naming the bound they broke.
         RuleFor(query => query.Offset)
-            .GreaterThanOrEqualTo(0).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .GreaterThanOrEqualTo(0).WithMessage(nameof(ErrorCode.COMMON_PAGING_OFFSET_INVALID));
 
         RuleFor(query => query.Limit)
-            .GreaterThan(0).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
-            .LessThanOrEqualTo(MaximumLimit).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .GreaterThan(0).WithMessage(nameof(ErrorCode.COMMON_PAGING_LIMIT_INVALID))
+            .LessThanOrEqualTo(MaximumLimit)
+                .WithMessage(nameof(ErrorCode.COMMON_PAGING_LIMIT_INVALID));
     }
 }

@@ -333,8 +333,19 @@ public class ScreenFailureTests
         // And the sink the boxes were separated *from* still has somewhere to render. Deleting the
         // dialog's banner would leave a refused Save or Delete saying nothing at all, which is the
         // same silence DW-41 is about arrived at from the other side.
-        Assert.Equal(2, SharedMarkup.Occurrences(board, @"Failures=""_failures"""));
-        Assert.Equal(1, SharedMarkup.Occurrences(mine, @"Failures=""_failures"""));
+        //
+        // Counted on the parsed tag rather than on a literal substring: attribute spacing is not
+        // the claim being made, and a substring count is satisfied by an occurrence sitting inside
+        // a Razor comment.
+        Assert.Equal(2, BannersOver(board, "_failures"));
+        Assert.Equal(1, BannersOver(mine, "_failures"));
+
+        // The bound the substring count used to carry, restored now that the field controls read
+        // the same sink. Every reader of `_failures` on these two screens is either one of those
+        // banners or a DtFieldError beneath a box; a third kind of consumer - a second sink wired
+        // in, a screen resolving the catalogue inline again - is what this notices.
+        Assert.Equal(2 + FieldControls(board), Consumers(board, "_failures"));
+        Assert.Equal(1 + FieldControls(mine), Consumers(mine, "_failures"));
     }
 
     [Fact]
@@ -357,8 +368,35 @@ public class ScreenFailureTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal([Path.Combine("Shared", "DtFailureBanner.razor")], offenders);
+        // Two, and both of them shared components: the banner, and the per-field control that shows
+        // what the banner subtracts. A screen still cannot resolve a message for itself.
+        Assert.Equal(
+            [
+                Path.Combine("Shared", "DtFailureBanner.razor"),
+                Path.Combine("Shared", "DtFieldError.razor"),
+            ],
+            offenders);
     }
+
+    /// <summary>A component's rendered markup: Razor comments are source, not markup.</summary>
+    private static string Markup(string source) =>
+        Regex.Replace(source, @"@\*.*?\*@", " ", RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+    /// <summary>How many banners on a screen read a given failure sink.</summary>
+    private static int BannersOver(string source, string sink) =>
+        CountOf(source, @"<DtFailureBanner\b[^>]*\bFailures\s*=\s*""" + Regex.Escape(sink) + @"""");
+
+    /// <summary>How many field-level controls a screen renders.</summary>
+    private static int FieldControls(string source) => CountOf(source, @"<DtFieldError\b[^>]*>");
+
+    /// <summary>How many bindings of any kind read a given failure sink.</summary>
+    private static int Consumers(string source, string sink) =>
+        CountOf(source, @"Failures\s*=\s*""" + Regex.Escape(sink) + @"""");
+
+    private static int CountOf(string source, string pattern) =>
+        new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5))
+            .Matches(Markup(source))
+            .Count;
 
     private static ValidationException Refusal(params (string Field, string MessageKey)[] fields) =>
         new(

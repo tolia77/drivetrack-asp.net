@@ -31,11 +31,11 @@ public sealed class AddDeliveryNoteCommandValidator : AbstractValidator<AddDeliv
     /// <summary>Declares the rules.</summary>
     public AddDeliveryNoteCommandValidator() =>
         RuleFor(command => command.Note)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
 
             // The same bound and the same measurement as a note riding on a status change: one rule
             // in one place, on the entity that owns the column, so the two routes cannot come to
             // disagree about what fits and neither is the other's dependency.
             .Must(TimelineEntry.NoteFits)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_NOTE_TOO_LONG));
 }

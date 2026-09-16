@@ -32,8 +32,11 @@
 @* FR-110 and FR-111 arrive here: a driver who is already on duty and a window that runs backwards
    both resolve through the same catalogue the REST envelope uses, so the two cannot disagree
    (NFR-3). Rendered at page level as well as inside the dialog - a refused delete is raised with no
-   dialog open and would otherwise have nowhere to appear. *@
-<DtFailureBanner Failures="_failures" />
+   dialog open and would otherwise have nowhere to appear.
+
+   SHIFT_ALREADY_OPEN and SHIFT_NOT_OPEN name no field and so stay here; a window that runs
+   backwards names both ends of it and is said under each of the two boxes instead. *@
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <div class="row g-3 align-items-end mb-3">
     <div class="col-sm">
@@ -103,13 +106,13 @@
 @* FR-85: the shared dialog. One heading for both recording and correcting - a title composed at run
    time would be a key no test can see, and the catalogue is closed against the keys components ask
    for. *@
-<DtDialog @ref="_formDialog" Title="@Localizer["ShiftForm"]">
+<DtDialog @ref="_formDialog" Title="@Localizer["ShiftForm"]" OnClosed="ClearFailures">
     <ChildContent>
         @* The same list as the one at the top of the page, and deliberately a second copy. A
            DtDialog opens with showModal(), so everything outside it is in the inert layer behind
            the backdrop: a window that runs backwards refused with the message only up there is a
            form that fails to close and says nothing. *@
-        <DtFailureBanner Failures="_failures" />
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
         <EditForm id="shift-form" Model="_form" OnValidSubmit="SaveAsync">
             @* Clearing a date field leaves a parse failure on the EditContext, and OnValidSubmit
@@ -140,6 +143,7 @@
                            Type="InputDateType.DateTimeLocal"
                            ParsingErrorMessage="@Localizer["DateParseError"]"
                            @bind-Value="_form.StartedAt" />
+                <DtFieldError Field="StartedAt" Failures="_failures" />
             </div>
             <div class="mb-3">
                 <label class="form-label" for="shift-ended-at">@Localizer["ShiftEndedAt"]</label>
@@ -150,6 +154,7 @@
                 @* FR-117 said in a sentence: an empty box opens a shift when one is being recorded,
                    and leaves a closed one closed when one is being corrected. Clearing an end is not
                    something the contract can express, so it is not something this box can do. *@
+                <DtFieldError Field="EndedAt" Failures="_failures" />
                 <div class="form-text">@Localizer["ShiftEndedAtHint"]</div>
             </div>
         </EditForm>
@@ -174,6 +179,26 @@
                  OnConfirmed="ConfirmDeleteAsync" />
 
 @code {
+
+    /// <summary>
+    /// Drops the refusals when the form is dismissed, however it was dismissed.
+    /// <para>
+    /// FR-83. A refusal claimed by a box inside the dialog is subtracted from the banner outside it,
+    /// so leaving the list populated past the close would leave that sentence with nowhere on the
+    /// page to render - invisible, which is the outcome this whole change exists to prevent.
+    /// Hung off <c>OnClosed</c> rather than off the cancel handler because Escape and the backdrop
+    /// dismiss the dialog too, and the component routes all three through one event.
+    /// </para>
+    /// </summary>
+    private void ClearFailures() => _failures = [];
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "StartedAt,EndedAt";
+
     private IReadOnlyList<ShiftSummary> _shifts = [];
     private IReadOnlyList<DriverSummary> _drivers = [];
     private IReadOnlyList<ScreenFailure> _failures = [];

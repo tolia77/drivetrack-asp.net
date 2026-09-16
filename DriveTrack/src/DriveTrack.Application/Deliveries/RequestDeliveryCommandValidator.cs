@@ -26,7 +26,7 @@ public sealed class RequestDeliveryCommandValidator : AbstractValidator<RequestD
     public RequestDeliveryCommandValidator()
     {
         RuleFor(command => command.Pickup)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED));
 
         // A separate rule rather than a chained SetValidator, for the reason the create path states
         // it that way: FluentValidation skips a child validator for a null property, so the
@@ -36,26 +36,26 @@ public sealed class RequestDeliveryCommandValidator : AbstractValidator<RequestD
             .OverridePropertyName(nameof(RequestDeliveryCommand.Pickup));
 
         RuleFor(command => command.Dropoff)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED));
 
         RuleFor(command => command.Dropoff!)
             .SetValidator(new LocationInputValidator())
             .OverridePropertyName(nameof(RequestDeliveryCommand.Dropoff));
 
         RuleFor(command => command.PackageDetails)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(CreateDeliveryCommandValidator.PackageDetailsMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_PACKAGE_DETAILS_TOO_LONG));
 
         // Bounded only, as on the create path: FR-17 makes notes free text, and a guess about their
         // shape is how a legitimate instruction gets refused.
         RuleFor(command => command.DeliveryNotes)
             .MaximumLength(CreateDeliveryCommandValidator.DeliveryNotesMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_NOTES_TOO_LONG));
 
         RuleFor(command => command.PackageWeightKg)
-            .GreaterThan(0m).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .GreaterThan(0m).WithMessage(nameof(ErrorCode.DELIVERY_PACKAGE_WEIGHT_NOT_POSITIVE))
             .LessThanOrEqualTo(CreateDeliveryCommandValidator.PackageWeightMaximum)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_PACKAGE_WEIGHT_TOO_LARGE));
     }
 }

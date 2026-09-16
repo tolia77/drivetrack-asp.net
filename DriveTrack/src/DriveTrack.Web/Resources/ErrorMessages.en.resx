@@ -76,6 +76,23 @@
   <data name="COMMON_CONFLICT" xml:space="preserve">
     <value>The operation contradicts the current state of the data.</value>
   </data>
+  <!-- The shared presence code. It says nothing about which box, and does not have to: the field
+       travels beside it, so DtFieldError renders it under the input and DtFailureBanner puts the
+       localized label in front of it. -->
+  <data name="COMMON_FIELD_REQUIRED" xml:space="preserve">
+    <value>This field is required.</value>
+  </data>
+  <data name="COMMON_PAGING_OFFSET_INVALID" xml:space="preserve">
+    <value>The offset cannot be negative.</value>
+  </data>
+  <!-- The figure is every list validator's MaximumLimit, which is 100 on all five of them -
+       BoundedMessageTests asserts they agree before pinning this one sentence to it. -->
+  <data name="COMMON_PAGING_LIMIT_INVALID" xml:space="preserve">
+    <value>The number of records must be from 1 to 100.</value>
+  </data>
+  <data name="COMMON_COORDINATE_OUT_OF_RANGE" xml:space="preserve">
+    <value>The coordinates of the point are outside the map.</value>
+  </data>
   <data name="AUTH_UNAUTHENTICATED" xml:space="preserve">
     <value>Authentication is required. Sign in to the system.</value>
   </data>
@@ -109,6 +126,17 @@
   <data name="AUTH_CURRENT_PASSWORD_INCORRECT" xml:space="preserve">
     <value>The current password was entered incorrectly.</value>
   </data>
+  <!-- The three figures below are the columns', stated so the writer knows how much to cut rather
+       than only that it was too much. BoundedMessageTests pins each against its constant. -->
+  <data name="AUTH_FIRST_NAME_TOO_LONG" xml:space="preserve">
+    <value>The first name is too long: 100 characters at most.</value>
+  </data>
+  <data name="AUTH_LAST_NAME_TOO_LONG" xml:space="preserve">
+    <value>The last name is too long: 100 characters at most.</value>
+  </data>
+  <data name="AUTH_PASSWORD_TOO_LONG" xml:space="preserve">
+    <value>The password is too long: 128 characters at most.</value>
+  </data>
   <data name="FLEET_VEHICLE_ALREADY_ASSIGNED" xml:space="preserve">
     <value>This vehicle is already assigned to another driver.</value>
   </data>
@@ -118,6 +146,24 @@
   <data name="FLEET_LICENSE_PLATE_IN_USE" xml:space="preserve">
     <value>A vehicle with this licence plate is already in the fleet.</value>
   </data>
+  <data name="FLEET_MODEL_TOO_LONG" xml:space="preserve">
+    <value>The model is too long: 100 characters at most.</value>
+  </data>
+  <data name="FLEET_LICENSE_PLATE_TOO_LONG" xml:space="preserve">
+    <value>The licence plate is too long: 20 characters at most.</value>
+  </data>
+  <data name="FLEET_CAPACITY_NOT_POSITIVE" xml:space="preserve">
+    <value>The load capacity must be greater than zero.</value>
+  </data>
+  <data name="FLEET_CAPACITY_TOO_LARGE" xml:space="preserve">
+    <value>The load capacity is too large: 99999999.99 kg at most.</value>
+  </data>
+  <data name="FLEET_MILEAGE_NEGATIVE" xml:space="preserve">
+    <value>The mileage cannot be negative.</value>
+  </data>
+  <data name="FLEET_LICENSE_NUMBER_TOO_LONG" xml:space="preserve">
+    <value>The driving licence number is too long: 50 characters at most.</value>
+  </data>
   <data name="DELIVERY_DRIVER_NOT_FOUND" xml:space="preserve">
     <value>No such driver exists. Choose another driver.</value>
   </data>
@@ -126,6 +172,45 @@
   </data>
   <data name="DELIVERY_EXCEEDS_VEHICLE_CAPACITY" xml:space="preserve">
     <value>The package weight exceeds the load capacity of the driver’s vehicle.</value>
+  </data>
+  <data name="DELIVERY_PACKAGE_DETAILS_TOO_LONG" xml:space="preserve">
+    <value>The package details are too long: 1000 characters at most.</value>
+  </data>
+  <data name="DELIVERY_NOTES_TOO_LONG" xml:space="preserve">
+    <value>The notes are too long: 1000 characters at most.</value>
+  </data>
+  <data name="DELIVERY_PACKAGE_WEIGHT_NOT_POSITIVE" xml:space="preserve">
+    <value>The package weight must be greater than zero.</value>
+  </data>
+  <data name="DELIVERY_PACKAGE_WEIGHT_TOO_LARGE" xml:space="preserve">
+    <value>The package weight is too large: 9999999.999 kg at most.</value>
+  </data>
+  <!-- FR-100. States which end has to be later, for the reason SHIFT_ENDED_BEFORE_STARTED does. -->
+  <data name="DELIVERY_WINDOW_ENDS_BEFORE_IT_STARTS" xml:space="preserve">
+    <value>The end of the delivery window must be later than its start.</value>
+  </data>
+  <data name="DELIVERY_NOTE_TOO_LONG" xml:space="preserve">
+    <value>The note is too long: 1000 characters at most.</value>
+  </data>
+  <data name="DELIVERY_STATUS_UNKNOWN" xml:space="preserve">
+    <value>There is no such delivery status.</value>
+  </data>
+  <data name="DELIVERY_RECIPIENT_NAME_TOO_LONG" xml:space="preserve">
+    <value>The recipient name is too long: 200 characters at most.</value>
+  </data>
+  <!-- FR-119's three shape refusals, said as three sentences: whoever meets one is standing at a
+       door holding a phone, and "the proof is incomplete" would leave them guessing which. -->
+  <data name="DELIVERY_PROOF_SIGNATURE_REQUIRED" xml:space="preserve">
+    <value>Exactly one recipient signature is required.</value>
+  </data>
+  <data name="DELIVERY_PROOF_PHOTO_REQUIRED" xml:space="preserve">
+    <value>At least one handover photograph is required.</value>
+  </data>
+  <data name="DELIVERY_PROOF_TOO_MANY_PHOTOS" xml:space="preserve">
+    <value>Too many photographs: 5 at most.</value>
+  </data>
+  <data name="DELIVERY_PLACE_QUERY_TOO_SHORT" xml:space="preserve">
+    <value>Enter at least 3 characters to search.</value>
   </data>
   <data name="DELIVERY_INVALID_STATUS_TRANSITION" xml:space="preserve">
     <value>Such a delivery status transition is not possible from its current state.</value>

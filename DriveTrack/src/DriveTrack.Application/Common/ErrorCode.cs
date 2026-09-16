@@ -25,6 +25,36 @@ public enum ErrorCode
     /// <summary>The request collides with the current state of another row or a domain rule. 409.</summary>
     COMMON_CONFLICT,
 
+    /// <summary>
+    /// A field a user types into was left empty. 422, and the one code every bare
+    /// <c>NotEmpty</c>/<c>NotNull</c> rule in the system shares.
+    /// <para>
+    /// Sharing is right here and wrong for a bounded rule. "Обов'язкове поле" is the whole of what
+    /// there is to say about an empty box, and it is only readable because the field travels beside
+    /// it: <c>DtFailureBanner</c> prefixes the localized label and <c>DtFieldError</c> renders the
+    /// sentence under the input itself, so "which box" is answered by where the sentence is rather
+    /// than by minting one code per property.
+    /// </para>
+    /// </summary>
+    COMMON_FIELD_REQUIRED,
+
+    /// <summary>
+    /// A paging offset below zero. 422, and deliberately shared across every list query: no screen
+    /// offers a box for it, so there is no input for a field-specific sentence to sit under and
+    /// nothing a user could have typed differently (NFR-27).
+    /// </summary>
+    COMMON_PAGING_OFFSET_INVALID,
+
+    /// <summary>A paging limit outside one-to-a-hundred. 422, shared for the same reason.</summary>
+    COMMON_PAGING_LIMIT_INVALID,
+
+    /// <summary>
+    /// A coordinate outside the ranges a map has. 422, stated by <c>LocationInputValidator</c> so
+    /// the refusal names the point the caller sent rather than arriving as
+    /// <see cref="MapLocation"/>'s constructor throwing into the unexpected-error arm.
+    /// </summary>
+    COMMON_COORDINATE_OUT_OF_RANGE,
+
     /// <summary>No usable credentials were presented. 401; FR-13 branches on this single code.</summary>
     AUTH_UNAUTHENTICATED,
 
@@ -65,6 +95,29 @@ public enum ErrorCode
     AUTH_CURRENT_PASSWORD_INCORRECT,
 
     /// <summary>
+    /// A given name longer than the <c>first_name</c> column holds. 422, reported as a field key —
+    /// so a truncation PostgreSQL would raise arrives naming the box instead.
+    /// </summary>
+    AUTH_FIRST_NAME_TOO_LONG,
+
+    /// <summary>A family name longer than the <c>last_name</c> column holds. 422, for the same reason.</summary>
+    AUTH_LAST_NAME_TOO_LONG,
+
+    /// <summary>
+    /// A password above the ceiling every path that accepts one puts on it - registration, sign-in,
+    /// taking on a driver, an administrator setting somebody's password, and a user changing their
+    /// own. 422, and distinct from <see cref="AUTH_PASSWORD_TOO_WEAK"/>: nothing about it is weak,
+    /// it is simply longer than the hasher will be asked to chew through, which matters most on the
+    /// two endpoints an unauthenticated caller can reach.
+    /// <para>
+    /// The split is the point. <see cref="AUTH_PASSWORD_TOO_WEAK"/> answers with the policy - eight
+    /// characters, both cases, a digit - which read against a two-hundred-character password is
+    /// advice to make it longer still, the one change that cannot help.
+    /// </para>
+    /// </summary>
+    AUTH_PASSWORD_TOO_LONG,
+
+    /// <summary>
     /// The named vehicle is already held by another driver. 409 (FR-44). Distinct from
     /// <see cref="FLEET_VEHICLE_IN_USE"/>: this refuses an assignment, that one refuses a deletion.
     /// </summary>
@@ -75,6 +128,29 @@ public enum ErrorCode
 
     /// <summary>Another vehicle already carries this licence plate. 409 (FR-41).</summary>
     FLEET_LICENSE_PLATE_IN_USE,
+
+    /// <summary>A model name longer than the <c>vehicles.model</c> column holds. 422 (FR-40).</summary>
+    FLEET_MODEL_TOO_LONG,
+
+    /// <summary>A plate longer than the <c>vehicles.license_plate</c> column holds. 422 (FR-40).</summary>
+    FLEET_LICENSE_PLATE_TOO_LONG,
+
+    /// <summary>A capacity of zero or less, which is not a vehicle that can carry anything. 422.</summary>
+    FLEET_CAPACITY_NOT_POSITIVE,
+
+    /// <summary>
+    /// A capacity above the magnitude <c>numeric(10, 2)</c> holds. 422, so an over-wide figure is a
+    /// refusal naming the box rather than a numeric overflow at the commit.
+    /// </summary>
+    FLEET_CAPACITY_TOO_LARGE,
+
+    /// <summary>A negative odometer reading. 422 — an odometer does not run backwards.</summary>
+    FLEET_MILEAGE_NEGATIVE,
+
+    /// <summary>
+    /// A licence number longer than the <c>drivers.license_number</c> column holds. 422 (FR-35).
+    /// </summary>
+    FLEET_LICENSE_NUMBER_TOO_LONG,
 
     /// <summary>
     /// A delivery named a driver no row holds. 404 (FR-29). Distinct from
@@ -92,6 +168,70 @@ public enum ErrorCode
     /// changing a driver's vehicle over in the fleet.
     /// </summary>
     DELIVERY_EXCEEDS_VEHICLE_CAPACITY,
+
+    /// <summary>Package details longer than the <c>package_details</c> column holds. 422 (FR-14).</summary>
+    DELIVERY_PACKAGE_DETAILS_TOO_LONG,
+
+    /// <summary>Delivery notes longer than the <c>delivery_notes</c> column holds. 422 (FR-17).</summary>
+    DELIVERY_NOTES_TOO_LONG,
+
+    /// <summary>
+    /// A package weight of zero or less. 422, and the friendly half of
+    /// <c>ck_deliveries_package_weight_kg</c> — the constraint is the backstop and carries no field,
+    /// this is what lets the form mark the box (NFR-2, NFR-4).
+    /// </summary>
+    DELIVERY_PACKAGE_WEIGHT_NOT_POSITIVE,
+
+    /// <summary>A package weight above the magnitude <c>numeric(10, 3)</c> holds. 422 (FR-102).</summary>
+    DELIVERY_PACKAGE_WEIGHT_TOO_LARGE,
+
+    /// <summary>
+    /// A delivery window whose latest bound is not after its earliest one. 422 (FR-100), and the
+    /// friendly half of <c>ck_deliveries_delivery_window</c>. Reported on the latest bound, because
+    /// that is the field a dispatcher would move to fix it.
+    /// </summary>
+    DELIVERY_WINDOW_ENDS_BEFORE_IT_STARTS,
+
+    /// <summary>
+    /// A timeline note longer than the <c>timeline_entries.note</c> column holds. 422 (FR-107),
+    /// shared by the standalone-note path and the note that rides on a status change, because both
+    /// write the same column through the same rule on the entity that owns it.
+    /// </summary>
+    DELIVERY_NOTE_TOO_LONG,
+
+    /// <summary>
+    /// A status the system does not have. 422, and deliberately not
+    /// <see cref="DELIVERY_INVALID_STATUS_TRANSITION"/>: that one refuses a real status the row
+    /// cannot reach, this one refuses a value that names no status at all. The converter is
+    /// registered with <c>allowIntegerValues: true</c>, so <c>{"status": 42}</c> deserializes to an
+    /// undefined member and has to be refused here.
+    /// </summary>
+    DELIVERY_STATUS_UNKNOWN,
+
+    /// <summary>
+    /// A recipient name longer than the <c>proof_of_deliveries.recipient_name</c> column holds.
+    /// 422 (FR-119).
+    /// </summary>
+    DELIVERY_RECIPIENT_NAME_TOO_LONG,
+
+    /// <summary>
+    /// A capture carrying no signature, or more than one. 422 (FR-119): the three shape refusals
+    /// below are separate codes because they are three different sentences to somebody standing at
+    /// a door holding a phone.
+    /// </summary>
+    DELIVERY_PROOF_SIGNATURE_REQUIRED,
+
+    /// <summary>A capture carrying no photograph. 422 (FR-119).</summary>
+    DELIVERY_PROOF_PHOTO_REQUIRED,
+
+    /// <summary>A capture carrying more photographs than <c>ProofAssetRules.MaximumPhotos</c>. 422.</summary>
+    DELIVERY_PROOF_TOO_MANY_PHOTOS,
+
+    /// <summary>
+    /// An address search below the floor that keeps every keystroke from becoming an outbound
+    /// geocoding request. 422 (FR-104), refused before any call leaves.
+    /// </summary>
+    DELIVERY_PLACE_QUERY_TOO_SHORT,
 
     /// <summary>
     /// The delivery's current status does not lead to the one that was asked for. 409 (FR-32),

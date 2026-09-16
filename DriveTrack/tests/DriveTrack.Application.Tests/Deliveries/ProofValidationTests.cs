@@ -102,9 +102,12 @@ public class ProofValidationTests
         field.StartsWith(nameof(CaptureProofCommand.CaptureLocation), StringComparison.Ordinal);
 
     [Fact]
-    public void A_capture_with_no_signature_is_refused()
+    public void A_capture_with_no_signature_is_refused_under_the_pad_rather_than_the_picker()
     {
-        Assert.Contains(nameof(CaptureProofCommand.Assets), Failures(Capture(signatures: 0)));
+        // The signature travels in Assets and is captured on a control of its own, so the refusal
+        // is reported under its own name. Reported as `Assets` it rendered beneath the photograph
+        // picker, which is the one place on the panel it is not about.
+        Assert.Contains(nameof(ProofAssetKind.Signature), Failures(Capture(signatures: 0)));
     }
 
     [Fact]
@@ -112,7 +115,7 @@ public class ProofValidationTests
     {
         // "Exactly one", not "at least one": the proof view shows the signature, singular, and two
         // would leave a reader deciding which one the recipient actually wrote.
-        Assert.Contains(nameof(CaptureProofCommand.Assets), Failures(Capture(signatures: 2)));
+        Assert.Contains(nameof(ProofAssetKind.Signature), Failures(Capture(signatures: 2)));
     }
 
     [Fact]

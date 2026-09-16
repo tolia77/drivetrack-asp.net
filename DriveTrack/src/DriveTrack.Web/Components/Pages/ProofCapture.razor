@@ -21,7 +21,9 @@
 @inherits CircuitScopedComponent
 @implements IAsyncDisposable
 
-<DtFailureBanner Failures="_failures" />
+@* CaptureLocation is the matrix row this keeps: the panel draws no coordinate box, so a refusal
+   naming it has no input to sit under and would vanish if the banner hid it (FR-83). *@
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <div class="dt-proof-form">
     <div>
@@ -29,11 +31,13 @@
         <input id="@_recipientFieldId" class="form-control" type="text"
                maxlength="@CaptureProofCommandValidator.RecipientNameMaximumLength"
                @bind="_recipientName" />
+        <DtFieldError Field="RecipientName" Failures="_failures" />
     </div>
 
     <div>
         <span class="form-label">@Localizer["ProofSignature"]</span>
         <DtSignaturePad @ref="_signature" />
+        <DtFieldError Field="Signature" Failures="_failures" />
     </div>
 
     <div>
@@ -44,6 +48,7 @@
         <InputFile id="@_photosFieldId" class="form-control" multiple
                    accept="image/png,image/jpeg,image/webp" OnChange="Choose" />
         <p class="dt-proof-hint">@Localizer["ProofPhotosHint"]</p>
+        <DtFieldError Field="Assets" Failures="_failures" />
     </div>
 
     <div>
@@ -76,6 +81,14 @@
 </div>
 
 @code {
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "RecipientName,Signature,Assets";
+
     private const string ModulePath = "./Components/Pages/ProofCapture.razor.js";
 
     /// <summary>

@@ -1,0 +1,44 @@
+@inject IStringLocalizer<ErrorMessages> Errors
+
+@* One refusal, rendered under the input that produced it (NFR-4, FR-83).
+
+   DtFailureBanner is still the place a refusal with no field goes, and the place a refusal on a
+   field this screen does not render goes. This is the other half: on a long form, being told that
+   something is wrong at the top of the page and having to hunt for the box is the failure the
+   banner alone could not fix.
+
+   The field is a plain string attribute and not a `For="@@(() => ...)"` lambda, deliberately. A
+   `=>` inside an attribute closes the tag as far as NFR-14's source scan is concerned, which is the
+   documented reason this product has never had per-field messages - so the one construct that
+   caused it is the one construct this component must not reintroduce.
+
+   No label: the input's own <label> is directly above, so naming the field again here would be the
+   stutter DtFailureBanner's Label() exists to avoid. The claimed list is resolved into a property
+   rather than called inside the @@foreach, for the reason the banner resolves its label into a
+   local - a call in markup reads as rendered text to that same scan. *@
+
+@foreach (var failure in Claimed)
+{
+    <div class="form-text text-danger" role="alert">@Errors[failure.MessageKey]</div>
+}
+
+@code {
+    /// <summary>
+    /// The CLR property name a validator would put on the failure - <c>Model</c>, <c>Pickup</c>,
+    /// <c>PackageWeightKg</c>. Matched against the root segment <c>FailureKeys</c> already
+    /// normalized to, so an input called <c>Pickup</c> claims a rule that fired on
+    /// <c>Pickup.Latitude</c>.
+    /// </summary>
+    [Parameter]
+    public string? Field { get; set; }
+
+    /// <summary>
+    /// The refusals the screen collected, bound unchanged from the same list the banner reads.
+    /// Empty renders nothing, which is why a form can bind this unconditionally.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyList<ScreenFailure> Failures { get; set; } = [];
+
+    /// <summary>The refusals this field owns.</summary>
+    private IReadOnlyList<ScreenFailure> Claimed => FailureKeys.ClaimedBy(Failures, Field);
+}

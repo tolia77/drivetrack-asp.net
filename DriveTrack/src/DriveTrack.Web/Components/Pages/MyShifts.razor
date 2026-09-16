@@ -30,8 +30,9 @@
 </h1>
 
 @* FR-110's refusals arrive here: already on duty, or not on duty at all. Resolved through the same
-   catalogue the REST envelope uses, so the two cannot disagree (NFR-3). *@
-<DtFailureBanner Failures="_failures" />
+   catalogue the REST envelope uses, so the two cannot disagree (NFR-3). Neither names a field, so
+   both stay here; FR-111's backwards window names both ends and is said under each box instead. *@
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <div class="row g-3 align-items-end mb-3">
     @* The one place on either screen where the subject really is the driver: this is a claim about
@@ -120,12 +121,12 @@
 
 @* FR-85: the shared dialog. FR-112 gives a driver their own corrections - a shift they started an
    hour late is theirs to fix - and the guard is what keeps it to their own. *@
-<DtDialog @ref="_formDialog" Title="@Localizer["ShiftForm"]">
+<DtDialog @ref="_formDialog" Title="@Localizer["ShiftForm"]" OnClosed="ClearFailures">
     <ChildContent>
         @* The same list as the one at the top of the page, and deliberately a second copy: a
            DtDialog opens with showModal(), so a refusal rendered only up there is a message behind
            an inert backdrop. *@
-        <DtFailureBanner Failures="_failures" />
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
         <EditForm id="my-shift-form" Model="_form" OnValidSubmit="SaveAsync">
             @* Clearing a date field leaves a parse failure on the EditContext and OnValidSubmit
@@ -138,6 +139,7 @@
                            Type="InputDateType.DateTimeLocal"
                            ParsingErrorMessage="@Localizer["DateParseError"]"
                            @bind-Value="_form.StartedAt" />
+                <DtFieldError Field="StartedAt" Failures="_failures" />
             </div>
             <div class="mb-3">
                 <label class="form-label" for="my-shift-ended-at">@Localizer["ShiftEndedAt"]</label>
@@ -147,6 +149,7 @@
                            @bind-Value="_form.EndedAt" />
                 @* FR-117 said in a sentence: emptying this box leaves a finished shift finished. A
                    shift is ended by the action above, once, and never un-ended. *@
+                <DtFieldError Field="EndedAt" Failures="_failures" />
                 <div class="form-text">@Localizer["ShiftEndedAtHint"]</div>
             </div>
         </EditForm>
@@ -172,6 +175,26 @@
                  OnConfirmed="ConfirmDeleteAsync" />
 
 @code {
+
+    /// <summary>
+    /// Drops the refusals when the form is dismissed, however it was dismissed.
+    /// <para>
+    /// FR-83. A refusal claimed by a box inside the dialog is subtracted from the banner outside it,
+    /// so leaving the list populated past the close would leave that sentence with nowhere on the
+    /// page to render - invisible, which is the outcome this whole change exists to prevent.
+    /// Hung off <c>OnClosed</c> rather than off the cancel handler because Escape and the backdrop
+    /// dismiss the dialog too, and the component routes all three through one event.
+    /// </para>
+    /// </summary>
+    private void ClearFailures() => _failures = [];
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "StartedAt,EndedAt";
+
     private IReadOnlyList<ShiftSummary> _shifts = [];
     private IReadOnlyList<ScreenFailure> _failures = [];
     private ShiftForm _form = new();

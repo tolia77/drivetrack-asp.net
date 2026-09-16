@@ -31,7 +31,7 @@ public sealed class SearchPlacesQueryValidator : AbstractValidator<SearchPlacesQ
     /// <summary>Declares the rules.</summary>
     public SearchPlacesQueryValidator() =>
         RuleFor(query => query.Query)
-            .Must(IsLongEnough).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .Must(IsLongEnough).WithMessage(nameof(ErrorCode.DELIVERY_PLACE_QUERY_TOO_SHORT));
 
     /// <summary>
     /// True when the query carries at least <see cref="MinimumLength"/> characters that are not

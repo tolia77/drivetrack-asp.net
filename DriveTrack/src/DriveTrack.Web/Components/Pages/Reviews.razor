@@ -40,7 +40,7 @@
    in the DOM at any moment, and which one it is follows where the reader is. *@
 @if (!_formOpen)
 {
-    <DtFailureBanner Failures="_failures" />
+    <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 }
 
 @* Offered only when there is something to review. An action whose form opens on an empty picker
@@ -195,9 +195,11 @@
 
            It replaces that one rather than joining it: the copy above stands down while this is
            open, so a refused save is one live region announcing once. *@
+        @* REVIEW_DELIVERY_NOT_COMPLETED names no field, so it stays here; the scale and the text
+           each state their own refusal under themselves. *@
         @if (_formOpen)
         {
-            <DtFailureBanner Failures="_failures" />
+            <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
         }
 
         @* Only when writing a new one. A review is keyed one-to-one on its delivery, so moving an
@@ -229,6 +231,7 @@
                     <option value="@value">@value</option>
                 }
             </select>
+            <DtFieldError Field="Rating" Failures="_failures" />
         </div>
 
         <div class="mb-3">
@@ -236,6 +239,7 @@
             <textarea id="review-text" class="form-control" rows="4"
                       maxlength="@CreateReviewCommandValidator.TextMaximumLength"
                       @bind="_form.Text"></textarea>
+            <DtFieldError Field="Text" Failures="_failures" />
         </div>
     </ChildContent>
     <Actions>
@@ -260,6 +264,14 @@
                  OnConfirmed="DeleteAsync" />
 
 @code {
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "Rating,Text";
+
     /// <summary>
     /// The values the rating control offers: the scale itself, so the form cannot present a number
     /// the check constraint would refuse.
@@ -533,7 +545,19 @@
     /// the flag is cleared here and not in <see cref="CloseFormAsync"/>: a dialog dismissed by the
     /// platform would otherwise leave the page with no live region at all.
     /// </summary>
-    private void CloseForm() => _formOpen = false;
+    /// <summary>
+    /// Stands the dialog's banner down, and drops the refusals with it (FR-83).
+    /// <para>
+    /// The list has to go too, not just the flag. A refusal claimed by the scale or the text is
+    /// subtracted from the page-level banner this restores, so leaving it populated would leave
+    /// that sentence with nowhere on the page to render.
+    /// </para>
+    /// </summary>
+    private void CloseForm()
+    {
+        _formOpen = false;
+        _failures = [];
+    }
 
     /// <summary>
     /// The page both lists ask for. One page of a hundred, like every other list in the product:

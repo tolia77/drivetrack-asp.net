@@ -39,13 +39,13 @@ public sealed class LocationInputValidator : AbstractValidator<LocationInput>
         // MapLocation's is a negated one: NaN fails every comparison, so `value >= -90` already
         // rejects it instead of letting it through as "not greater than 90".
         RuleFor(location => location.Latitude)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .Must(latitude => latitude is not { } value || (value >= -90 && value <= 90))
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.COMMON_COORDINATE_OUT_OF_RANGE));
 
         RuleFor(location => location.Longitude)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .Must(longitude => longitude is not { } value || (value >= -180 && value <= 180))
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.COMMON_COORDINATE_OUT_OF_RANGE));
     }
 }

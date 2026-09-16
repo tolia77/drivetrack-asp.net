@@ -28,7 +28,7 @@ public sealed class UpdateDeliveryCommandValidator : AbstractValidator<UpdateDel
         // Present-null is refused rather than treated as a clear: a delivery has to be collected
         // somewhere and delivered somewhere, so "no pickup" is not a state the row may hold.
         RuleFor(command => command.Pickup.Value)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .OverridePropertyName(nameof(UpdateDeliveryCommand.Pickup));
 
         RuleFor(command => command.Pickup.Value!)
@@ -36,7 +36,7 @@ public sealed class UpdateDeliveryCommandValidator : AbstractValidator<UpdateDel
             .OverridePropertyName(nameof(UpdateDeliveryCommand.Pickup));
 
         RuleFor(command => command.Dropoff.Value)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .OverridePropertyName(nameof(UpdateDeliveryCommand.Dropoff));
 
         RuleFor(command => command.Dropoff.Value!)
@@ -44,22 +44,22 @@ public sealed class UpdateDeliveryCommandValidator : AbstractValidator<UpdateDel
             .OverridePropertyName(nameof(UpdateDeliveryCommand.Dropoff));
 
         RuleFor(command => command.PackageDetails.Value)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(CreateDeliveryCommandValidator.PackageDetailsMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.DELIVERY_PACKAGE_DETAILS_TOO_LONG))
             .OverridePropertyName(nameof(UpdateDeliveryCommand.PackageDetails));
 
         // No NotEmpty: the notes column is nullable, so a present-null is a genuine clear and
         // every value the wire can carry is one the delivery may hold (FR-17).
         RuleFor(command => command.DeliveryNotes.Value)
             .MaximumLength(CreateDeliveryCommandValidator.DeliveryNotesMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.DELIVERY_NOTES_TOO_LONG))
             .OverridePropertyName(nameof(UpdateDeliveryCommand.DeliveryNotes));
 
         RuleFor(command => command.PackageWeightKg.Value)
-            .GreaterThan(0m).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .GreaterThan(0m).WithMessage(nameof(ErrorCode.DELIVERY_PACKAGE_WEIGHT_NOT_POSITIVE))
             .LessThanOrEqualTo(CreateDeliveryCommandValidator.PackageWeightMaximum)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.DELIVERY_PACKAGE_WEIGHT_TOO_LARGE))
             .OverridePropertyName(nameof(UpdateDeliveryCommand.PackageWeightKg));
 
         // Judged over the merged pair, which is the whole reason the merge feeds the validator:
@@ -69,7 +69,7 @@ public sealed class UpdateDeliveryCommandValidator : AbstractValidator<UpdateDel
             .Must((command, latest) => CreateDeliveryCommandValidator.IsOrderedWindow(
                 command.WindowEarliestAt.Value,
                 latest))
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.DELIVERY_WINDOW_ENDS_BEFORE_IT_STARTS))
             .OverridePropertyName(nameof(UpdateDeliveryCommand.WindowLatestAt));
     }
 }

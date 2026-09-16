@@ -83,7 +83,7 @@ public class RegistrationValidationTests
     {
         var failure = await Refuse(Valid() with { FirstName = firstName });
 
-        AssertField(failure, "FirstName", nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+        AssertField(failure, "FirstName", nameof(ErrorCode.COMMON_FIELD_REQUIRED));
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class RegistrationValidationTests
     {
         var failure = await Refuse(Valid() with { LastName = new string('я', 101) });
 
-        AssertField(failure, "LastName", nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+        AssertField(failure, "LastName", nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG));
     }
 
     [Fact]
@@ -123,7 +123,8 @@ public class RegistrationValidationTests
         var long_ = new string('p', RegisterClientCommandValidator.PasswordMaximumLength + 1);
         var failure = await Refuse(Valid() with { Password = long_, PasswordConfirmation = long_ });
 
-        AssertField(failure, "Password", nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
+        // The ceiling, not the strength policy: what is wrong with this password is its length.
+        AssertField(failure, "Password", nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
     }
 
     [Fact]
@@ -140,7 +141,7 @@ public class RegistrationValidationTests
                 TestContext.Current.CancellationToken));
 
         AssertField(failure, "Email", nameof(ErrorCode.AUTH_EMAIL_INVALID));
-        AssertField(failure, "Password", nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
+        AssertField(failure, "Password", nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
     }
 
     [Fact]

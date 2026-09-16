@@ -33,21 +33,21 @@ public sealed class UpdateDriverCommandValidator : AbstractValidator<UpdateDrive
     public UpdateDriverCommandValidator()
     {
         RuleFor(command => command.FirstName.Value)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.AUTH_FIRST_NAME_TOO_LONG))
             .OverridePropertyName(nameof(UpdateDriverCommand.FirstName));
 
         RuleFor(command => command.LastName.Value)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG))
             .OverridePropertyName(nameof(UpdateDriverCommand.LastName));
 
         RuleFor(command => command.LicenseNumber.Value)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(CreateDriverCommandValidator.LicenseNumberMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.FLEET_LICENSE_NUMBER_TOO_LONG))
             .OverridePropertyName(nameof(UpdateDriverCommand.LicenseNumber));
     }
 }

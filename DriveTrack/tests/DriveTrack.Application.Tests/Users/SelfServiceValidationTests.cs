@@ -78,7 +78,7 @@ public class SelfServiceValidationTests
     {
         var failure = await Refuse(Profile, ValidClient() with { FirstName = null });
 
-        AssertField(failure, "FirstName", nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+        AssertField(failure, "FirstName", nameof(ErrorCode.COMMON_FIELD_REQUIRED));
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class SelfServiceValidationTests
     {
         var failure = await Refuse(Profile, ValidOther() with { LastName = new string('я', 101) });
 
-        AssertField(failure, "LastName", nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+        AssertField(failure, "LastName", nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG));
     }
 
     [Fact]
@@ -101,11 +101,11 @@ public class SelfServiceValidationTests
     [Fact]
     public async Task A_password_change_without_the_current_password_is_refused()
     {
-        // COMMON_VALIDATION_FAILED, not the strength code: a missing field is not a weak password,
-        // and a user told "your password is too weak" would go looking at the wrong box.
+        // The presence code, not the strength one: a missing field is not a weak password, and a
+        // user told "your password is too weak" would go looking at the wrong box.
         var failure = await Refuse(Password, ValidPassword() with { CurrentPassword = null });
 
-        AssertField(failure, "CurrentPassword", nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+        AssertField(failure, "CurrentPassword", nameof(ErrorCode.COMMON_FIELD_REQUIRED));
     }
 
     [Fact]
@@ -113,6 +113,8 @@ public class SelfServiceValidationTests
     {
         var failure = await Refuse(Password, ValidPassword() with { NewPassword = string.Empty });
 
+        // The policy's code: nothing was typed, so "the password is not acceptable" is exactly what
+        // there is to say, and it is the same answer Identity gives (NFR-2).
         AssertField(failure, "NewPassword", nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
     }
 
@@ -127,7 +129,9 @@ public class SelfServiceValidationTests
                 NewPasswordConfirmation = new string('a', 129),
             });
 
-        AssertField(failure, "NewPassword", nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
+        // The ceiling, not the policy: a password of 129 characters is long rather than weak, and
+        // "choose a longer, more complex one" is the single piece of advice that cannot help.
+        AssertField(failure, "NewPassword", nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
     }
 
     [Fact]

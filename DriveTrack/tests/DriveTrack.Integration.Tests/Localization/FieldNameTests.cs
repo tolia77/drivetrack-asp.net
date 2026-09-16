@@ -77,6 +77,7 @@ public class FieldNameTests
         ["Query"] = "AddressSearch",
         ["Rating"] = "ReviewRating",
         ["RecipientName"] = "ProofRecipientName",
+        ["Signature"] = "ProofSignature",
         ["StartedAt"] = "ShiftStartedAt",
         ["Status"] = "Status",
         ["Text"] = "ReviewText",

@@ -23,14 +23,14 @@ public sealed class ClientAccountStateValidator : AbstractValidator<ClientAccoun
     public ClientAccountStateValidator()
     {
         RuleFor(state => state.FirstName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_FIRST_NAME_TOO_LONG));
 
         RuleFor(state => state.LastName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG));
 
         RuleFor(state => state.PhoneNumber)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_PHONE_NUMBER_INVALID))
@@ -50,11 +50,12 @@ public sealed class ClientAccountStateValidator : AbstractValidator<ClientAccoun
 
         // Null is the unchanged case and has no rules to break. Everything else is a password the
         // caller is actually setting, so it is bounded here and judged for strength by Identity's
-        // own policy - the same policy, reported with the same code, as at registration.
+        // own policy - the same policy, reported with the same code, as at registration. The bound
+        // is not that policy and does not borrow its sentence.
         RuleFor(state => state.Password)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK))
             .MaximumLength(RegisterClientCommandValidator.PasswordMaximumLength)
-                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK))
+                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG))
             .When(state => state.Password is not null);
     }
 }
@@ -66,19 +67,19 @@ public sealed class DispatcherAccountStateValidator : AbstractValidator<Dispatch
     public DispatcherAccountStateValidator()
     {
         RuleFor(state => state.FirstName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_FIRST_NAME_TOO_LONG));
 
         RuleFor(state => state.LastName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG));
 
         RuleFor(state => state.Password)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK))
             .MaximumLength(RegisterClientCommandValidator.PasswordMaximumLength)
-                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK))
+                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG))
             .When(state => state.Password is not null);
     }
 }
@@ -97,14 +98,14 @@ public sealed class CreateDispatcherCommandValidator : AbstractValidator<CreateD
     public CreateDispatcherCommandValidator()
     {
         RuleFor(command => command.FirstName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_FIRST_NAME_TOO_LONG));
 
         RuleFor(command => command.LastName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RegisterClientCommandValidator.NameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG));
 
         RuleFor(command => command.Email)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_EMAIL_INVALID))
@@ -115,6 +116,6 @@ public sealed class CreateDispatcherCommandValidator : AbstractValidator<CreateD
         RuleFor(command => command.Password)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK))
             .MaximumLength(RegisterClientCommandValidator.PasswordMaximumLength)
-                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
+                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
     }
 }

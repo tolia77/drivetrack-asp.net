@@ -45,12 +45,14 @@ public sealed class RegisterClientCommandValidator : AbstractValidator<RegisterC
         // states its own key. A single trailing WithMessage would leave the earlier rules carrying
         // FluentValidation's own English sentence - which the adapter would then fail to resolve.
         RuleFor(command => command.FirstName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
-            .MaximumLength(NameMaximumLength).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
+            .MaximumLength(NameMaximumLength)
+                .WithMessage(nameof(ErrorCode.AUTH_FIRST_NAME_TOO_LONG));
 
         RuleFor(command => command.LastName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
-            .MaximumLength(NameMaximumLength).WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
+            .MaximumLength(NameMaximumLength)
+                .WithMessage(nameof(ErrorCode.AUTH_LAST_NAME_TOO_LONG));
 
         RuleFor(command => command.Email)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_EMAIL_INVALID))
@@ -63,11 +65,13 @@ public sealed class RegisterClientCommandValidator : AbstractValidator<RegisterC
                 .WithMessage(nameof(ErrorCode.AUTH_PHONE_NUMBER_INVALID))
             .Matches(PhoneNumberPattern).WithMessage(nameof(ErrorCode.AUTH_PHONE_NUMBER_INVALID));
 
-        // Presence only. The strength policy itself is Identity's, configured once in
-        // AddIdentityCore and reported back through the same code, so the two cannot disagree.
+        // Presence and a ceiling, and the two are different refusals: a password nobody typed is
+        // the policy's business, one of two hundred characters is not weak at all. The strength
+        // policy itself is Identity's, configured once in AddIdentityCore and reported back through
+        // AUTH_PASSWORD_TOO_WEAK, so this rule and that one cannot disagree about what is weak.
         RuleFor(command => command.Password)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK))
-            .MaximumLength(PasswordMaximumLength).WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
+            .MaximumLength(PasswordMaximumLength).WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
 
         RuleFor(command => command.PasswordConfirmation)
             .Equal(command => command.Password)

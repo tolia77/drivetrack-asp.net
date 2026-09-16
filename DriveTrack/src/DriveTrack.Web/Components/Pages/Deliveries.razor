@@ -29,8 +29,10 @@
 </h1>
 
 @* FR-29 and FR-103 arrive here: a missing driver, a missing client and an overloaded vehicle each
-   resolve through the same catalogue the REST envelope uses, so the two cannot disagree (NFR-3). *@
-<DtFailureBanner Failures="_failures" />
+   resolve through the same catalogue the REST envelope uses, so the two cannot disagree (NFR-3).
+   None of the three names a field, so all three stay here; the form's own refusals are said under
+   the boxes that produced them. *@
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 @* NFR-27 keeps paging, and this screen asks for the first page and filters it in the browser - so
    past a full page the rest is neither shown nor findable. Saying so is the difference between a
@@ -273,12 +275,12 @@
 
 @* FR-85: the shared dialog. One heading for both create and edit - a title composed at run time
    would be a key no test can see, and the catalogue is closed against the keys components ask for. *@
-<DtDialog @ref="_formDialog" Title="@Localizer["DeliveryForm"]">
+<DtDialog @ref="_formDialog" Title="@Localizer["DeliveryForm"]" OnClosed="ClearFailures">
     <ChildContent>
         @* A second copy of the banner, deliberately. A DtDialog opens with showModal(), so
            everything outside it is inert behind the backdrop: a refusal rendered only at page level
            is a form that fails to close and says nothing. *@
-        <DtFailureBanner Failures="_failures" />
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
         @* FR-15 and FR-104: a point is set by clicking the map, or by searching for an address and
            choosing one of the answers. Both end at the same assignment - the chosen match writes the
@@ -343,6 +345,11 @@
             }
             <label class="form-label">@Localizer["Pickup"]</label>
             <DtMap Value="_form.Pickup" ValueChanged="PickPickup" Picker="true" />
+            @* Under the map rather than in the dialog's banner: an unpicked point is refused with
+               COMMON_FIELD_REQUIRED - "Обов’язкове поле" - which says nothing at all about which
+               control, and the map is half a screen tall. Beneath it, the sentence needs nothing
+               more. *@
+            <DtFieldError Field="Pickup" Failures="_failures" />
         </div>
         <div class="mb-3">
             <label class="form-label" for="dropoff-search">@Localizer["AddressSearch"]</label>
@@ -379,6 +386,7 @@
             }
             <label class="form-label">@Localizer["Dropoff"]</label>
             <DtMap Value="_form.Dropoff" ValueChanged="PickDropoff" Picker="true" />
+            <DtFieldError Field="Dropoff" Failures="_failures" />
         </div>
 
         <EditForm id="delivery-form" Model="_form" OnValidSubmit="SaveAsync">
@@ -391,6 +399,7 @@
             <div class="mb-3">
                 <label class="form-label" for="delivery-details">@Localizer["PackageDetails"]</label>
                 <InputText id="delivery-details" class="form-control" @bind-Value="_form.PackageDetails" />
+                <DtFieldError Field="PackageDetails" Failures="_failures" />
             </div>
             <div class="mb-3">
                 <label class="form-label" for="delivery-weight">@Localizer["PackageWeightKg"]</label>
@@ -402,11 +411,13 @@
                 @* FR-103's second figure. NFR-3 gives one wire message per code, so the refusal
                    itself cannot name the numbers - this is where the dispatcher sees the one they
                    are about to exceed, at the moment they could exceed it. *@
+                <DtFieldError Field="PackageWeightKg" Failures="_failures" />
                 <div class="form-text">@Localizer["VehicleCapacityHint"] @CapacityText</div>
             </div>
             <div class="mb-3">
                 <label class="form-label" for="delivery-notes">@Localizer["DeliveryNotes"]</label>
                 <InputTextArea id="delivery-notes" class="form-control" @bind-Value="_form.DeliveryNotes" />
+                <DtFieldError Field="DeliveryNotes" Failures="_failures" />
             </div>
 
             @* FR-100: either bound may stand alone and both may be absent; only an inverted pair is
@@ -424,6 +435,7 @@
                            Type="InputDateType.DateTimeLocal"
                            ParsingErrorMessage="@Localizer["DateParseError"]"
                            @bind-Value="_form.WindowLatestAt" />
+                <DtFieldError Field="WindowLatestAt" Failures="_failures" />
             </div>
 
             @* FR-16: both are optional, and the empty choice is how a dispatcher says so - on an
@@ -519,6 +531,26 @@
 }
 
 @code {
+
+    /// <summary>
+    /// Drops the refusals when the form is dismissed, however it was dismissed.
+    /// <para>
+    /// FR-83. A refusal claimed by a box inside the dialog is subtracted from the banner outside it,
+    /// so leaving the list populated past the close would leave that sentence with nowhere on the
+    /// page to render - invisible, which is the outcome this whole change exists to prevent.
+    /// Hung off <c>OnClosed</c> rather than off the cancel handler because Escape and the backdrop
+    /// dismiss the dialog too, and the component routes all three through one event.
+    /// </para>
+    /// </summary>
+    private void ClearFailures() => _failures = [];
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "Pickup,Dropoff,PackageDetails,PackageWeightKg,DeliveryNotes,WindowLatestAt";
+
     private DeliveryFilter _filter = new();
 
     private IReadOnlyList<DeliverySummary> _deliveries = [];

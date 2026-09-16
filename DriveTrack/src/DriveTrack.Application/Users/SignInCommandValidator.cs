@@ -23,6 +23,6 @@ public sealed class SignInCommandValidator : AbstractValidator<SignInCommand>
         RuleFor(command => command.Password)
             .NotEmpty().WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK))
             .MaximumLength(RegisterClientCommandValidator.PasswordMaximumLength)
-                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_WEAK));
+                .WithMessage(nameof(ErrorCode.AUTH_PASSWORD_TOO_LONG));
     }
 }

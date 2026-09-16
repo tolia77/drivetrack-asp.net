@@ -174,11 +174,12 @@
    and anything rendered inside it is wiped on the first pan. *@
 @if (_offersRequest)
 {
-    <DtDialog @ref="_requestDialog" Title="@Localizer["RequestDeliveryTitle"]">
+    <DtDialog @ref="_requestDialog" Title="@Localizer["RequestDeliveryTitle"]" OnClosed="ClearFailures">
         <ChildContent>
             @* Inside the dialog, deliberately. A DtDialog opens with showModal(), so a refusal
-               rendered at page level would sit behind the backdrop and say nothing. *@
-            <DtFailureBanner Failures="_failures" />
+               rendered at page level would sit behind the backdrop and say nothing. It keeps
+               whatever the boxes below have not claimed - a 403 or a 409 names no field. *@
+            <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
             <div class="mb-3">
                 <label class="form-label" for="request-pickup-search">@Localizer["AddressSearch"]</label>
@@ -218,6 +219,11 @@
                    DtMap carries its own aria-label. The search box above it is an input and has one. *@
                 <label class="form-label">@Localizer["Pickup"]</label>
                 <DtMap Value="_request.Pickup" ValueChanged="PickRequestPickup" Picker="true" />
+                @* Under the map rather than in the dialog's banner: an unpicked point is refused
+                   with COMMON_FIELD_REQUIRED - "Обов’язкове поле" - which says nothing at all about
+                   which control, and the map is half a screen tall. Beneath it, the sentence needs
+                   nothing more. *@
+                <DtFieldError Field="Pickup" Failures="_failures" />
             </div>
             <div class="mb-3">
                 <label class="form-label" for="request-dropoff-search">@Localizer["AddressSearch"]</label>
@@ -253,6 +259,7 @@
                 }
                 <label class="form-label">@Localizer["Dropoff"]</label>
                 <DtMap Value="_request.Dropoff" ValueChanged="PickRequestDropoff" Picker="true" />
+                <DtFieldError Field="Dropoff" Failures="_failures" />
             </div>
 
             <EditForm id="request-form" Model="_request" OnValidSubmit="SubmitRequestAsync">
@@ -265,6 +272,7 @@
                 <div class="mb-3">
                     <label class="form-label" for="request-details">@Localizer["PackageDetails"]</label>
                     <InputText id="request-details" class="form-control" @bind-Value="_request.PackageDetails" />
+                    <DtFieldError Field="PackageDetails" Failures="_failures" />
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="request-weight">@Localizer["PackageWeightKg"]</label>
@@ -275,10 +283,12 @@
                                  @bind-Value="_request.PackageWeightKg" />
                     @* No capacity hint here, and none is missing: a request names no driver, so
                        there is no vehicle whose capacity a client could be about to exceed. *@
+                    <DtFieldError Field="PackageWeightKg" Failures="_failures" />
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="request-notes">@Localizer["DeliveryNotes"]</label>
                     <InputTextArea id="request-notes" class="form-control" @bind-Value="_request.DeliveryNotes" />
+                    <DtFieldError Field="DeliveryNotes" Failures="_failures" />
                 </div>
             </EditForm>
         </ChildContent>
@@ -298,6 +308,26 @@
 }
 
 @code {
+
+    /// <summary>
+    /// Drops the refusals when the form is dismissed, however it was dismissed.
+    /// <para>
+    /// FR-83. A refusal claimed by a box inside the dialog is subtracted from the banner outside it,
+    /// so leaving the list populated past the close would leave that sentence with nowhere on the
+    /// page to render - invisible, which is the outcome this whole change exists to prevent.
+    /// Hung off <c>OnClosed</c> rather than off the cancel handler because Escape and the backdrop
+    /// dismiss the dialog too, and the component routes all three through one event.
+    /// </para>
+    /// </summary>
+    private void ClearFailures() => _failures = [];
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "Pickup,Dropoff,PackageDetails,PackageWeightKg,DeliveryNotes";
+
     private IReadOnlyList<AssignedDeliverySummary> _deliveries = [];
 
     /// <summary>The row whose history is open, or null while none is.</summary>

@@ -27,8 +27,11 @@
 
 @* FR-43's refusal arrives here: the localized FLEET_VEHICLE_IN_USE message tells the dispatcher to
    unassign the driver first, which is a way out the original system did not have. Resolved through
-   the same catalogue the REST envelope uses, so the two cannot disagree (NFR-3). *@
-<DtFailureBanner Failures="_failures" />
+   the same catalogue the REST envelope uses, so the two cannot disagree (NFR-3).
+
+   It carries a delete refusal and anything else the four boxes below have not claimed; each of
+   those states its own refusal under itself through DtFieldError. *@
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <div class="row g-3 align-items-end mb-3">
     <div class="col-sm">
@@ -82,7 +85,7 @@
 
 @* FR-85: the shared dialog. One heading for both create and edit - a title composed at run time
    would be a key no test can see, and the catalogue is closed against the keys components ask for. *@
-<DtDialog @ref="_formDialog" Title="@Localizer["VehicleForm"]">
+<DtDialog @ref="_formDialog" Title="@Localizer["VehicleForm"]" OnClosed="ClearFailures">
     <ChildContent>
         @* The same list as the one at the top of the page, and deliberately a second copy. A
            DtDialog opens with showModal(), so everything outside it is in the inert layer
@@ -90,7 +93,7 @@
            form that fails to close and says nothing, which is not FR-41's "clear message".
            The page-level copy still carries the refusals raised with no dialog open - FR-43's
            held-vehicle delete, above all. *@
-        <DtFailureBanner Failures="_failures" />
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
         <EditForm id="vehicle-form" Model="_form" OnValidSubmit="SaveAsync">
             @* Clearing a number or a date field leaves a parse failure on the EditContext, and
@@ -102,11 +105,13 @@
             <div class="mb-3">
                 <label class="form-label" for="vehicle-model">@Localizer["Model"]</label>
                 <InputText id="vehicle-model" class="form-control" @bind-Value="_form.Model" />
+                <DtFieldError Field="Model" Failures="_failures" />
             </div>
             <div class="mb-3">
                 <label class="form-label" for="vehicle-license-plate">@Localizer["LicensePlate"]</label>
                 <InputText id="vehicle-license-plate" class="form-control"
                            @bind-Value="_form.LicensePlate" />
+                <DtFieldError Field="LicensePlate" Failures="_failures" />
             </div>
             <div class="mb-3">
                 <label class="form-label" for="vehicle-capacity">@Localizer["CapacityKg"]</label>
@@ -115,6 +120,7 @@
                 <InputNumber id="vehicle-capacity" class="form-control"
                              ParsingErrorMessage="@Localizer["NumberParseError"]"
                              @bind-Value="_form.CapacityKg" />
+                <DtFieldError Field="CapacityKg" Failures="_failures" />
             </div>
             @* FR-40 records these two; nothing in this milestone reads them, and PRD section 8
                excludes the maintenance alerting rather than the fields. So they belong on the form,
@@ -125,6 +131,7 @@
                 <InputNumber id="vehicle-mileage" class="form-control"
                              ParsingErrorMessage="@Localizer["NumberParseError"]"
                              @bind-Value="_form.Mileage" />
+                <DtFieldError Field="Mileage" Failures="_failures" />
             </div>
             <div class="mb-3">
                 <label class="form-label" for="vehicle-maintenance">@Localizer["NextMaintenanceDate"]</label>
@@ -153,6 +160,26 @@
                  OnConfirmed="ConfirmDeleteAsync" />
 
 @code {
+
+    /// <summary>
+    /// Drops the refusals when the form is dismissed, however it was dismissed.
+    /// <para>
+    /// FR-83. A refusal claimed by a box inside the dialog is subtracted from the banner outside it,
+    /// so leaving the list populated past the close would leave that sentence with nowhere on the
+    /// page to render - invisible, which is the outcome this whole change exists to prevent.
+    /// Hung off <c>OnClosed</c> rather than off the cancel handler because Escape and the backdrop
+    /// dismiss the dialog too, and the component routes all three through one event.
+    /// </para>
+    /// </summary>
+    private void ClearFailures() => _failures = [];
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "Model,LicensePlate,CapacityKg,Mileage";
+
     private IReadOnlyList<VehicleSummary> _vehicles = [];
     private IReadOnlyList<ScreenFailure> _failures = [];
     private VehicleForm _form = new();

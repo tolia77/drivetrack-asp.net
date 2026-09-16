@@ -29,7 +29,7 @@
 
 @* NFR-3: the message is the localized string for the code the service threw, resolved through the
    same catalogue the REST envelope uses. Nothing an exception carries reaches this page. *@
-<DtFailureBanner Failures="_failures" />
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <div class="row g-3 align-items-end mb-3">
     <div class="col-sm">
@@ -106,14 +106,18 @@
 @* FR-85: the one dialog every screen opens, rather than a modal of this screen's own. *@
 @* One heading for both create and edit. A title composed at run time would be a key no test can
    see, and the catalogue is closed against the keys components literally ask for. *@
-<DtDialog @ref="_formDialog" Title="@Localizer["DriverForm"]">
+<DtDialog @ref="_formDialog" Title="@Localizer["DriverForm"]" OnClosed="ClearFailures">
     <ChildContent>
         @* The same list as the one at the top of the page, and deliberately a second copy. A
            DtDialog opens with showModal(), so everything outside it is in the inert layer
            behind the backdrop: a refusal rendered only up there is a message nobody can see,
            and the form would simply fail to close. The page-level copy still carries the
-           refusals raised with no dialog open - a delete, above all. *@
-        <DtFailureBanner Failures="_failures" />
+           refusals raised with no dialog open - a delete, above all.
+
+           InlineFields is computed rather than written out: the address and the password are
+           create-only boxes, and claiming one this render does not show would be the one way a
+           refusal could go missing (FR-83). *@
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
         <EditForm id="driver-form" Model="_form" OnValidSubmit="SaveAsync">
             @* A parse failure from an input the framework could not read lands on the
@@ -127,10 +131,12 @@
             <div class="mb-3">
                 <label class="form-label" for="driver-first-name">@Localizer["FirstName"]</label>
                 <InputText id="driver-first-name" class="form-control" @bind-Value="_form.FirstName" />
+                <DtFieldError Field="FirstName" Failures="_failures" />
             </div>
             <div class="mb-3">
                 <label class="form-label" for="driver-last-name">@Localizer["LastName"]</label>
                 <InputText id="driver-last-name" class="form-control" @bind-Value="_form.LastName" />
+                <DtFieldError Field="LastName" Failures="_failures" />
             </div>
 
             @* The address and the password are create-only. FR-37 does not name them, and AD-24
@@ -140,11 +146,13 @@
                 <div class="mb-3">
                     <label class="form-label" for="driver-email">@Localizer["Email"]</label>
                     <InputText id="driver-email" class="form-control" @bind-Value="_form.Email" />
+                    <DtFieldError Field="Email" Failures="_failures" />
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="driver-password">@Localizer["Password"]</label>
                     <InputText id="driver-password" type="password" class="form-control"
                                @bind-Value="_form.Password" />
+                    <DtFieldError Field="Password" Failures="_failures" />
                 </div>
             }
 
@@ -152,6 +160,7 @@
                 <label class="form-label" for="driver-license-number">@Localizer["LicenseNumber"]</label>
                 <InputText id="driver-license-number" class="form-control"
                            @bind-Value="_form.LicenseNumber" />
+                <DtFieldError Field="LicenseNumber" Failures="_failures" />
             </div>
 
             <div class="mb-3">
@@ -190,6 +199,27 @@
                  OnConfirmed="ConfirmDeleteAsync" />
 
 @code {
+
+    /// <summary>
+    /// Drops the refusals when the form is dismissed, however it was dismissed.
+    /// <para>
+    /// FR-83. A refusal claimed by a box inside the dialog is subtracted from the banner outside it,
+    /// so leaving the list populated past the close would leave that sentence with nowhere on the
+    /// page to render - invisible, which is the outcome this whole change exists to prevent.
+    /// Hung off <c>OnClosed</c> rather than off the cancel handler because Escape and the backdrop
+    /// dismiss the dialog too, and the component routes all three through one event.
+    /// </para>
+    /// </summary>
+    private void ClearFailures() => _failures = [];
+    /// <summary>
+    /// The boxes the dialog is rendering, which is what both banners subtract. Computed rather than
+    /// written out because the address and the password are create-only: claiming a field this
+    /// render does not show would hide a refusal with nowhere else to appear (FR-83).
+    /// </summary>
+    private string InlineFields => _form.Id is null
+        ? "FirstName,LastName,Email,Password,LicenseNumber"
+        : "FirstName,LastName,LicenseNumber";
+
     private IReadOnlyList<DriverSummary> _drivers = [];
     private IReadOnlyList<VehicleChoice> _vehicleChoices = [];
     private IReadOnlyList<ScreenFailure> _failures = [];

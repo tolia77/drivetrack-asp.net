@@ -65,10 +65,10 @@ public sealed record CaptureProofCommand(
 /// one pass, before anything is minted or opened, rather than asset by asset as they are uploaded.
 /// </para>
 /// <para>
-/// Two failures carry their own message key rather than the generic one, because they are the two a
-/// caller can act on without guessing: the picture is the wrong sort of file, or it is too big.
-/// Both still leave as <c>COMMON_VALIDATION_FAILED</c> at 422 — the key rides in
-/// <c>error.fields</c>, which is where NFR-4 puts the per-field explanation.
+/// Every failure carries its own message key, and each is keyed to the control that produced it —
+/// the recipient's name, the photographs, the signature pad, the point on the map. They all still
+/// leave as <c>COMMON_VALIDATION_FAILED</c> at 422; the key rides in <c>error.fields</c>, which is
+/// where NFR-4 puts the per-field explanation.
 /// </para>
 /// </summary>
 public sealed class CaptureProofCommandValidator : AbstractValidator<CaptureProofCommand>
@@ -80,12 +80,12 @@ public sealed class CaptureProofCommandValidator : AbstractValidator<CaptureProo
     public CaptureProofCommandValidator()
     {
         RuleFor(command => command.RecipientName)
-            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .NotEmpty().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .MaximumLength(RecipientNameMaximumLength)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_RECIPIENT_NAME_TOO_LONG));
 
         RuleFor(command => command.CaptureLocation)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED));
 
         // A separate rule rather than a chained SetValidator, for the reason the delivery's own two
         // locations use: FluentValidation skips a child validator for a null property, so a missing
@@ -95,17 +95,29 @@ public sealed class CaptureProofCommandValidator : AbstractValidator<CaptureProo
             .SetValidator(new LocationInputValidator())
             .OverridePropertyName(nameof(CaptureProofCommand.CaptureLocation));
 
-        // FR-119 reads as one sentence - a signature and at least one photograph - and it is three
-        // rules because the three refusals are different sentences to whoever is standing at a door
-        // holding a phone.
+        // FR-119 reads as one sentence - a signature and at least one photograph - and it is four
+        // rules across two names, because the panel has two controls and the refusals are different
+        // sentences to whoever is standing at a door holding a phone.
+        //
+        // Cascade.Stop, and it is load-bearing rather than tidy. Count() answers 0 for a null set,
+        // so with no cascade an absent Assets breaks the NotNull *and* both photograph rules, and
+        // three sentences stack under one file picker where the old shared key deduped to one. The
+        // global CascadeMode is left at its default, so it is said here.
         RuleFor(command => command.Assets)
-            .NotNull().WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
-            .Must(assets => Count(assets, ProofAssetKind.Signature) == 1)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+            .Cascade(CascadeMode.Stop)
+            .NotNull().WithMessage(nameof(ErrorCode.COMMON_FIELD_REQUIRED))
             .Must(assets => Count(assets, ProofAssetKind.Photo) >= 1)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED))
+                .WithMessage(nameof(ErrorCode.DELIVERY_PROOF_PHOTO_REQUIRED))
             .Must(assets => Count(assets, ProofAssetKind.Photo) <= ProofAssetRules.MaximumPhotos)
-                .WithMessage(nameof(ErrorCode.COMMON_VALIDATION_FAILED));
+                .WithMessage(nameof(ErrorCode.DELIVERY_PROOF_TOO_MANY_PHOTOS));
+
+        // The signature travels in the same list and is captured on a different control: a pad, not
+        // the file picker. Reported under its own name so the refusal renders beside the pad rather
+        // than under the photographs, which is where naming it `Assets` put it.
+        RuleFor(command => command.Assets)
+            .Must(assets => Count(assets, ProofAssetKind.Signature) == 1)
+                .WithMessage(nameof(ErrorCode.DELIVERY_PROOF_SIGNATURE_REQUIRED))
+            .OverridePropertyName(nameof(ProofAssetKind.Signature));
 
         // Per asset, so the field path names which upload was wrong rather than reporting that
         // something among six of them was.

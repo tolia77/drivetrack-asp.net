@@ -16,7 +16,11 @@
 
 <h1>@Localizer["DispatchersTitle"]</h1>
 
-<DtFailureBanner Failures="_failures" />
+@* One list for both dialogs, because they share _failures: a per-dialog list would leave a name
+   refusal showing twice, inline in the dialog that raised it and again in the other's banner. The
+   edit dialog has no address box and no rule can name one from it (FR-92 sends a dispatcher to
+   their own profile for that), so claiming Email here hides nothing. *@
+<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <p>
     <button type="button" class="btn btn-success dt-dispatcher-new" @onclick="ShowCreateAsync">
@@ -46,23 +50,28 @@
     </RowTemplate>
 </DtDataTable>
 
-<DtDialog @ref="_createDialog" Title="@Localizer["CreateDispatcherTitle"]">
+<DtDialog @ref="_createDialog" Title="@Localizer["CreateDispatcherTitle"]" OnClosed="ClearFailures">
     <ChildContent>
         @* Repeated inside the dialog, not only at the top of the page: a native <dialog> opened with
            showModal() sits in the top layer with everything behind it inert, so a banner rendered up
-           there is invisible to the administrator who just pressed Create and got a 409. *@
-        <DtFailureBanner Failures="_failures" />
+           there is invisible to the administrator who just pressed Create and got a 409. That 409
+           - AUTH_EMAIL_ALREADY_IN_USE - names no field, which is why it stays in the banner while
+           the shape refusals below move under their boxes. *@
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
         <div class="mb-3">
             <label class="form-label" for="new-dispatcher-first-name">@Localizer["FirstName"]</label>
             <input id="new-dispatcher-first-name" class="form-control" @bind="_createForm.FirstName" />
+            <DtFieldError Field="FirstName" Failures="_failures" />
         </div>
         <div class="mb-3">
             <label class="form-label" for="new-dispatcher-last-name">@Localizer["LastName"]</label>
             <input id="new-dispatcher-last-name" class="form-control" @bind="_createForm.LastName" />
+            <DtFieldError Field="LastName" Failures="_failures" />
         </div>
         <div class="mb-3">
             <label class="form-label" for="new-dispatcher-email">@Localizer["Email"]</label>
             <input id="new-dispatcher-email" class="form-control" @bind="_createForm.Email" />
+            <DtFieldError Field="Email" Failures="_failures" />
             @* This is where an administrator sets the address, and the edit dialog below has no
                email field - but not because the address is fixed. FR-92 gives a dispatcher their own
                /profile to change it from, which is the route this screen points them at. An
@@ -78,6 +87,7 @@
                password for the account they are opening. *@
             <input id="new-dispatcher-password" type="password" autocomplete="new-password"
                    class="form-control" @bind="_createForm.Password" />
+            <DtFieldError Field="Password" Failures="_failures" />
         </div>
     </ChildContent>
     <Actions>
@@ -93,23 +103,26 @@
     </Actions>
 </DtDialog>
 
-<DtDialog @ref="_editDialog" Title="@Localizer["EditDispatcherTitle"]">
+<DtDialog @ref="_editDialog" Title="@Localizer["EditDispatcherTitle"]" OnClosed="ClearFailures">
     <ChildContent>
         @* Same reason as the create dialog above: the page behind a modal is inert, so a refusal has
            to appear where the administrator is looking. *@
-        <DtFailureBanner Failures="_failures" />
+        <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
         <div class="mb-3">
             <label class="form-label" for="dispatcher-first-name">@Localizer["FirstName"]</label>
             <input id="dispatcher-first-name" class="form-control" @bind="_editForm.FirstName" />
+            <DtFieldError Field="FirstName" Failures="_failures" />
         </div>
         <div class="mb-3">
             <label class="form-label" for="dispatcher-last-name">@Localizer["LastName"]</label>
             <input id="dispatcher-last-name" class="form-control" @bind="_editForm.LastName" />
+            <DtFieldError Field="LastName" Failures="_failures" />
         </div>
         <div class="mb-3">
             <label class="form-label" for="dispatcher-password">@Localizer["Password"]</label>
             <input id="dispatcher-password" type="password" autocomplete="new-password"
                    class="form-control" @bind="_editForm.Password" />
+            <DtFieldError Field="Password" Failures="_failures" />
             <div class="form-text">@Localizer["PasswordUnchangedHint"]</div>
         </div>
     </ChildContent>
@@ -132,6 +145,26 @@
                  OnConfirmed="DeleteAsync" />
 
 @code {
+
+    /// <summary>
+    /// Drops the refusals when the form is dismissed, however it was dismissed.
+    /// <para>
+    /// FR-83. A refusal claimed by a box inside the dialog is subtracted from the banner outside it,
+    /// so leaving the list populated past the close would leave that sentence with nowhere on the
+    /// page to render - invisible, which is the outcome this whole change exists to prevent.
+    /// Hung off <c>OnClosed</c> rather than off the cancel handler because Escape and the backdrop
+    /// dismiss the dialog too, and the component routes all three through one event.
+    /// </para>
+    /// </summary>
+    private void ClearFailures() => _failures = [];
+    /// <summary>
+    /// The boxes this screen renders a <c>DtFieldError</c> for. Stated once and bound by every
+    /// banner on the page: the list repeated per banner is exactly the drift FR-83 is broken by,
+    /// and a screen carries the banner more than once because a dialog opened with showModal()
+    /// leaves the page behind it inert.
+    /// </summary>
+    private const string InlineFields = "FirstName,LastName,Email,Password";
+
     private readonly DispatcherCreateForm _createForm = new();
     private readonly DispatcherEditForm _editForm = new();
 
