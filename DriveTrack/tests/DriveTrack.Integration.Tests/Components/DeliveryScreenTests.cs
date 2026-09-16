@@ -120,18 +120,19 @@ public class DeliveryScreenTests
         // And the count, because the named checks above only rule out the dialogs that exist today:
         // a further one, added for some later capability, would slip past every one of them.
         //
-        // Three for a driver, and each is an operation they genuinely have. The timeline is story
+        // Four for a driver, and each is an operation they genuinely have. The timeline is story
         // 5.3's; story 6.1 added the capture a driver performs at the door (FR-119) and the proof
-        // either role may read afterwards (FR-122). The number is pinned rather than relaxed for the
-        // reason it was pinned at one: it is the only assertion that notices a dialog belonging to
-        // another role arriving here by a paste.
-        Assert.Equal(3, SharedMarkup.Occurrences(mine, "<dialog"));
+        // either role may read afterwards (FR-122); the fourth is FR-21's read-only map, which the
+        // dispatch board always had and this screen did not. The number is pinned rather than
+        // relaxed for the reason it was pinned at one: it is the only assertion that notices a
+        // dialog belonging to another role arriving here by a paste.
+        Assert.Equal(4, SharedMarkup.Occurrences(mine, "<dialog"));
     }
 
     [Fact]
     public async Task A_client_is_offered_the_request_action_and_the_form_behind_it()
     {
-        // FR-89 to FR-91 at the surface the intent names. The same screen, the same three dialogs a
+        // FR-89 to FR-91 at the surface the intent names. The same screen, the same four dialogs a
         // driver gets, plus one: the request form, which exists for exactly one role.
         var mine = await RenderMyDeliveriesAsync(role: UserRole.Client);
 
@@ -166,7 +167,33 @@ public class DeliveryScreenTests
         Assert.DoesNotContain("dt-delivery-edit", mine, StringComparison.Ordinal);
         Assert.DoesNotContain("dt-confirm-accept", mine, StringComparison.Ordinal);
 
-        Assert.Equal(4, SharedMarkup.Occurrences(mine, "<dialog"));
+        Assert.Equal(5, SharedMarkup.Occurrences(mine, "<dialog"));
+    }
+
+    [Fact]
+    public async Task A_location_cell_is_an_action_on_every_screen_that_shows_one()
+    {
+        // FR-21 names no role: "clicking a location cell opens a read-only map centred on that
+        // coordinate", in the same story that defines what a driver and a client see (FR-25,
+        // FR-27). The dispatch board had it and the own-deliveries screen rendered the same
+        // addresses as dead text.
+        //
+        // What is asserted is that the cell is a button rather than a label, because static
+        // rendering cannot click it - the same limit the dispatch board's own map test records.
+        var dispatch = await RenderDeliveriesAsync(UserRole.Dispatcher);
+        var driver = await RenderMyDeliveriesAsync(StubDeliveryService.Assigned);
+        var customer = await RenderMyDeliveriesAsync(StubDeliveryService.Assigned, UserRole.Client);
+
+        Assert.Contains("dt-delivery-pickup", dispatch, StringComparison.Ordinal);
+        Assert.Contains("dt-delivery-dropoff", dispatch, StringComparison.Ordinal);
+
+        Assert.Contains("dt-my-delivery-pickup", driver, StringComparison.Ordinal);
+        Assert.Contains("dt-my-delivery-dropoff", driver, StringComparison.Ordinal);
+
+        // A client reads their own delivery's addresses too, and FR-27 withholds the driver, not
+        // the destination.
+        Assert.Contains("dt-my-delivery-pickup", customer, StringComparison.Ordinal);
+        Assert.Contains("dt-my-delivery-dropoff", customer, StringComparison.Ordinal);
     }
 
     [Theory]

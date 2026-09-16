@@ -78,8 +78,23 @@
         @* FR-94: the address when one has been resolved, the coordinates when none has. Nothing on
            this screen resolves one - that is story 5.2's port - and an empty cell would be the
            whole location missing rather than only its name. *@
-        <td>@Describe(delivery.Pickup)</td>
-        <td>@Describe(delivery.Dropoff)</td>
+        @* FR-21: the cell is the way to the map here for the same reason it is on the dispatch
+           board. The requirement names no role, and a driver reading an address as text is the
+           one person on the system who most needs to see where it is. The label is the resolved
+           address, or the raw coordinates when none resolved (FR-94), so the cell is never
+           empty. *@
+        <td>
+            <button type="button" class="btn btn-link btn-sm dt-my-delivery-pickup"
+                    @onclick="ShowLocationHandler(delivery.Pickup)">
+                <Icon Name="IconName.Location" />@Describe(delivery.Pickup)
+            </button>
+        </td>
+        <td>
+            <button type="button" class="btn btn-link btn-sm dt-my-delivery-dropoff"
+                    @onclick="ShowLocationHandler(delivery.Dropoff)">
+                <Icon Name="IconName.Location" />@Describe(delivery.Dropoff)
+            </button>
+        </td>
         <td>@delivery.PackageDetails</td>
         <td>@delivery.PackageWeightKg</td>
         <td>@delivery.DeliveryNotes</td>
@@ -122,6 +137,18 @@
         </td>
     </RowTemplate>
 </DtDataTable>
+
+@* FR-21: the same map component the dispatch board opens, with picking off. One map, two jobs
+   (NFR-26). No OnClosed: the viewed point is the only state it holds and the next open overwrites
+   it, so there is nothing stale for a close to drop. *@
+<DtDialog @ref="_mapDialog" Title="@Localizer["LocationTitle"]">
+    <ChildContent>
+        @if (_viewed is not null)
+        {
+            <DtMap Value="_viewed" Picker="false" />
+        }
+    </ChildContent>
+</DtDialog>
 
 @* Built only once a row has been chosen, so the screen costs no timeline read until somebody asks
    for one - and dropped again on close, so each open builds a new panel rather than reusing one
@@ -352,9 +379,13 @@
     /// </remarks>
     private readonly HashSet<int> _captured = [];
 
+    private DtDialog? _mapDialog;
     private DtDialog? _timelineDialog;
     private DtDialog? _captureDialog;
     private DtDialog? _proofDialog;
+
+    /// <summary>The point the map dialog is showing, or null before one has been chosen.</summary>
+    private MapLocation? _viewed;
 
     /// <summary>The request panel, or null for a driver, whose page never renders one.</summary>
     private DtDialog? _requestDialog;
@@ -578,6 +609,20 @@
     /// <param name="search">The box the match came from.</param>
     /// <param name="match">The match chosen.</param>
     private static Action Choose(PlaceSearch search, PlaceMatch match) => () => search.Choose(match);
+
+    /// <summary>The location cell's action, bound as a delegate for the same reason.</summary>
+    private Func<Task> ShowLocationHandler(LocationView location) =>
+        () => ShowLocationAsync(location);
+
+    private async Task ShowLocationAsync(LocationView location)
+    {
+        _viewed = location.Point;
+
+        if (_mapDialog is not null)
+        {
+            await _mapDialog.ShowAsync();
+        }
+    }
 
     /// <summary>The row's history action, bound as a delegate so no lambda has to live in markup.</summary>
     private Func<Task> TimelineHandler(AssignedDeliverySummary delivery) =>
