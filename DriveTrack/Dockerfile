@@ -19,9 +19,15 @@ COPY src/DriveTrack.Web/DriveTrack.Web.csproj src/DriveTrack.Web/
 RUN dotnet restore src/DriveTrack.Web/DriveTrack.Web.csproj
 
 COPY src/ src/
+# No --no-restore here, deliberately. The restore above runs against the project graph before
+# src/ is copied, so at that point the project has no .razor files and the static web assets
+# state it writes omits the Blazor framework scripts. Publishing from that state produces an
+# endpoints manifest without _framework/blazor.web.js: MapStaticAssets then 404s it, and because
+# AD-14 turns prerendering off there is no server-rendered fallback - every page serves 200 with
+# an empty body. Letting publish restore again costs a few seconds against an already-warm
+# package cache and is the only reason the UI renders at all.
 RUN dotnet publish src/DriveTrack.Web/DriveTrack.Web.csproj \
     --configuration Release \
-    --no-restore \
     --output /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
@@ -34,7 +40,12 @@ WORKDIR /app
 # NFR-15 breach in the one environment the requirement is promised in. icu-data-full carries the
 # Ukrainian CLDR data. LocalizationTests pins this line, because no assertion running on a
 # developer machine can observe its absence.
-RUN apk add --no-cache icu-libs icu-data-full
+# krb5-libs is not load-bearing and buys no functionality: Npgsql probes for GSSAPI when it
+# opens a connection, musl ships no krb5, and the failed probe prints "Cannot load library
+# libgssapi_krb5.so.2" to stdout ahead of the first migration line - two lines that read like a
+# fatal startup error in `docker compose up` and are not one. The connection authenticates with
+# a password and never negotiates Kerberos; the package is here so the probe resolves quietly.
+RUN apk add --no-cache icu-libs icu-data-full krb5-libs
 
 # Non-root by construction. The image ships no writable application state; PostgreSQL and
 # Garage own everything durable.
