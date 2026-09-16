@@ -520,6 +520,36 @@ app.MapPost("/set-culture", async (HttpContext context, IAntiforgery antiforgery
 // a caller may reach is IAccessGuard's decision inside IChatService (FR-12, AD-2).
 app.MapHub<ChatHub>("/hubs/chat");
 
+// Development only, and the reason it exists is worth stating plainly.
+//
+// MapStaticAssets fingerprints each asset and serves it with `Cache-Control: no-cache` plus the
+// ETag computed when the project was built. `no-cache` does not mean "do not cache" - it means
+// "revalidate before reuse" - so a browser that has the file sends If-None-Match on every load.
+// Under `dotnet watch` the file's contents change while that build-time ETag does not, and the
+// endpoint answers 304 against it. The browser then keeps serving the stale script from disk
+// cache through reloads, through Cmd+Shift+R, and through restarting the browser, because the
+// fingerprinted URL never changes either. Editing a .js or .css file appears to do nothing.
+//
+// Dropping the validators on the way in makes every request unconditional, so the response is
+// always the current bytes; no-store stops the browser keeping a copy to revalidate next time.
+// Neither line runs outside Development, so production keeps its immutable, cacheable assets.
+if (app.Environment.IsDevelopment())
+{
+    app.Use(async (context, next) =>
+    {
+        context.Request.Headers.Remove("If-None-Match");
+        context.Request.Headers.Remove("If-Modified-Since");
+
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            return Task.CompletedTask;
+        });
+
+        await next(context);
+    });
+}
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

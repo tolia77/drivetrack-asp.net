@@ -89,10 +89,27 @@ docker compose -f compose.yaml -f compose.dev.yaml up
 ```
 
 Same database, same object store, same `.env`. Only `app` changes: it builds from
-`Dockerfile.dev`, keeps the SDK, mounts `src/` from the host and runs `dotnet watch`. A `.razor`
-or `.cs` edit applies in about three seconds, a `.razor.css` edit in well under one. The two
+`Dockerfile.dev`, keeps the SDK, mounts `src/` from the host and runs `dotnet watch`. The two
 stacks build separate images — `drivetrack-app` and `drivetrack-app-dev` — so neither overwrites
 the other, and a bare `docker compose up` is still the production stack.
+
+What reloads, and what does not:
+
+| Edit | In the container |
+|---|---|
+| `.cs`, `.razor` | applies on its own, in about three seconds |
+| `.js`, `.css` | live on the server; **reload the browser** to pick it up |
+
+`dotnet watch` pushes static-asset updates over a WebSocket whose port it picks at random inside
+the container and announces to the browser as `ws://localhost:<random>`. That port cannot be
+published (it changes every start) and Docker Desktop for Mac does not bridge container `localhost`
+to the host, so the browser never connects and never auto-refreshes. C# and Razor edits are
+unaffected because they are applied server-side and simply render differently.
+
+A plain reload is enough — `Program.cs` drops request validators and sends `no-store` for static
+assets in Development, without which `MapStaticAssets` answers `304 Not Modified` against the
+build-time ETag and the browser reuses stale JavaScript through reloads, hard reloads and browser
+restarts alike.
 
 The overlay also publishes PostgreSQL on `${DB_PORT:-5432}` for `psql` and GUI clients. The test
 suite does not use it; Testcontainers starts a database of its own per run.
