@@ -75,6 +75,30 @@ export async function create(containerId, dotNetRef, latitude, longitude, zoom, 
     const marker = L.marker([latitude, longitude]).addTo(map);
     const handle = { map, marker };
 
+    // Leaflet measures the container once, here, and never looks again. That is wrong for every
+    // map this application builds inside a <dialog>: the form's two pickers are rendered with the
+    // rest of the dialog's markup, so they are created while it is still display:none, measured at
+    // nothing, and left painting tiles for an area the size they were told about - the grey band
+    // beside a strip of map. Opening the dialog changes the element's size without telling Leaflet.
+    //
+    // Observing the element covers that and the two neighbours of it: the pickers sit in a
+    // responsive row that reflows at `lg`, and the window itself resizes. The read-only map never
+    // showed the bug - it is built behind an @if that only becomes true once its dialog is already
+    // open - which is exactly why the fix belongs here rather than in whatever opens a dialog.
+    if (typeof ResizeObserver === "function") {
+        handle.resizeObserver = new ResizeObserver(() => {
+            // A closed dialog measures zero. Re-measuring into that would cache the wrong size
+            // again, so the observer waits for the element to actually have one.
+            if (container.clientWidth === 0 || container.clientHeight === 0) {
+                return;
+            }
+
+            map.invalidateSize();
+        });
+
+        handle.resizeObserver.observe(container);
+    }
+
     // The picker flag is the whole guard: with it false no click handler is registered at all, so
     // a display-only map cannot move its marker or call back into .NET however hard it is clicked.
     if (picker) {
@@ -124,6 +148,13 @@ export function destroy(handle) {
 
     if (handle.onClick) {
         handle.map.off("click", handle.onClick);
+    }
+
+    // Disconnected explicitly, for the reason the click handler is removed explicitly: a
+    // ResizeObserver holds its target, so leaving it connected keeps a torn-down map's container
+    // and closure alive for as long as the observer does.
+    if (handle.resizeObserver) {
+        handle.resizeObserver.disconnect();
     }
 
     handle.map.remove();
