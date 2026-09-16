@@ -1,0 +1,58 @@
+# The development image. Its only job is to run `dotnet watch` against source bind-mounted
+# from the host, so an edit to a .razor or .razor.css file reaches the browser in seconds.
+#
+# This is not a smaller Dockerfile than the production one; it is the opposite of it. Dockerfile
+# publishes a Release build into a runtime-only Alpine image with no SDK and diagnostics off,
+# which is exactly right for a deployable artifact and exactly why it cannot hot reload:
+# nothing inside it can compile, and the code it runs was copied in at build time. Here the SDK
+# stays, the source arrives over a mount rather than a COPY, and nothing is published at all.
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+WORKDIR /src
+
+# Debian, like the production build stage and for the same reason (AD-28): the dart-sass binaries
+# are glibc-linked. Unlike the production *final* stage there is no ICU line here — the SDK image
+# already carries full ICU, so uk-UA resolves and formats correctly (NFR-14, NFR-15).
+
+# Restore against the project graph before the source mount lands, so a cold start does not spend
+# its first minute pulling packages. The mount replaces /src/src afterwards; this layer is here
+# for the package cache it warms, not for the files it copies.
+COPY Directory.Build.props ./
+COPY src/DriveTrack.Domain/DriveTrack.Domain.csproj src/DriveTrack.Domain/
+COPY src/DriveTrack.Application/DriveTrack.Application.csproj src/DriveTrack.Application/
+COPY src/DriveTrack.Infrastructure/DriveTrack.Infrastructure.csproj src/DriveTrack.Infrastructure/
+COPY src/DriveTrack.Web/DriveTrack.Web.csproj src/DriveTrack.Web/
+RUN dotnet restore src/DriveTrack.Web/DriveTrack.Web.csproj
+
+# A bind mount from macOS or Windows delivers no inotify events into a Linux container, so the
+# default file watcher sees nothing change and never rebuilds. Polling is the documented answer
+# and the whole feature depends on it here.
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true \
+    ASPNETCORE_HTTP_PORTS=8080 \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+
+# There is no browser in here to launch, and watch reports the failure twice at every start.
+ENV DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER=1
+
+# The one line that makes scoped-CSS hot reload work on Linux. The SDK composes this property as
+# `obj\Debug/net10.0/` - a literal backslash MSBuild itself normalizes but `dotnet watch` does
+# not: it probes that raw string for staticwebassets.development.json, the probe fails on a
+# filesystem where `\` is an ordinary character, and every .razor.css edit is answered with
+# "Static web asset manifest not found" while .razor and .cs edits reload normally. MSBuild reads
+# environment variables as properties, so restating it with forward slashes fixes the path
+# without touching a csproj or Directory.Build.props - and therefore without following anyone
+# onto the host. It stops at the configuration because the SDK appends the target framework.
+ENV IntermediateOutputPath=obj/Debug/
+
+# Deliberately NOT set: DOTNET_EnableDiagnostics=0. The production image turns the diagnostics
+# IPC channel off, and that channel is the one hot reload pushes deltas over.
+
+# Root, unlike production's `drivetrack` user. The mounted source is owned by the host account,
+# and a non-root container user cannot write the obj/ and bin/ trees the build needs.
+
+EXPOSE 8080
+
+# `--non-interactive` because there is no TTY on `docker compose up`: without it a rude edit
+# stops to ask a question nobody can answer and the watch hangs.
+ENTRYPOINT ["dotnet", "watch", "--non-interactive", \
+            "--project", "src/DriveTrack.Web/DriveTrack.Web.csproj", \
+            "run", "--urls", "http://0.0.0.0:8080"]

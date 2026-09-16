@@ -74,6 +74,29 @@ Configuration comes from the environment, never from a committed file. To run th
 outside the container, export at least `ConnectionStrings__Default` (see `.env.example`
 for the full contract).
 
+### The hot-reload stack
+
+`docker compose up` runs the production image: a Release build published into a runtime-only
+Alpine layer with no SDK and diagnostics switched off. That is what makes it a deployable
+artifact, and it is also why it cannot hot reload — the code inside was copied in at build time
+and nothing in the image can recompile it. Every edit needs a rebuild.
+
+For UI work, add the overlay:
+
+```bash
+cd DriveTrack
+docker compose -f compose.yaml -f compose.dev.yaml up
+```
+
+Same database, same object store, same `.env`. Only `app` changes: it builds from
+`Dockerfile.dev`, keeps the SDK, mounts `src/` from the host and runs `dotnet watch`. A `.razor`
+or `.cs` edit applies in about three seconds, a `.razor.css` edit in well under one. The two
+stacks build separate images — `drivetrack-app` and `drivetrack-app-dev` — so neither overwrites
+the other, and a bare `docker compose up` is still the production stack.
+
+The overlay also publishes PostgreSQL on `${DB_PORT:-5432}` for `psql` and GUI clients. The test
+suite does not use it; Testcontainers starts a database of its own per run.
+
 New migrations are generated against the `DriveTrack.Infrastructure` project:
 
 ```bash

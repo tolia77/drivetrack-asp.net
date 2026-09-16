@@ -1,0 +1,73 @@
+# The local development stack. Layered over compose.yaml rather than replacing it:
+#
+#   docker compose -f compose.yaml -f compose.dev.yaml up
+#
+# and the README spells that out. It is an overlay and not a standalone file on purpose — db,
+# objects and objects-init are the same services in both worlds, and a second copy of the Garage
+# bootstrap script is a second thing to keep in step. Only `app` differs, so only `app` is here.
+#
+# Production stays the default. A bare `docker compose up` still brings up the published Release
+# image exactly as before, which is what makes compose.yaml the deliverable.
+
+services:
+  app:
+    # A tag of its own, and not a detail. Both files name the same service in the same project, so
+    # both builds default to `drivetrack-app` — building dev would quietly overwrite the image a
+    # bare `docker compose up` then runs, and the production stack would come up running
+    # `dotnet watch` against a mount that is not there.
+    image: drivetrack-app-dev
+    build:
+      context: .
+      # The SDK image with `dotnet watch` as its entrypoint. See Dockerfile.dev for why the
+      # production image cannot hot reload and this one can.
+      dockerfile: Dockerfile.dev
+
+    environment:
+      # Overrides the ${ASPNETCORE_ENVIRONMENT} the base file forwards from .env. Hot reload is a
+      # Development-environment feature, and a Production value here would silently disable it.
+      ASPNETCORE_ENVIRONMENT: Development
+
+    volumes:
+      # The source, live. This is the whole point: an edit on the host is an edit inside the
+      # container, and `dotnet watch` rebuilds on it.
+      - ./src:/src/src
+      - ./Directory.Build.props:/src/Directory.Build.props:ro
+
+      # Anonymous volumes masking every build directory the mount would otherwise expose.
+      # Without these the container reads the host's bin/ and obj/ — built for macOS arm64 by
+      # `dotnet build` and by the test runs — and the two toolchains fight over the same
+      # intermediate files: the symptom is a restore or build error that disappears on the host
+      # and comes back in the container. One per project, because MSBuild writes one of each per
+      # project and a global property would send all four to the same path.
+      - /src/src/DriveTrack.Domain/bin
+      - /src/src/DriveTrack.Domain/obj
+      - /src/src/DriveTrack.Application/bin
+      - /src/src/DriveTrack.Application/obj
+      - /src/src/DriveTrack.Infrastructure/bin
+      - /src/src/DriveTrack.Infrastructure/obj
+      - /src/src/DriveTrack.Web/bin
+      - /src/src/DriveTrack.Web/obj
+
+      # AD-28 compiles the theme from Sass into wwwroot/css, which .dockerignore keeps out of the
+      # production context precisely so a stale local copy cannot ride in. The same reasoning
+      # applies to the mount: let the container generate its own.
+      - /src/src/DriveTrack.Web/wwwroot/css
+
+      # The NuGet cache, kept across restarts. A named volume rather than a mount of the host's
+      # ~/.nuget: the packages are restored for linux-x64 here and for the host's RID there, and
+      # sharing one directory between them is how a corrupt cache happens.
+      - dev-nuget:/root/.nuget/packages
+
+    # A watch that dies should stay dead and show its error, not loop behind a restart policy.
+    restart: "no"
+
+  db:
+    # Published for local tooling only — psql, a GUI client, an EF command run from the host.
+    # The base file deliberately leaves the database unreachable from outside the compose
+    # network, and that stays true of the production stack. The integration suite does not use
+    # this: Testcontainers starts a PostgreSQL of its own per run.
+    ports:
+      - "${DB_PORT:-5432}:5432"
+
+volumes:
+  dev-nuget:

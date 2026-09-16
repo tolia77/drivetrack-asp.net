@@ -16,5 +16,7 @@
 tests/
 README.md
 compose.yaml
+compose.dev.yaml
 Dockerfile
+Dockerfile.dev
 .dockerignore
