@@ -1,0 +1,758 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    The English satellite of UiText.resx (NFR-14, amended): the same keys, the same order, in
+    English. The neutral catalogue beside it is Ukrainian and stays the baseline - a key missing
+    here falls back to it, which is why CatalogueParityTests asserts the two in both directions
+    rather than trusting the fallback to be noticed.
+  -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="HomeStatus" xml:space="preserve">
+    <value>Delivery management for a small courier fleet: orders, drivers, vehicles and proof of delivery in one place.</value>
+  </data>
+  <data name="NotFoundTitle" xml:space="preserve">
+    <value>Page not found</value>
+  </data>
+  <data name="NotFoundMessage" xml:space="preserve">
+    <value>Sorry, the content you asked for does not exist.</value>
+  </data>
+  <data name="ErrorPageTitle" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="ErrorHeading" xml:space="preserve">
+    <value>Error.</value>
+  </data>
+  <data name="ErrorMessage" xml:space="preserve">
+    <value>An error occurred while processing your request.</value>
+  </data>
+  <data name="ErrorRequestId" xml:space="preserve">
+    <value>Request identifier:</value>
+  </data>
+  <data name="NavigationMenu" xml:space="preserve">
+    <value>Navigation menu</value>
+  </data>
+  <data name="NavHome" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="CircuitError" xml:space="preserve">
+    <value>An unhandled error has occurred.</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>Reload</value>
+  </data>
+  <data name="ReconnectRejoining" xml:space="preserve">
+    <value>Rejoining the server…</value>
+  </data>
+  <data name="ReconnectRetryPrefix" xml:space="preserve">
+    <value>Could not connect… next attempt in</value>
+  </data>
+  <data name="ReconnectRetrySuffix" xml:space="preserve">
+    <value>sec.</value>
+  </data>
+  <data name="ReconnectFailed" xml:space="preserve">
+    <value>Could not reconnect.</value>
+  </data>
+  <data name="ReconnectRetryHint" xml:space="preserve">
+    <value>Try again or reload the page.</value>
+  </data>
+  <data name="Retry" xml:space="preserve">
+    <value>Retry</value>
+  </data>
+  <data name="SessionPaused" xml:space="preserve">
+    <value>The session was paused by the server.</value>
+  </data>
+  <data name="ResumeFailed" xml:space="preserve">
+    <value>Could not resume the session.</value>
+  </data>
+  <data name="Resume" xml:space="preserve">
+    <value>Resume</value>
+  </data>
+  <data name="HomeFeatureTracking" xml:space="preserve">
+    <value>Delivery status tracking from the order to the handover.</value>
+  </data>
+  <data name="HomeFeatureFleet" xml:space="preserve">
+    <value>A record of drivers, shifts and fleet vehicles.</value>
+  </data>
+  <data name="HomeFeatureProof" xml:space="preserve">
+    <value>Proof of delivery with photographs and the recipient’s signature.</value>
+  </data>
+  <data name="GoToApp" xml:space="preserve">
+    <value>Go to the application</value>
+  </data>
+  <data name="SignIn" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
+  <data name="SignOut" xml:space="preserve">
+    <value>Sign out</value>
+  </data>
+  <data name="Register" xml:space="preserve">
+    <value>Register</value>
+  </data>
+  <data name="SignInTitle" xml:space="preserve">
+    <value>Sign in to the system</value>
+  </data>
+  <data name="RegisterTitle" xml:space="preserve">
+    <value>Client registration</value>
+  </data>
+  <data name="Profile" xml:space="preserve">
+    <value>Profile</value>
+  </data>
+  <data name="ProfileTitle" xml:space="preserve">
+    <value>My profile</value>
+  </data>
+  <data name="FirstName" xml:space="preserve">
+    <value>First name</value>
+  </data>
+  <data name="LastName" xml:space="preserve">
+    <value>Last name</value>
+  </data>
+  <data name="Email" xml:space="preserve">
+    <value>Email address</value>
+  </data>
+  <data name="PhoneNumber" xml:space="preserve">
+    <value>Phone number</value>
+  </data>
+  <data name="PhoneNumberHint" xml:space="preserve">
+    <value>In international format, with a plus sign and a country code.</value>
+  </data>
+  <data name="Password" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="PasswordConfirmation" xml:space="preserve">
+    <value>Password confirmation</value>
+  </data>
+  <data name="Role" xml:space="preserve">
+    <value>Role</value>
+  </data>
+  <data name="RoleAdmin" xml:space="preserve">
+    <value>Administrator</value>
+  </data>
+  <data name="RoleDispatcher" xml:space="preserve">
+    <value>Dispatcher</value>
+  </data>
+  <data name="RoleDriver" xml:space="preserve">
+    <value>Driver</value>
+  </data>
+  <data name="RoleClient" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="LicenseNumber" xml:space="preserve">
+    <value>Driving licence number</value>
+  </data>
+  <data name="EditProfileTitle" xml:space="preserve">
+    <value>Editing a profile</value>
+  </data>
+  <data name="ChangePassword" xml:space="preserve">
+    <value>Change password</value>
+  </data>
+  <data name="ChangePasswordTitle" xml:space="preserve">
+    <value>Changing the password</value>
+  </data>
+  <data name="ChangeEmail" xml:space="preserve">
+    <value>Change email</value>
+  </data>
+  <data name="ChangeEmailTitle" xml:space="preserve">
+    <value>Changing the email address</value>
+  </data>
+  <data name="CurrentPassword" xml:space="preserve">
+    <value>Current password</value>
+  </data>
+  <data name="NewPassword" xml:space="preserve">
+    <value>New password</value>
+  </data>
+  <data name="NewPasswordConfirmation" xml:space="preserve">
+    <value>New password confirmation</value>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>Loading…</value>
+  </data>
+  <data name="SessionExpired" xml:space="preserve">
+    <value>The session has ended. Sign in to the system again.</value>
+  </data>
+  <data name="HaveAccount" xml:space="preserve">
+    <value>Already have an account?</value>
+  </data>
+  <data name="NoAccount" xml:space="preserve">
+    <value>Do not have an account yet?</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="TableEmpty" xml:space="preserve">
+    <value>There are no records to show.</value>
+  </data>
+  <data name="MapLabel" xml:space="preserve">
+    <value>A map showing the location</value>
+  </data>
+  <data name="Authorizing" xml:space="preserve">
+    <value>Checking your access rights…</value>
+  </data>
+  <data name="AccessDeniedTitle" xml:space="preserve">
+    <value>Access denied</value>
+  </data>
+  <data name="AccessDeniedMessage" xml:space="preserve">
+    <value>You have no right to view this page. If this is a mistake, contact a dispatcher.</value>
+  </data>
+  <data name="BackToHome" xml:space="preserve">
+    <value>Back to the home page</value>
+  </data>
+  <data name="NavClients" xml:space="preserve">
+    <value>Clients</value>
+  </data>
+  <data name="NavDispatchers" xml:space="preserve">
+    <value>Dispatchers</value>
+  </data>
+  <data name="ClientsTitle" xml:space="preserve">
+    <value>Clients</value>
+  </data>
+  <data name="DispatchersTitle" xml:space="preserve">
+    <value>Dispatchers</value>
+  </data>
+  <data name="Actions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="EditClientTitle" xml:space="preserve">
+    <value>Editing a client</value>
+  </data>
+  <data name="DeleteClientTitle" xml:space="preserve">
+    <value>Deleting a client</value>
+  </data>
+  <data name="DeleteClientMessage" xml:space="preserve">
+    <value>The client account will be deleted for good. Their deliveries will be left with no customer. Continue?</value>
+  </data>
+  <data name="CreateDispatcherTitle" xml:space="preserve">
+    <value>New dispatcher</value>
+  </data>
+  <data name="EditDispatcherTitle" xml:space="preserve">
+    <value>Editing a dispatcher</value>
+  </data>
+  <data name="DeleteDispatcherTitle" xml:space="preserve">
+    <value>Deleting a dispatcher</value>
+  </data>
+  <data name="DeleteDispatcherMessage" xml:space="preserve">
+    <value>The dispatcher account will be deleted for good. Continue?</value>
+  </data>
+  <data name="PasswordUnchangedHint" xml:space="preserve">
+    <value>Leave the field empty to keep the password unchanged.</value>
+  </data>
+  <data name="EmailAtCreationHint" xml:space="preserve">
+    <value>The address is set here at creation. Afterwards the owner of the account changes it in their own profile.</value>
+  </data>
+  <data name="NavDrivers" xml:space="preserve">
+    <value>Drivers</value>
+  </data>
+  <data name="NavVehicles" xml:space="preserve">
+    <value>Vehicles</value>
+  </data>
+  <data name="DriversTitle" xml:space="preserve">
+    <value>Drivers</value>
+  </data>
+  <data name="VehiclesTitle" xml:space="preserve">
+    <value>Vehicles</value>
+  </data>
+  <data name="Search" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="Vehicle" xml:space="preserve">
+    <value>Vehicle</value>
+  </data>
+  <data name="NoVehicle" xml:space="preserve">
+    <value>No vehicle</value>
+  </data>
+  <data name="Model" xml:space="preserve">
+    <value>Model</value>
+  </data>
+  <data name="LicensePlate" xml:space="preserve">
+    <value>Licence plate</value>
+  </data>
+  <data name="CapacityKg" xml:space="preserve">
+    <value>Load capacity, kg</value>
+  </data>
+  <data name="DriversEmpty" xml:space="preserve">
+    <value>There is not a single driver yet.</value>
+  </data>
+  <data name="VehiclesEmpty" xml:space="preserve">
+    <value>There is not a single vehicle yet.</value>
+  </data>
+  <data name="DriverForm" xml:space="preserve">
+    <value>Driver record</value>
+  </data>
+  <data name="VehicleForm" xml:space="preserve">
+    <value>Vehicle record</value>
+  </data>
+  <data name="DeleteDriverTitle" xml:space="preserve">
+    <value>Delete the driver?</value>
+  </data>
+  <data name="DeleteDriverMessage" xml:space="preserve">
+    <value>The driver account will be deleted. Their deliveries will be left with no assigned driver.</value>
+  </data>
+  <data name="DeleteVehicleTitle" xml:space="preserve">
+    <value>Delete the vehicle?</value>
+  </data>
+  <data name="DeleteVehicleMessage" xml:space="preserve">
+    <value>The vehicle will be withdrawn from the fleet. The action cannot be undone.</value>
+  </data>
+  <data name="Mileage" xml:space="preserve">
+    <value>Mileage, km</value>
+  </data>
+  <data name="NextMaintenanceDate" xml:space="preserve">
+    <value>Date of the next service</value>
+  </data>
+  <data name="NumberParseError" xml:space="preserve">
+    <value>Enter a valid number.</value>
+  </data>
+  <data name="DateParseError" xml:space="preserve">
+    <value>Enter a valid date.</value>
+  </data>
+  <data name="ListTruncated" xml:space="preserve">
+    <value>Only the first page is shown: the fleet may hold more vehicles than this list fits.</value>
+  </data>
+  <data name="NavDeliveries" xml:space="preserve">
+    <value>Deliveries</value>
+  </data>
+  <data name="NavMyDeliveries" xml:space="preserve">
+    <value>My deliveries</value>
+  </data>
+  <data name="DeliveriesTitle" xml:space="preserve">
+    <value>Deliveries</value>
+  </data>
+  <data name="MyDeliveriesTitle" xml:space="preserve">
+    <value>My deliveries</value>
+  </data>
+  <data name="DeliveriesEmpty" xml:space="preserve">
+    <value>There is not a single delivery yet.</value>
+  </data>
+  <data name="MyDeliveriesEmpty" xml:space="preserve">
+    <value>You have not been assigned a single delivery yet.</value>
+  </data>
+  <data name="DeliveriesTruncated" xml:space="preserve">
+    <value>Only the first page is shown: there may be more deliveries than this list fits.</value>
+  </data>
+  <data name="DeliveryForm" xml:space="preserve">
+    <value>Delivery record</value>
+  </data>
+  <data name="Driver" xml:space="preserve">
+    <value>Driver</value>
+  </data>
+  <data name="Client" xml:space="preserve">
+    <value>Customer</value>
+  </data>
+  <data name="NoDriver" xml:space="preserve">
+    <value>No driver</value>
+  </data>
+  <data name="NoClient" xml:space="preserve">
+    <value>No customer</value>
+  </data>
+  <data name="Pickup" xml:space="preserve">
+    <value>Pickup point</value>
+  </data>
+  <data name="Dropoff" xml:space="preserve">
+    <value>Drop-off point</value>
+  </data>
+  <data name="PackageDetails" xml:space="preserve">
+    <value>Package details</value>
+  </data>
+  <data name="PackageWeightKg" xml:space="preserve">
+    <value>Package weight, kg</value>
+  </data>
+  <data name="DeliveryNotes" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="WindowEarliestAt" xml:space="preserve">
+    <value>Arrive no earlier than</value>
+  </data>
+  <data name="WindowLatestAt" xml:space="preserve">
+    <value>Arrive no later than</value>
+  </data>
+  <data name="Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="StatusPending" xml:space="preserve">
+    <value>Pending</value>
+  </data>
+  <data name="StatusInTransit" xml:space="preserve">
+    <value>In transit</value>
+  </data>
+  <data name="StatusDelivered" xml:space="preserve">
+    <value>Delivered</value>
+  </data>
+  <data name="StatusFailed" xml:space="preserve">
+    <value>Not delivered</value>
+  </data>
+  <data name="CreatedAt" xml:space="preserve">
+    <value>Created</value>
+  </data>
+  <data name="CreatedFrom" xml:space="preserve">
+    <value>Created from</value>
+  </data>
+  <data name="CreatedTo" xml:space="preserve">
+    <value>Created to</value>
+  </data>
+  <data name="Overdue" xml:space="preserve">
+    <value>Overdue</value>
+  </data>
+  <data name="OverdueOnly" xml:space="preserve">
+    <value>Overdue only</value>
+  </data>
+  <data name="FilterAll" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="ResetFilters" xml:space="preserve">
+    <value>Reset the filters</value>
+  </data>
+  <data name="LocationTitle" xml:space="preserve">
+    <value>Location on the map</value>
+  </data>
+  <data name="DeleteDeliveryTitle" xml:space="preserve">
+    <value>Delete the delivery?</value>
+  </data>
+  <data name="DeleteDeliveryMessage" xml:space="preserve">
+    <value>The delivery will be deleted together with its timeline, its proof of delivery and its review. The action cannot be undone.</value>
+  </data>
+  <data name="VehicleCapacityHint" xml:space="preserve">
+    <value>Load capacity of the chosen driver’s vehicle, kg:</value>
+  </data>
+  <data name="Timeline" xml:space="preserve">
+    <value>Timeline</value>
+  </data>
+  <data name="TimelineTitle" xml:space="preserve">
+    <value>Delivery timeline</value>
+  </data>
+  <data name="TimelineEmpty" xml:space="preserve">
+    <value>The timeline of this delivery is still empty.</value>
+  </data>
+  <data name="TimelineNote" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="AddNote" xml:space="preserve">
+    <value>Add a note</value>
+  </data>
+  <data name="ChangeStatus" xml:space="preserve">
+    <value>Change the status:</value>
+  </data>
+  <data name="AddressSearch" xml:space="preserve">
+    <value>Search by address</value>
+  </data>
+  <data name="AddressSearchHint" xml:space="preserve">
+    <value>Enter at least three characters.</value>
+  </data>
+  <data name="AddressSearchAction" xml:space="preserve">
+    <value>Find</value>
+  </data>
+  <data name="AddressSearchEmpty" xml:space="preserve">
+    <value>Nothing was found for this query.</value>
+  </data>
+  <data name="RequestDeliveryAction" xml:space="preserve">
+    <value>Request a delivery</value>
+  </data>
+  <data name="RequestDeliveryTitle" xml:space="preserve">
+    <value>Requesting a delivery</value>
+  </data>
+  <data name="RequestDeliverySubmit" xml:space="preserve">
+    <value>Send the request</value>
+  </data>
+  <data name="NavNotifications" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="NotificationsTitle" xml:space="preserve">
+    <value>Notification log</value>
+  </data>
+  <data name="NotificationsEmpty" xml:space="preserve">
+    <value>Not a single notification has been sent yet.</value>
+  </data>
+  <data name="NotificationsTruncated" xml:space="preserve">
+    <value>Only the first page is shown: there may be more send attempts than this list fits.</value>
+  </data>
+  <data name="NotificationDelivery" xml:space="preserve">
+    <value>Delivery</value>
+  </data>
+  <data name="NotificationRecipient" xml:space="preserve">
+    <value>Recipient</value>
+  </data>
+  <data name="NotificationOutcome" xml:space="preserve">
+    <value>Outcome</value>
+  </data>
+  <data name="NotificationAttemptedAt" xml:space="preserve">
+    <value>Time of the attempt</value>
+  </data>
+  <data name="NotificationError" xml:space="preserve">
+    <value>Reason for the failure</value>
+  </data>
+  <data name="NotificationSent" xml:space="preserve">
+    <value>Sent</value>
+  </data>
+  <data name="NotificationFailed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="NotificationKindStatusChange" xml:space="preserve">
+    <value>Status change</value>
+  </data>
+  <data name="NotificationKind" xml:space="preserve">
+    <value>Event</value>
+  </data>
+  <data name="ProofCaptureTitle" xml:space="preserve">
+    <value>Recording the handover</value>
+  </data>
+  <data name="ProofViewTitle" xml:space="preserve">
+    <value>Proof of delivery</value>
+  </data>
+  <data name="ProofCapture" xml:space="preserve">
+    <value>Record</value>
+  </data>
+  <data name="ProofOpen" xml:space="preserve">
+    <value>Proof</value>
+  </data>
+  <data name="ProofRecipientName" xml:space="preserve">
+    <value>Who received it</value>
+  </data>
+  <data name="ProofSignature" xml:space="preserve">
+    <value>Recipient’s signature</value>
+  </data>
+  <data name="ProofPhotos" xml:space="preserve">
+    <value>Photographs</value>
+  </data>
+  <data name="ProofPhotosHint" xml:space="preserve">
+    <value>At least one photograph, no more than five, each up to 5 MiB.</value>
+  </data>
+  <data name="ProofLocation" xml:space="preserve">
+    <value>Place of the handover</value>
+  </data>
+  <data name="ProofLocationPending" xml:space="preserve">
+    <value>Determining the place…</value>
+  </data>
+  <data name="ProofLocationRefused" xml:space="preserve">
+    <value>The place could not be determined. Allow access to location data and open the window again.</value>
+  </data>
+  <data name="ProofCaptureAction" xml:space="preserve">
+    <value>Save the proof</value>
+  </data>
+  <data name="ProofCapturedAt" xml:space="preserve">
+    <value>Time of the handover</value>
+  </data>
+  <data name="ProofCapturedBy" xml:space="preserve">
+    <value>Recorded by</value>
+  </data>
+  <data name="SignatureLabel" xml:space="preserve">
+    <value>Signature field</value>
+  </data>
+  <data name="SignatureClear" xml:space="preserve">
+    <value>Clear the signature</value>
+  </data>
+  <data name="NavChat" xml:space="preserve">
+    <value>Conversations</value>
+  </data>
+  <data name="ChatTitle" xml:space="preserve">
+    <value>Conversations</value>
+  </data>
+  <data name="ChatThreads" xml:space="preserve">
+    <value>Drivers</value>
+  </data>
+  <data name="ChatSelectThread" xml:space="preserve">
+    <value>Choose a driver to see the conversation.</value>
+  </data>
+  <data name="ChatDispatchDesk" xml:space="preserve">
+    <value>Dispatch desk</value>
+  </data>
+  <data name="ChatConversation" xml:space="preserve">
+    <value>Correspondence</value>
+  </data>
+  <data name="ChatNoMessages" xml:space="preserve">
+    <value>There are no messages yet.</value>
+  </data>
+  <data name="ChatUnknownSender" xml:space="preserve">
+    <value>Deleted user</value>
+  </data>
+  <data name="ChatMessagePlaceholder" xml:space="preserve">
+    <value>Write a message</value>
+  </data>
+  <data name="ChatSend" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="ChatNotParticipant" xml:space="preserve">
+    <value>Conversations are held by dispatchers and drivers. Your role has no access to them.</value>
+  </data>
+  <data name="NavReviews" xml:space="preserve">
+    <value>Reviews</value>
+  </data>
+  <data name="ReviewsTitle" xml:space="preserve">
+    <value>Reviews</value>
+  </data>
+  <data name="ReviewsEmpty" xml:space="preserve">
+    <value>There are no reviews yet.</value>
+  </data>
+  <data name="ReviewsNotAvailable" xml:space="preserve">
+    <value>Reviews are written by clients and read by dispatchers. Your role has no access to them.</value>
+  </data>
+  <data name="WriteReview" xml:space="preserve">
+    <value>Write a review</value>
+  </data>
+  <data name="ReviewForm" xml:space="preserve">
+    <value>Review</value>
+  </data>
+  <data name="ReviewDelivery" xml:space="preserve">
+    <value>Delivery</value>
+  </data>
+  <data name="ReviewDeliveryHint" xml:space="preserve">
+    <value>The list holds only your completed or failed deliveries that you have not reviewed yet.</value>
+  </data>
+  <data name="ReviewRating" xml:space="preserve">
+    <value>Score</value>
+  </data>
+  <data name="ReviewText" xml:space="preserve">
+    <value>Review text</value>
+  </data>
+  <data name="DeleteReviewTitle" xml:space="preserve">
+    <value>Delete the review</value>
+  </data>
+  <data name="DeleteReviewMessage" xml:space="preserve">
+    <value>The review will be deleted for good. Continue?</value>
+  </data>
+  <data name="Rating" xml:space="preserve">
+    <value>Rating</value>
+  </data>
+  <data name="NoRating" xml:space="preserve">
+    <value>No scores</value>
+  </data>
+  <data name="NavShifts" xml:space="preserve">
+    <value>Shifts</value>
+  </data>
+  <data name="NavMyShifts" xml:space="preserve">
+    <value>My shifts</value>
+  </data>
+  <data name="ShiftsTitle" xml:space="preserve">
+    <value>Driver shifts</value>
+  </data>
+  <data name="MyShiftsTitle" xml:space="preserve">
+    <value>My shifts</value>
+  </data>
+  <data name="ShiftsEmpty" xml:space="preserve">
+    <value>There are no shifts yet.</value>
+  </data>
+  <data name="ShiftStartedAt" xml:space="preserve">
+    <value>Start of the shift</value>
+  </data>
+  <data name="ShiftEndedAt" xml:space="preserve">
+    <value>End of the shift</value>
+  </data>
+  <data name="ShiftState" xml:space="preserve">
+    <value>Shift state</value>
+  </data>
+  <data name="ShiftOpen" xml:space="preserve">
+    <value>On duty</value>
+  </data>
+  <data name="ShiftClosed" xml:space="preserve">
+    <value>Off duty</value>
+  </data>
+  <data name="ShiftRunning" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="ShiftFinished" xml:space="preserve">
+    <value>Finished</value>
+  </data>
+  <data name="ShiftStillOpen" xml:space="preserve">
+    <value>In progress</value>
+  </data>
+  <data name="ShiftForm" xml:space="preserve">
+    <value>Shift</value>
+  </data>
+  <data name="ShiftEndedAtHint" xml:space="preserve">
+    <value>An empty field means the shift is still running. A finished shift cannot be reopened.</value>
+  </data>
+  <data name="GoOnDuty" xml:space="preserve">
+    <value>Start the shift</value>
+  </data>
+  <data name="GoOffDuty" xml:space="preserve">
+    <value>End the shift</value>
+  </data>
+  <data name="DeleteShiftTitle" xml:space="preserve">
+    <value>Delete the shift</value>
+  </data>
+  <data name="DeleteShiftMessage" xml:space="preserve">
+    <value>The shift will be deleted for good. Continue?</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <!-- Endonyms, identical to the neutral catalogue's: see the comment there. -->
+  <data name="LanguageUkrainian" xml:space="preserve">
+    <value>Українська</value>
+  </data>
+  <data name="LanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
+</root>

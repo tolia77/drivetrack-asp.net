@@ -1,7 +1,16 @@
+@using System.Globalization
 @using Microsoft.AspNetCore.Components.Endpoints
 
 <!DOCTYPE html>
-<html lang="uk">
+@* NFR-14: the document's language follows the culture the request actually resolved to, rather
+   than naming one of the two. A screen reader picks its voice from this attribute and a browser
+   offers to translate a page by it, so a page served in English under lang="uk" is read aloud in
+   the wrong accent and offered a translation it does not need. Two letters, not the full tag: uk
+   and en are what the resource satellites are keyed by, and a region adds nothing a reader uses.
+
+   App.razor is statically rendered (AD-14), so this runs inside the request, after
+   UseRequestLocalization has read the cookie. *@
+<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
 
 <head>
     <meta charset="utf-8" />

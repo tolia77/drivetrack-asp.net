@@ -1,3 +1,4 @@
+using System.Globalization;
 using DriveTrack.Application.Authorization;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Integration.Tests.Support;
@@ -21,16 +22,30 @@ internal static class ShellCaller
     /// <summary>Renders a shell component as the given caller sees it.</summary>
     /// <typeparam name="TComponent">The component to render.</typeparam>
     /// <param name="role">The caller's role, or null for an anonymous visitor.</param>
-    public static Task<string> RenderAsync<TComponent>(UserRole? role)
+    /// <param name="culture">
+    /// The culture to render under; null is <c>uk-UA</c>, so every test written before the second
+    /// language keeps asserting what it was written to assert.
+    /// </param>
+    /// <param name="path">
+    /// The path the caller is on, rooted at the application's base; null is the root. A component
+    /// that reads the current location - the language switcher's return address is the first -
+    /// renders the root's answer for every test that passes nothing, which is indistinguishable
+    /// from a component that reads nothing at all.
+    /// </param>
+    public static Task<string> RenderAsync<TComponent>(
+        UserRole? role,
+        CultureInfo? culture = null,
+        string? path = null)
         where TComponent : IComponent =>
         ComponentRenderer.RenderAsync<TComponent>(
             parameters: null,
             configureServices: services =>
             {
                 services.AddSingleton<ICurrentUser>(new StubCurrentUser(role));
-                services.AddSingleton<NavigationManager, StubNavigationManager>();
+                services.AddSingleton<NavigationManager>(new StubNavigationManager(path));
                 services.AddSingleton<AntiforgeryStateProvider, StubAntiforgeryStateProvider>();
-            });
+            },
+            culture);
 
     /// <summary>
     /// A caller with a role and nothing else. <see cref="UserId"/> throws exactly as the real
@@ -55,7 +70,8 @@ internal static class ShellCaller
     /// <summary>A navigation manager rooted at the application's base, so NavLink can resolve hrefs.</summary>
     private sealed class StubNavigationManager : NavigationManager
     {
-        public StubNavigationManager() => Initialize("http://localhost/", "http://localhost/");
+        public StubNavigationManager(string? path) =>
+            Initialize("http://localhost/", "http://localhost/" + (path ?? string.Empty).TrimStart('/'));
     }
 
     /// <summary>

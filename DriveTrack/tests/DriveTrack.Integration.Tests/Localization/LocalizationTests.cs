@@ -13,42 +13,124 @@ using Microsoft.Extensions.Localization;
 namespace DriveTrack.Integration.Tests.Localization;
 
 /// <summary>
-/// NFR-14 and NFR-15: the interface is Ukrainian and the locale is not a preference.
+/// NFR-14 and NFR-15: the interface is Ukrainian or English, and which one is the user's decision
+/// rather than their browser's.
 /// <para>
-/// The product rule is that the UI <em>is</em> Ukrainian, so the culture is stated rather than
-/// negotiated - the provider chain is cleared, not merely narrowed. With one supported culture a
-/// negotiated result would be uk-UA anyway; clearing it is what stops a future second culture being
-/// selected by a header nobody decided to honour.
+/// Ukrainian is the baseline and the default - it is what the neutral catalogues hold and what a
+/// visitor who has chosen nothing is served. English ships as a satellite beside each neutral file.
+/// The culture is still not negotiated: the provider chain holds
+/// <c>CookieRequestCultureProvider</c> and nothing else, so an <c>Accept-Language</c> header or a
+/// query string cannot select a language. Only the POST to <c>/set-culture</c> can.
+/// </para>
+/// <para>
+/// Every guard below that used to read "this catalogue is Ukrainian" now reads "this catalogue is
+/// in its own language", in both directions: Ukrainian prose in an English file fails, and English
+/// prose in a Ukrainian one still fails. None was dropped - a catalogue that lost its language
+/// would otherwise do it silently, because a mixed-language screen renders perfectly.
 /// </para>
 /// </summary>
 public class LocalizationTests(PostgresFixture postgres)
 {
     private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");
 
+    /// <summary>The neutral catalogues, which are Ukrainian (see <c>NeutralResourcesLanguage</c>).</summary>
     private static readonly string[] ResourceFiles =
         ["ErrorMessages.resx", "FieldNames.resx", "UiText.resx"];
 
+    /// <summary>The English satellites, one beside each neutral file.</summary>
+    private static readonly string[] EnglishResourceFiles =
+        ["ErrorMessages.en.resx", "FieldNames.en.resx", "UiText.en.resx"];
+
+    /// <summary>
+    /// The two keys exempt from the per-catalogue language guards, in both directions.
+    /// <para>
+    /// The language switcher names each language as its own speakers write it - Українська and
+    /// English - and both catalogues carry the same two words, because a reader who cannot read the
+    /// page they are on has to be able to find their own language on it. "Англійська" is invisible
+    /// to the English reader the control exists for, and "Ukrainian" is invisible to the Ukrainian
+    /// one. So the guards treat these two as proper nouns, exactly as
+    /// <see cref="UserFacingTextTests"/> treats the brand name, and for the same reason: a name in
+    /// its own script is not an untranslated string.
+    /// </para>
+    /// <para>
+    /// Kept to exactly two, so a third arrival is a deliberate decision rather than a habit.
+    /// </para>
+    /// </summary>
+    private static readonly string[] EndonymKeys = ["LanguageUkrainian", "LanguageEnglish"];
+
+    /// <summary>The English satellites, one per theory case.</summary>
+    public static TheoryData<string> EnglishCatalogues() => [.. EnglishResourceFiles];
+
     [Fact]
-    public async Task An_Accept_Language_header_cannot_negotiate_the_culture_away()
+    public async Task The_culture_cookie_selects_the_language_and_an_Accept_Language_header_still_does_not()
     {
+        // The two halves of the rule in one test, because separately either is misleading: "the
+        // cookie works" is satisfied by a chain that honours everything, and "the header is ignored"
+        // is satisfied by the cleared chain this replaced, which honoured nothing and made the
+        // second language unreachable.
+        //
+        // The header is sent on BOTH requests, so the second assertion is not merely "no cookie
+        // means Ukrainian" - it is "a browser asking for English in the documented way is still
+        // served Ukrainian", which is what keeps the choice a deliberate act rather than a guess.
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var factory = await ApiFactory.CreateAsync(postgres.ConnectionString, cancellationToken);
         using var client = factory.CreateClient();
 
-        using var request = new HttpRequestMessage(
+        using (var request = new HttpRequestMessage(
             HttpMethod.Get,
-            new Uri("/api/probe/culture", UriKind.Relative));
-        request.Headers.Add("Accept-Language", "en-US");
+            new Uri("/api/probe/culture", UriKind.Relative)))
+        {
+            request.Headers.Add("Accept-Language", "en-US");
 
-        using var response = await client.SendAsync(request, cancellationToken);
-        var envelope = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
+            using var response = await client.SendAsync(request, cancellationToken);
+            var envelope = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
 
-        Assert.NotNull(envelope);
+            Assert.NotNull(envelope);
 
-        var data = envelope.RootElement.GetProperty("data");
+            var data = envelope.RootElement.GetProperty("data");
 
-        Assert.Equal("uk-UA", data.GetProperty("culture").GetString());
-        Assert.Equal("uk-UA", data.GetProperty("uiCulture").GetString());
+            Assert.Equal("uk-UA", data.GetProperty("culture").GetString());
+            Assert.Equal("uk-UA", data.GetProperty("uiCulture").GetString());
+        }
+
+        using (var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            new Uri("/api/probe/culture?culture=en-US&ui-culture=en-US", UriKind.Relative)))
+        {
+            // The other provider the framework chain carries by default, and the one the class doc
+            // and Program.cs both claim cannot select a language. Spelled with the exact parameter
+            // names QueryStringRequestCultureProvider reads, so this fails the day somebody adds it
+            // back rather than passing because the query string was misspelled.
+            using var response = await client.SendAsync(request, cancellationToken);
+            var envelope = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
+
+            Assert.NotNull(envelope);
+
+            var data = envelope.RootElement.GetProperty("data");
+
+            Assert.Equal("uk-UA", data.GetProperty("culture").GetString());
+            Assert.Equal("uk-UA", data.GetProperty("uiCulture").GetString());
+        }
+
+        using (var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            new Uri("/api/probe/culture", UriKind.Relative)))
+        {
+            // Ukrainian in the header and English in the cookie, so the two cannot both be
+            // satisfied by the same answer: only the cookie may win.
+            request.Headers.Add("Accept-Language", "uk-UA");
+            request.Headers.Add("Cookie", CultureCookie.Header("en-US"));
+
+            using var response = await client.SendAsync(request, cancellationToken);
+            var envelope = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken);
+
+            Assert.NotNull(envelope);
+
+            var data = envelope.RootElement.GetProperty("data");
+
+            Assert.Equal("en-US", data.GetProperty("culture").GetString());
+            Assert.Equal("en-US", data.GetProperty("uiCulture").GetString());
+        }
     }
 
     [Fact]
@@ -80,7 +162,7 @@ public class LocalizationTests(PostgresFixture postgres)
     {
         // "Has a resource key" and "the key holds a translation" are different claims, and the
         // second is the one NFR-14 makes. An untranslated placeholder passes every other test here.
-        var offenders = ValuesOf(fileName)
+        var offenders = Guarded(fileName)
             .Where(entry => !entry.Value.Any(IsCyrillic))
             .Select(entry => entry.Key)
             .ToArray();
@@ -94,8 +176,40 @@ public class LocalizationTests(PostgresFixture postgres)
         // A run of Latin letters in a translated string is either an untranslated fragment or a
         // leaked key. Neither belongs in front of a user (NFR-14).
         var offenders = ResourceFiles
-            .SelectMany(file => ValuesOf(file).Select(entry => (File: file, entry.Key, entry.Value)))
+            .SelectMany(file => Guarded(file).Select(entry => (File: file, entry.Key, entry.Value)))
             .Where(entry => HasLatinWord(entry.Value))
+            .Select(entry => $"{entry.File}:{entry.Key}")
+            .ToArray();
+
+        Assert.Empty(offenders);
+    }
+
+    [Theory]
+    [MemberData(nameof(EnglishCatalogues))]
+    public void Every_English_resource_value_is_written_in_English(string fileName)
+    {
+        // The mirror of the Ukrainian guard above, and it earns its place for the same reason: a
+        // copied-over Ukrainian value resolves, renders and reads as a finished translation to
+        // anyone who does not speak the language it is actually in.
+        var offenders = Guarded(fileName)
+            .Where(entry => !entry.Value.Any(char.IsAsciiLetter))
+            .Select(entry => entry.Key)
+            .ToArray();
+
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
+    public void No_English_resource_value_carries_a_Cyrillic_letter()
+    {
+        // The other direction, mirroring No_resource_value_carries_an_English_word - and stricter
+        // than that one has to be, deliberately. A single Cyrillic letter is enough: `Ні` and `МБ`
+        // are two letters each and are exactly the kind of leftover a run-length rule waves through,
+        // and `Shipment доставлено` carries Latin letters, so the test above cannot see it either.
+        // There is no legitimate Cyrillic in an English catalogue outside the two endonyms.
+        var offenders = EnglishResourceFiles
+            .SelectMany(file => Guarded(file).Select(entry => (File: file, entry.Key, entry.Value)))
+            .Where(entry => entry.Value.Any(IsCyrillic))
             .Select(entry => $"{entry.File}:{entry.Key}")
             .ToArray();
 
@@ -288,6 +402,10 @@ public class LocalizationTests(PostgresFixture postgres)
             .Select(match => match.Groups[1].Value)
             .ToHashSet(StringComparer.Ordinal);
     }
+
+    /// <summary>The entries of a catalogue that the language guards judge: everything but the endonyms.</summary>
+    private static IEnumerable<(string Key, string Value)> Guarded(string fileName) =>
+        ValuesOf(fileName).Where(entry => !EndonymKeys.Contains(entry.Key, StringComparer.Ordinal));
 
     private static IEnumerable<(string Key, string Value)> ValuesOf(string fileName)
     {

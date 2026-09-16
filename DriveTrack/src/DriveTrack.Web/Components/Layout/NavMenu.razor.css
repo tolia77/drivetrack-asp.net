@@ -92,6 +92,35 @@
     color: var(--dt-text-on-nav-strong);
 }
 
+/*
+    The language in force, painted the same way the current destination is. The rule above is
+    anchor-scoped - NavLink writes `active` onto an <a> - and the switcher is a pair of <button>s,
+    so without this the state a screen reader is told about through aria-current is the one state a
+    sighted reader cannot see. The attribute selector rather than a second class for the same
+    reason: the ARIA state and the paint are then one fact rather than two that can disagree.
+*/
+.nav-item ::deep .nav-link[aria-current] {
+    background-color: var(--dt-surface-nav-active);
+    color: var(--dt-text-on-nav-strong);
+}
+
+/*
+    The switcher is one row, not two. Every other nav item is a single full-width 3rem link, and
+    two stacked 3rem buttons would read as two destinations rather than as one control with two
+    settings - so the pair shares a row and each half is sized by its own text.
+*/
+.nav-item ::deep .nav-language {
+    display: flex;
+    gap: var(--dt-space-2);
+}
+
+    .nav-item ::deep .nav-language .nav-link {
+        height: auto;
+        width: auto;
+        flex: 1 1 0;
+        justify-content: center;
+    }
+
 .nav-item ::deep .nav-link:hover {
     background-color: var(--dt-surface-nav-hover);
     color: var(--dt-text-on-nav-strong);

@@ -16,6 +16,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.IdentityModel.Tokens;
 
 // AD-1: this file is the composition root and the only file in DriveTrack.Web
@@ -27,6 +30,12 @@ const string CorsPolicyName = "DriveTrackCors";
 // compose topology terminates plain HTTP, so the default stays SameAsRequest; a deployment that does
 // terminate TLS sets Session__CookieSecurePolicy=Always and gets the flag without a rebuild.
 const string SessionCookieSecurePolicyKey = "Session:CookieSecurePolicy";
+
+// NFR-14: the cookie carrying the reader's language. Named rather than left at the framework's
+// .AspNetCore.Culture for the reason the session cookie is named drivetrack.session - every cookie
+// this application sets should be identifiable as this application's in a browser's inspector - and
+// declared once because the provider that reads it and the endpoint that writes it have to agree.
+const string CultureCookieName = "drivetrack.culture";
 
 // AD-3's first step, made concrete. Two schemes, chosen by path: a browser navigating the Blazor
 // shell carries a cookie, a REST client carries a bearer token, and the policy scheme below is what
@@ -285,26 +294,37 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 // No UseHttpsRedirection: the compose topology terminates plain HTTP on the app container
 // and TLS is not in scope for this story.
 
-// NFR-14: the product is Ukrainian, so the culture is stated rather than negotiated. The provider
-// chain is cleared, not merely narrowed: with one supported culture a negotiated result would be
-// uk-UA anyway, but clearing it means a future second culture cannot be selected by an
-// Accept-Language header or a query string without someone deciding to allow it.
+// NFR-14: the product is read in Ukrainian or in English, and which one is a decision the user
+// makes rather than one their browser makes for them. Ukrainian stays the default and the baseline:
+// it is what the neutral .resx files hold, and it is what a visitor who has never chosen sees.
+//
+// The provider chain holds the cookie provider and nothing else. That is narrower than the
+// framework default on purpose and states the same rule the cleared chain used to: an
+// Accept-Language header or a ?culture= query string still cannot select a language. The only thing
+// that can is the POST to /set-culture below, which is a deliberate act by the person reading the
+// screen.
 var ukrainian = new CultureInfo("uk-UA");
+var english = new CultureInfo("en-US");
+CultureInfo[] supportedCultures = [ukrainian, english];
 
 // UseRequestLocalization sets the culture per request, and the product has work that runs on no
 // request at all: the side-effect worker composes a client's notification from EmailText on its own
 // thread, long after the request that queued it was answered. Without these two the notice would be
 // formatted in whatever culture the machine happens to have, which is the one place NFR-15 would
 // silently not hold. Set before the host serves anything, so every thread it starts inherits them.
+//
+// Ukrainian rather than "whatever the request chose" is also what keeps the mail Ukrainian for every
+// recipient: EmailText ships no English satellite at all, so even a thread that did inherit en-US
+// would resolve the neutral Ukrainian entries. CatalogueParityTests pins that absence.
 CultureInfo.DefaultThreadCurrentCulture = ukrainian;
 CultureInfo.DefaultThreadCurrentUICulture = ukrainian;
 
 app.UseRequestLocalization(new RequestLocalizationOptions
 {
     DefaultRequestCulture = new RequestCulture(ukrainian),
-    SupportedCultures = [ukrainian],
-    SupportedUICultures = [ukrainian],
-    RequestCultureProviders = [],
+    SupportedCultures = supportedCultures,
+    SupportedUICultures = supportedCultures,
+    RequestCultureProviders = [new CookieRequestCultureProvider { CookieName = CultureCookieName }],
 });
 
 app.UseCors(CorsPolicyName);
@@ -380,6 +400,108 @@ app.MapPost("/sign-out", async (HttpContext context, IAntiforgery antiforgery) =
     await context.SignOutAsync(CookieScheme);
 
     return Results.Redirect("/");
+});
+
+// NFR-14: the one way a user changes language.
+//
+// A full-page POST rather than anything the circuit does, because a Blazor Server component cannot
+// write a cookie: by the time its circuit is live the response that would have carried Set-Cookie
+// finished long ago. So the switcher in NavMenu is a real form, this endpoint writes the cookie,
+// and the redirect it answers with is what re-renders the page in the new language.
+//
+// Modelled on /sign-out above, down to the explicit antiforgery call: UseAntiforgery only validates
+// endpoints that bind form values, and this one reads the form itself - so without that call any
+// cross-site form could change what language a signed-in user's screens are in.
+app.MapPost("/set-culture", async (HttpContext context, IAntiforgery antiforgery) =>
+{
+    // Checked before anything reads the body: ReadFormAsync throws on a request that carries no
+    // form content type, and an unhandled throw here is a 500 for a malformed request that has a
+    // perfectly good 400 to be answered with.
+    if (!context.Request.HasFormContentType)
+    {
+        return Results.BadRequest();
+    }
+
+    try
+    {
+        await antiforgery.ValidateRequestAsync(context);
+    }
+    catch (AntiforgeryValidationException)
+    {
+        return Results.BadRequest();
+    }
+
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+
+    // Matched against the supported list rather than merely parsed, and the matched CultureInfo is
+    // what goes into the cookie rather than the caller's spelling of it. A well-formed culture
+    // nobody decided to support - de-DE - would otherwise be written, and every later request would
+    // fall back to Ukrainian while an unsupported language sat in the browser saying otherwise.
+    // Refused silently and the caller is sent back: there is no screen for "that language does not
+    // exist" and a 500 would be a worse answer than the page they were already reading.
+    var requested = form["culture"].ToString();
+    var selected = Array.Find(
+        supportedCultures,
+        culture => string.Equals(culture.Name, requested, StringComparison.OrdinalIgnoreCase));
+
+    if (selected is not null)
+    {
+        context.Response.Cookies.Append(
+            CultureCookieName,
+            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(selected)),
+            new CookieOptions
+            {
+                // A year, so the choice survives closing the browser: a session cookie would put the
+                // user back into Ukrainian the next morning with nothing on screen explaining why.
+                //
+                // MaxAge rather than Expires, and that is AD-13 rather than taste: an absolute
+                // expiry would have to be computed from a clock, and the only clock reachable here
+                // is the ambient one this codebase forbids. A relative lifetime needs no clock at
+                // all - the browser subtracts from its own.
+                MaxAge = TimeSpan.FromDays(365),
+
+                // Essential: the cookie carries no identity and exists only to serve the page the
+                // user asked for, so it is not subject to consent gating.
+                IsEssential = true,
+                Path = "/",
+                SameSite = SameSiteMode.Lax,
+
+                // Nothing in the browser reads it - the choice is applied server-side by
+                // CookieRequestCultureProvider before a component renders.
+                HttpOnly = true,
+
+                // DW-6, the same switch the session cookie reads, so one deployment setting governs
+                // every cookie this application sets rather than one of them. CookieOptions takes a
+                // bool where the authentication handler takes the policy, so SameAsRequest - the
+                // default the plain-HTTP compose stack needs - is spelled out here as what it means.
+                Secure = sessionCookieSecurePolicy switch
+                {
+                    CookieSecurePolicy.Always => true,
+                    CookieSecurePolicy.None => false,
+                    _ => context.Request.IsHttps,
+                },
+            });
+    }
+
+    // The return address arrives in the form, which means it arrives from whoever built the form.
+    // Without this check the endpoint is an open redirect that any site could aim at its own, using
+    // this application's origin to make the hop look legitimate. A value that is not a local path is
+    // dropped and the caller goes to the root instead.
+    var returnUrl = form["returnUrl"].ToString();
+    var urlHelper = new UrlHelper(
+        new ActionContext(context, context.GetRouteData(), new ActionDescriptor()));
+
+    // IsLocalUrl is necessary and not sufficient, and both extra conditions are things it says yes
+    // to. It admits "~/deliveries", which is a Razor-era app-relative form nothing here expands, so
+    // it would be emitted verbatim and resolve to /~/deliveries; requiring a leading '/' is what
+    // refuses it. And it says nothing about control characters, so a return address carrying CR or
+    // LF would throw at header-write time - a 500 out of the one check that exists to stop this
+    // endpoint being abused.
+    var local = returnUrl.StartsWith('/')
+        && !returnUrl.Any(char.IsControl)
+        && urlHelper.IsLocalUrl(returnUrl);
+
+    return Results.Redirect(local ? returnUrl : "/");
 });
 
 // FR-70 and FR-75: the chat hub, and the one endpoint this story adds.

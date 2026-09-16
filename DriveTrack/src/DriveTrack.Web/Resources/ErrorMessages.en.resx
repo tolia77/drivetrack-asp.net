@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    The English satellite of ErrorMessages.resx: one entry per ErrorCode member, keyed by the
+    member name, in English. These strings are the only source of error.message on the wire
+    (NFR-3) when the caller's culture is en-US; no exception text, SQL fragment or constraint
+    name is ever read into a response body in either language.
+  -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="COMMON_UNEXPECTED_ERROR" xml:space="preserve">
+    <value>An unexpected error occurred. Try again later.</value>
+  </data>
+  <data name="COMMON_NOT_FOUND" xml:space="preserve">
+    <value>The requested resource was not found.</value>
+  </data>
+  <data name="COMMON_VALIDATION_FAILED" xml:space="preserve">
+    <value>The request data did not pass validation.</value>
+  </data>
+  <data name="COMMON_CONFLICT" xml:space="preserve">
+    <value>The operation contradicts the current state of the data.</value>
+  </data>
+  <data name="AUTH_UNAUTHENTICATED" xml:space="preserve">
+    <value>Authentication is required. Sign in to the system.</value>
+  </data>
+  <data name="AUTH_FORBIDDEN" xml:space="preserve">
+    <value>You have no right to perform this action.</value>
+  </data>
+  <data name="PERSISTENCE_UNIQUE_VIOLATION" xml:space="preserve">
+    <value>Such a record already exists.</value>
+  </data>
+  <data name="PERSISTENCE_CHECK_VIOLATION" xml:space="preserve">
+    <value>The value falls outside the permitted range.</value>
+  </data>
+  <data name="AUTH_INVALID_CREDENTIALS" xml:space="preserve">
+    <value>Incorrect email address or password.</value>
+  </data>
+  <data name="AUTH_EMAIL_ALREADY_IN_USE" xml:space="preserve">
+    <value>An account with this email address already exists.</value>
+  </data>
+  <data name="AUTH_EMAIL_INVALID" xml:space="preserve">
+    <value>Enter a valid email address.</value>
+  </data>
+  <data name="AUTH_PHONE_NUMBER_INVALID" xml:space="preserve">
+    <value>The phone number must be in international format, for example +380441234567.</value>
+  </data>
+  <data name="AUTH_PASSWORD_TOO_WEAK" xml:space="preserve">
+    <value>The password must contain at least eight characters, an upper-case and a lower-case letter and a digit.</value>
+  </data>
+  <data name="AUTH_PASSWORD_CONFIRMATION_MISMATCH" xml:space="preserve">
+    <value>The password confirmation does not match the password.</value>
+  </data>
+  <data name="AUTH_CURRENT_PASSWORD_INCORRECT" xml:space="preserve">
+    <value>The current password was entered incorrectly.</value>
+  </data>
+  <data name="FLEET_VEHICLE_ALREADY_ASSIGNED" xml:space="preserve">
+    <value>This vehicle is already assigned to another driver.</value>
+  </data>
+  <data name="FLEET_VEHICLE_IN_USE" xml:space="preserve">
+    <value>The vehicle is assigned to a driver. Remove the assignment first, then delete it.</value>
+  </data>
+  <data name="FLEET_LICENSE_PLATE_IN_USE" xml:space="preserve">
+    <value>A vehicle with this licence plate is already in the fleet.</value>
+  </data>
+  <data name="DELIVERY_DRIVER_NOT_FOUND" xml:space="preserve">
+    <value>No such driver exists. Choose another driver.</value>
+  </data>
+  <data name="DELIVERY_CLIENT_NOT_FOUND" xml:space="preserve">
+    <value>No such customer exists. Choose another customer.</value>
+  </data>
+  <data name="DELIVERY_EXCEEDS_VEHICLE_CAPACITY" xml:space="preserve">
+    <value>The package weight exceeds the load capacity of the driver’s vehicle.</value>
+  </data>
+  <data name="DELIVERY_INVALID_STATUS_TRANSITION" xml:space="preserve">
+    <value>Such a delivery status transition is not possible from its current state.</value>
+  </data>
+  <data name="DELIVERY_PROOF_REQUIRED" xml:space="preserve">
+    <value>To mark the delivery as completed, record the proof of delivery or add a note explaining why.</value>
+  </data>
+  <data name="DELIVERY_PROOF_ALREADY_CAPTURED" xml:space="preserve">
+    <value>The proof of delivery for this delivery has already been recorded and does not change.</value>
+  </data>
+  <data name="DELIVERY_PROOF_ASSET_TYPE_NOT_ALLOWED" xml:space="preserve">
+    <value>This file is not an image of a permitted format.</value>
+  </data>
+  <data name="DELIVERY_PROOF_ASSET_TOO_LARGE" xml:space="preserve">
+    <value>Each image must be non-empty and no larger than 5 MiB.</value>
+  </data>
+  <data name="CHAT_THREAD_NOT_FOUND" xml:space="preserve">
+    <value>There is no such conversation: no driver with this number was found.</value>
+  </data>
+  <data name="CHAT_MESSAGE_TEXT_REQUIRED" xml:space="preserve">
+    <value>A message cannot be empty.</value>
+  </data>
+  <data name="CHAT_MESSAGE_TEXT_TOO_LONG" xml:space="preserve">
+    <value>The message is too long: 2000 characters at most.</value>
+  </data>
+  <data name="REVIEW_DELIVERY_NOT_COMPLETED" xml:space="preserve">
+    <value>A review can be left only about a delivery that has already been completed or marked as failed.</value>
+  </data>
+  <data name="REVIEW_RATING_OUT_OF_RANGE" xml:space="preserve">
+    <value>The score must be a whole number from 1 to 5.</value>
+  </data>
+  <data name="REVIEW_TEXT_REQUIRED" xml:space="preserve">
+    <value>The review text cannot be empty.</value>
+  </data>
+  <data name="REVIEW_TEXT_TOO_LONG" xml:space="preserve">
+    <value>The review text is too long: 2000 characters at most.</value>
+  </data>
+  <data name="SHIFT_ALREADY_OPEN" xml:space="preserve">
+    <value>The driver is already on duty. Finish the open shift first.</value>
+  </data>
+  <data name="SHIFT_NOT_OPEN" xml:space="preserve">
+    <value>The driver is not on duty at the moment, so there is nothing to finish.</value>
+  </data>
+  <data name="SHIFT_ENDED_BEFORE_STARTED" xml:space="preserve">
+    <value>The end of the shift must be later than its start.</value>
+  </data>
+</root>

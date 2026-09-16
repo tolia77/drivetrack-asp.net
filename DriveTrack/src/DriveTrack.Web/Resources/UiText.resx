@@ -817,4 +817,23 @@
   <data name="DeleteShiftMessage" xml:space="preserve">
     <value>Зміну буде видалено остаточно. Продовжити?</value>
   </data>
+  <!-- The language switcher in the navigation.
+
+       The two language names are ENDONYMS and are identical in both catalogues: a reader who
+       cannot read the page they are looking at has to be able to find their own language on it,
+       and "Англійська" is invisible to the English reader this control exists for. That is why
+       LanguageUkrainian and LanguageEnglish are allowlisted in LocalizationTests' per-catalogue
+       language guards - the same device UserFacingTextTests uses for the brand name, and for the
+       same reason: a proper noun in its own script is not an untranslated string.
+
+       Language itself is ordinary UI text and is translated. -->
+  <data name="Language" xml:space="preserve">
+    <value>Мова</value>
+  </data>
+  <data name="LanguageUkrainian" xml:space="preserve">
+    <value>Українська</value>
+  </data>
+  <data name="LanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
 </root>

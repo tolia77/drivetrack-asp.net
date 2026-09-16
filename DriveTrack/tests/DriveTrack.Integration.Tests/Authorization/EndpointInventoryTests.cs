@@ -39,12 +39,17 @@ public class EndpointInventoryTests(PostgresFixture postgres)
     /// <para>
     /// <c>sign-out</c> is deliberately reachable without credentials: clearing a cookie has to work
     /// for a session that has already expired, and its cross-site protection is the antiforgery
-    /// token it validates by hand (FR-6). The two hub routes carry <c>ChatHub</c>'s own
-    /// <c>[Authorize]</c>, naming both schemes, rather than authorization on the route —
-    /// <c>HubBoundaryTests</c> is where that is asserted over the wire.
+    /// token it validates by hand (FR-6). <c>set-culture</c> is anonymous for the same shape of
+    /// reason and a stronger one: the language control is offered on the sign-in screen, so
+    /// requiring a session would put the one page a reader has to understand before they can do
+    /// anything behind the very thing they cannot do. It writes a culture cookie and nothing else,
+    /// names no user, and validates the same antiforgery token by hand (NFR-14). The two hub routes
+    /// carry <c>ChatHub</c>'s own <c>[Authorize]</c>, naming both schemes, rather than authorization
+    /// on the route — <c>HubBoundaryTests</c> is where that is asserted over the wire.
     /// </para>
     /// </summary>
-    private static readonly string[] NonMatrixRoutes = ["hubs/chat", "hubs/chat/negotiate", "sign-out"];
+    private static readonly string[] NonMatrixRoutes =
+        ["hubs/chat", "hubs/chat/negotiate", "set-culture", "sign-out"];
 
     [Fact]
     public async Task Every_rest_endpoint_the_host_publishes_has_a_row_in_the_matrix()
@@ -100,13 +105,13 @@ public class EndpointInventoryTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task The_routes_that_are_neither_rest_nor_screen_are_the_three_that_were_argued_for()
+    public async Task The_routes_that_are_neither_rest_nor_screen_are_the_four_that_were_argued_for()
     {
         // Everything this application maps that is not a controller action, not the asset route and
         // not a Blazor page. Framework plumbing - static assets, the fallback, the circuit's own
         // /_blazor endpoints - is excluded by what it is rather than by name, so a future framework
-        // adding another one of those does not fail this. A third route of *ours*, though - a
-        // webhook, a health probe, a second minimal API - cannot arrive without editing this line.
+        // adding another one of those does not fail this. A further route of *ours*, though - a
+        // webhook, a health probe, another minimal API - cannot arrive without editing this line.
         var cancellationToken = TestContext.Current.CancellationToken;
         var world = await AuthorizationWorld.InstanceAsync(postgres.ConnectionString, cancellationToken);
 

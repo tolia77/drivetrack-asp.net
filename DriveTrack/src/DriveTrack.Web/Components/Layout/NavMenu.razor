@@ -1,5 +1,8 @@
+@using System.Globalization
 @inject IStringLocalizer<UiText> Localizer
 @inject ICurrentUser Caller
+@inject NavigationManager Navigation
+@implements IDisposable
 
 @* FR-77 / FR-12 / NFR-25: the shell every screen shares.
 
@@ -178,5 +181,54 @@
                 </NavLink>
             </div>
         }
+
+        @* NFR-14: the language switch, offered to every caller including an anonymous one - the
+           sign-in page is a screen too, and somebody who cannot read it cannot sign in to change
+           anything.
+
+           A real form posting to /set-culture rather than an @onclick handler, and that is not a
+           style choice: the language is carried by a cookie, and a Blazor Server component cannot
+           write one. By the time its circuit is live the response that would have carried
+           Set-Cookie finished long ago. So this copies the sign-out idiom exactly - method="post",
+           an antiforgery token, and a full-page navigation that comes back in the other language.
+
+           Each language names itself in the catalogue's own words, so the two buttons read
+           "Українська / Англійська" on a Ukrainian page and "Ukrainian / English" on an English
+           one. aria-current marks the one already in force; it is not disabled, because a control
+           that vanishes from the tab order is a control a keyboard user cannot find again. *@
+        <div class="nav-item px-3">
+            <form class="nav-language" method="post" action="/set-culture" aria-label="@Localizer["Language"]">
+                <AntiforgeryToken />
+                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+                <button class="nav-link btn btn-link" type="submit" name="culture" value="uk-UA"
+                        aria-current="@(IsUkrainian ? "true" : null)">@Localizer["LanguageUkrainian"]</button>
+                <button class="nav-link btn btn-link" type="submit" name="culture" value="en-US"
+                        aria-current="@(IsUkrainian ? null : "true")">@Localizer["LanguageEnglish"]</button>
+            </form>
+        </div>
     </nav>
 </div>
+
+@code {
+    // Where the switch comes back to. Read per render rather than captured once, and the
+    // subscription below is what makes "per render" mean "per navigation": nothing else in this
+    // component changes when the route does, so without it a caller who navigated three screens
+    // deep would be sent back to the one the menu last rendered on.
+    private string ReturnUrl => "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+
+    // The current language, read from the culture the request resolved to rather than from the
+    // cookie: the cookie may hold a value the supported list refused, and what the user is actually
+    // reading is what the marker has to agree with.
+    private static bool IsUkrainian =>
+        string.Equals(
+            CultureInfo.CurrentUICulture.TwoLetterISOLanguageName,
+            "uk",
+            StringComparison.Ordinal);
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) =>
+        InvokeAsync(StateHasChanged);
+}

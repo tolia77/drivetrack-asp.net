@@ -38,11 +38,17 @@ internal static class ComponentRenderer
     /// clock. Supplied per render rather than baked in, so a test can render the same component
     /// once per role and assert on what each one is actually offered.
     /// </param>
+    /// <param name="culture">
+    /// The culture to render under. Null is <c>uk-UA</c>, which is what the product defaults to and
+    /// what every screen test written before the second language assumed - so those tests are
+    /// untouched, and a test that wants to read a screen back in English names <c>en-US</c> here.
+    /// </param>
     public static Task<string> RenderAsync<TComponent>(
         IDictionary<string, object?>? parameters = null,
-        Action<IServiceCollection>? configureServices = null)
+        Action<IServiceCollection>? configureServices = null,
+        CultureInfo? culture = null)
         where TComponent : IComponent =>
-        RenderAsync<TComponent>(parameters, configureServices, waitForQuiescence: true);
+        RenderAsync<TComponent>(parameters, configureServices, waitForQuiescence: true, culture);
 
     /// <summary>
     /// The component's <em>first</em> render pass, before anything it awaited has answered.
@@ -61,26 +67,32 @@ internal static class ComponentRenderer
     /// <typeparam name="TComponent">The component to render.</typeparam>
     /// <param name="parameters">Its parameters, or null for none.</param>
     /// <param name="configureServices">Extra registrations, as for <see cref="RenderAsync{TComponent}"/>.</param>
+    /// <param name="culture">The culture to render under; null is <c>uk-UA</c>.</param>
     public static Task<string> RenderFirstPassAsync<TComponent>(
         IDictionary<string, object?>? parameters = null,
-        Action<IServiceCollection>? configureServices = null)
+        Action<IServiceCollection>? configureServices = null,
+        CultureInfo? culture = null)
         where TComponent : IComponent =>
-        RenderAsync<TComponent>(parameters, configureServices, waitForQuiescence: false);
+        RenderAsync<TComponent>(parameters, configureServices, waitForQuiescence: false, culture);
 
     private static async Task<string> RenderAsync<TComponent>(
         IDictionary<string, object?>? parameters,
         Action<IServiceCollection>? configureServices,
-        bool waitForQuiescence)
+        bool waitForQuiescence,
+        CultureInfo? culture = null)
         where TComponent : IComponent
     {
-        // The product is Ukrainian and the resources are neutral-uk (NFR-14/NFR-15), so the render
-        // is done under the culture the application actually runs in rather than the machine's.
-        var ukrainian = CultureInfo.GetCultureInfo("uk-UA");
+        // The render is done under the culture the application actually runs in rather than the
+        // machine's. The default is uk-UA: the resources are neutral-uk (NFR-14/NFR-15) and a
+        // visitor who has chosen nothing is served Ukrainian, so that is what "no argument" has to
+        // mean if the screen tests written before the second language are to keep asserting what
+        // they were written to assert.
+        var requested = culture ?? CultureInfo.GetCultureInfo("uk-UA");
         var previousCulture = CultureInfo.CurrentCulture;
         var previousUiCulture = CultureInfo.CurrentUICulture;
 
-        CultureInfo.CurrentCulture = ukrainian;
-        CultureInfo.CurrentUICulture = ukrainian;
+        CultureInfo.CurrentCulture = requested;
+        CultureInfo.CurrentUICulture = requested;
 
         try
         {
