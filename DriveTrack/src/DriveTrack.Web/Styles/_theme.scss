@@ -279,6 +279,19 @@ h1:focus {
     gap: var(--dt-space-1);
     padding: var(--dt-space-1) var(--dt-space-2);
     border-radius: var(--dt-radius-sm);
+    // An edge in the label's own hue, which the design system does not state and the fills
+    // require: `status-transit-bg` and `surface-hover` are both `teal-50`, so an In Transit
+    // label on a hovered row would otherwise be a word floating on its own background with
+    // no boundary. A border fixes it for every status on every surface rather than nudging
+    // one value out of the way of one other, and it survives a palette change.
+    //
+    // `currentColor` rather than a token: the border is the text's colour at every status, so
+    // the four pairs stay the only place a status names a value. NFR-29 allows the keyword
+    // for exactly this.
+    //
+    // The Badge stays borderless, so the two vocabularies still never look alike - Badge's
+    // README makes that a rule, and a bordered square beside a bare pill keeps it true.
+    border: var(--dt-border-width) solid currentColor;
     font-size: var(--dt-small-font-size);
     line-height: var(--dt-small-line-height);
     font-weight: var(--dt-label-font-weight);
