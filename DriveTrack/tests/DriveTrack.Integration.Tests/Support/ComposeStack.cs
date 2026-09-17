@@ -1,14 +1,21 @@
 namespace DriveTrack.Integration.Tests.Support;
 
 /// <summary>
-/// The checked-in deployment files, read as data.
+/// One checked-in compose file, read as data.
 /// <para>
 /// A harness that stood a Garage node up from constants of its own would assert that
-/// <em>something</em> works, not that <c>compose.prod.yaml</c> works: the image could move, the
-/// provisioning script could stop creating the bucket, and the suite would stay green because it
-/// never read either. So the image names, the provisioning script, the node configuration and the
-/// bucket/key/zone/capacity values all come from <c>compose.prod.yaml</c>, <c>garage.toml</c> and
+/// <em>something</em> works, not that the deployment works: the image could move, the provisioning
+/// script could stop creating the bucket, and the suite would stay green because it never read
+/// either. So the image names, the provisioning script, the node configuration and the
+/// bucket/key/zone/capacity values all come from the compose files, <c>garage.toml</c> and
 /// <c>.env.example</c>, and drift in any of them changes what the tests run.
+/// </para>
+/// <para>
+/// There is an instance per stack because there are two stacks and neither is derived from the
+/// other — <see cref="Prod"/> is what deploys and <see cref="Dev"/> is what a developer runs. Most
+/// of the suite reads <see cref="Prod"/>, because that is the deliverable; what reads both is
+/// <c>StackParityTests</c>, which is the only thing standing between two standalone files and
+/// silent divergence.
 /// </para>
 /// <para>
 /// Every accessor throws rather than answering an empty string. A missing service, a missing image
@@ -16,9 +23,8 @@ namespace DriveTrack.Integration.Tests.Support;
 /// useful failure names the file and the thing that was not in it.
 /// </para>
 /// </summary>
-internal static class ComposeStack
+internal sealed class ComposeStack
 {
-    private const string ComposeFile = "compose.prod.yaml";
     private const string GarageConfigFile = "garage.toml";
     private const string EnvExampleFile = ".env.example";
 
@@ -28,15 +34,33 @@ internal static class ComposeStack
     /// <summary>Indent of a service's own settings — <c>image:</c>, <c>command:</c>, <c>entrypoint:</c>.</summary>
     private const int SettingIndent = 4;
 
-    private static readonly string[] ComposeLines = ReadLines(ComposeFile);
-
     private static readonly string[] EnvExampleLines = ReadLines(EnvExampleFile);
+
+    private readonly string composeFile;
+
+    private readonly string[] composeLines;
+
+    private ComposeStack(string composeFile)
+    {
+        this.composeFile = composeFile;
+        composeLines = ReadLines(composeFile);
+        ObjectsInitScript = ReadObjectsInitScript();
+    }
+
+    /// <summary>The production stack — the file a deployment brings up.</summary>
+    public static ComposeStack Prod { get; } = new("compose.prod.yaml");
+
+    /// <summary>The development stack — standalone, and not an overlay on <see cref="Prod"/>.</summary>
+    public static ComposeStack Dev { get; } = new("compose.dev.yaml");
+
+    /// <summary>The file this instance reads, for naming in a failure message.</summary>
+    public string FileName => composeFile;
 
     /// <summary>
     /// The provisioning script <c>objects-init</c> runs, dedented out of its block scalar and with
     /// compose's <c>$$</c> interpolation escape turned back into a shell <c>$</c>.
     /// </summary>
-    public static string ObjectsInitScript { get; } = ReadObjectsInitScript();
+    public string ObjectsInitScript { get; }
 
     /// <summary><c>garage.toml</c> verbatim, for mapping into the node where compose mounts it.</summary>
     public static byte[] GarageConfigBytes { get; } = ReadGarageConfig();
@@ -45,20 +69,20 @@ internal static class ComposeStack
     /// The path a compose service mounts <c>garage.toml</c> at.
     /// <para>
     /// Compose's path rather than one of ours: the node takes its region, its ports and its
-    /// replication factor from whatever lands there, so a mount deleted or retargeted in
-    /// <c>compose.prod.yaml</c> has to move the file here too. Restated as a literal, it would let
-    /// a <c>docker compose up</c> that starts a node with no configuration at all stay green.
+    /// replication factor from whatever lands there, so a mount deleted or retargeted in the
+    /// compose file has to move the file here too. Restated as a literal, it would let a
+    /// <c>docker compose up</c> that starts a node with no configuration at all stay green.
     /// </para>
     /// </summary>
     /// <param name="service">The service name, as it appears under <c>services:</c>.</param>
     /// <exception cref="InvalidOperationException">The service mounts no <c>garage.toml</c>.</exception>
-    public static string GarageConfigMountTarget(string service) =>
+    public string GarageConfigMountTarget(string service) =>
         MountTargetOf(service, "./" + GarageConfigFile);
 
     /// <summary>The image a compose service runs.</summary>
     /// <param name="service">The service name, as it appears under <c>services:</c>.</param>
     /// <exception cref="InvalidOperationException">No such service, or it declares no image.</exception>
-    public static string ImageOf(string service)
+    public string ImageOf(string service)
     {
         foreach (var line in ServiceBlock(service))
         {
@@ -83,18 +107,18 @@ internal static class ComposeStack
         }
 
         throw new InvalidOperationException(
-            $"Service '{service}' in '{ComposeFile}' declares no image.");
+            $"Service '{service}' in '{composeFile}' declares no image.");
     }
 
     /// <summary>The argument vector a compose service's <c>command:</c> declares, in flow form.</summary>
     /// <param name="service">The service name, as it appears under <c>services:</c>.</param>
     /// <exception cref="InvalidOperationException">No such service, or no flow-form command.</exception>
-    public static string[] CommandOf(string service) => FlowSequence(service, "command");
+    public string[] CommandOf(string service) => FlowSequence(service, "command");
 
     /// <summary>The argument vector a compose service's <c>entrypoint:</c> declares.</summary>
     /// <param name="service">The service name, as it appears under <c>services:</c>.</param>
     /// <exception cref="InvalidOperationException">No such service, or no flow-form entrypoint.</exception>
-    public static string[] EntrypointOf(string service) => FlowSequence(service, "entrypoint");
+    public string[] EntrypointOf(string service) => FlowSequence(service, "entrypoint");
 
     /// <summary>
     /// The environment variable names a compose service declares, in the order it declares them.
@@ -107,7 +131,7 @@ internal static class ComposeStack
     /// </summary>
     /// <param name="service">The service name, as it appears under <c>services:</c>.</param>
     /// <exception cref="InvalidOperationException">No such service, or it declares no environment.</exception>
-    public static IReadOnlyList<string> EnvironmentKeysOf(string service) =>
+    public IReadOnlyList<string> EnvironmentKeysOf(string service) =>
         EnvironmentOf(service).Select(entry => entry.Key).ToArray();
 
     /// <summary>
@@ -126,7 +150,7 @@ internal static class ComposeStack
     /// <exception cref="InvalidOperationException">
     /// No such service, it declares no environment, or that block names no such key.
     /// </exception>
-    public static string EnvironmentValueOf(string service, string key)
+    public string EnvironmentValueOf(string service, string key)
     {
         foreach (var entry in EnvironmentOf(service))
         {
@@ -137,12 +161,12 @@ internal static class ComposeStack
         }
 
         throw new InvalidOperationException(
-            $"Service '{service}' in '{ComposeFile}' declares no '{key}' in its 'environment:' "
+            $"Service '{service}' in '{composeFile}' declares no '{key}' in its 'environment:' "
                 + "block, so a container brought up from this file is never given it.");
     }
 
     /// <summary>The whole <c>environment:</c> block of one service, in declaration order.</summary>
-    private static IReadOnlyList<KeyValuePair<string, string>> EnvironmentOf(string service)
+    private IReadOnlyList<KeyValuePair<string, string>> EnvironmentOf(string service)
     {
         var entries = new List<KeyValuePair<string, string>>();
         var inside = false;
@@ -183,7 +207,7 @@ internal static class ComposeStack
             if (colon <= 0)
             {
                 throw new InvalidOperationException(
-                    $"'{ComposeFile}' holds a line under '{service}'s 'environment:' that names no "
+                    $"'{composeFile}' holds a line under '{service}'s 'environment:' that names no "
                         + $"key: '{line}'.");
             }
 
@@ -193,7 +217,7 @@ internal static class ComposeStack
         if (entries.Count == 0)
         {
             throw new InvalidOperationException(
-                $"Service '{service}' in '{ComposeFile}' declares no environment variables.");
+                $"Service '{service}' in '{composeFile}' declares no environment variables.");
         }
 
         return entries;
@@ -235,7 +259,7 @@ internal static class ComposeStack
     /// </summary>
     /// <param name="service">The service name, as it appears under <c>services:</c>.</param>
     /// <param name="hostFile">The source side, spelled as compose spells it — <c>./garage.toml</c>.</param>
-    private static string MountTargetOf(string service, string hostFile)
+    private string MountTargetOf(string service, string hostFile)
     {
         var inside = false;
 
@@ -273,7 +297,7 @@ internal static class ComposeStack
             if (!entry.StartsWith("- ", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
-                    $"'{ComposeFile}' holds a line under '{service}'s 'volumes:' that is not a list "
+                    $"'{composeFile}' holds a line under '{service}'s 'volumes:' that is not a list "
                         + $"item: '{line}'.");
             }
 
@@ -288,13 +312,13 @@ internal static class ComposeStack
         }
 
         throw new InvalidOperationException(
-            $"Service '{service}' in '{ComposeFile}' mounts no '{hostFile}'.");
+            $"Service '{service}' in '{composeFile}' mounts no '{hostFile}'.");
     }
 
     /// <summary>
     /// A setting written as a single-line YAML flow sequence — <c>["/garage", "server"]</c>.
     /// </summary>
-    private static string[] FlowSequence(string service, string setting)
+    private string[] FlowSequence(string service, string setting)
     {
         foreach (var line in ServiceBlock(service))
         {
@@ -315,7 +339,7 @@ internal static class ComposeStack
             if (!value.StartsWith('[') || !value.EndsWith(']'))
             {
                 throw new InvalidOperationException(
-                    $"'{setting}:' on service '{service}' in '{ComposeFile}' is no longer a "
+                    $"'{setting}:' on service '{service}' in '{composeFile}' is no longer a "
                         + $"single-line [\"a\", \"b\"] sequence: '{value}'.");
             }
 
@@ -327,34 +351,34 @@ internal static class ComposeStack
             if (items.Length == 0)
             {
                 throw new InvalidOperationException(
-                    $"'{setting}:' on service '{service}' in '{ComposeFile}' is an empty sequence.");
+                    $"'{setting}:' on service '{service}' in '{composeFile}' is an empty sequence.");
             }
 
             return items;
         }
 
         throw new InvalidOperationException(
-            $"Service '{service}' in '{ComposeFile}' declares no '{setting}:'.");
+            $"Service '{service}' in '{composeFile}' declares no '{setting}:'.");
     }
 
     /// <summary>
     /// The lines of one service's block: everything under <c>  &lt;service&gt;:</c> up to the next
     /// line at that indent or shallower.
     /// </summary>
-    private static IEnumerable<string> ServiceBlock(string service)
+    private IEnumerable<string> ServiceBlock(string service)
     {
         var header = new string(' ', ServiceIndent) + service + ":";
-        var start = Array.FindIndex(ComposeLines, line => line.TrimEnd() == header);
+        var start = Array.FindIndex(composeLines, line => line.TrimEnd() == header);
 
         if (start < 0)
         {
             throw new InvalidOperationException(
-                $"'{ComposeFile}' declares no service '{service}'.");
+                $"'{composeFile}' declares no service '{service}'.");
         }
 
-        for (var index = start + 1; index < ComposeLines.Length; index++)
+        for (var index = start + 1; index < composeLines.Length; index++)
         {
-            var line = ComposeLines[index];
+            var line = composeLines[index];
 
             // Blank lines belong to whichever block surrounds them; a non-blank line back at the
             // service indent is the next service, and the block has ended.
@@ -375,7 +399,7 @@ internal static class ComposeStack
     /// line, strip the body's own indent, and undo compose's <c>$$</c> escape.
     /// </para>
     /// </summary>
-    private static string ReadObjectsInitScript()
+    private string ReadObjectsInitScript()
     {
         const string Service = "objects-init";
 
@@ -389,7 +413,7 @@ internal static class ComposeStack
         if (command < 0)
         {
             throw new InvalidOperationException(
-                $"Service '{Service}' in '{ComposeFile}' declares no 'command:'.");
+                $"Service '{Service}' in '{composeFile}' declares no 'command:'.");
         }
 
         var marker = -1;
@@ -408,7 +432,7 @@ internal static class ComposeStack
         if (marker < 0 || block[marker].Trim() != "- |")
         {
             throw new InvalidOperationException(
-                $"Service '{Service}' in '{ComposeFile}' no longer holds its provisioning script "
+                $"Service '{Service}' in '{composeFile}' no longer holds its provisioning script "
                     + "in a single '- |' block scalar under 'command:'.");
         }
 
@@ -441,7 +465,7 @@ internal static class ComposeStack
         if (body.Count == 0 || body[0].Length == 0)
         {
             throw new InvalidOperationException(
-                $"The '- |' block under '{Service}'s 'command:' in '{ComposeFile}' is empty.");
+                $"The '- |' block under '{Service}'s 'command:' in '{composeFile}' is empty.");
         }
 
         // A block scalar's indentation is the indentation of its first non-empty line; every other
@@ -456,7 +480,7 @@ internal static class ComposeStack
                 if (IndentOf(line) < scalarIndent)
                 {
                     throw new InvalidOperationException(
-                        $"A line of the provisioning script in '{ComposeFile}' is indented less "
+                        $"A line of the provisioning script in '{composeFile}' is indented less "
                             + $"than the {scalarIndent} spaces the block scalar opened with: '{line}'.");
                 }
 

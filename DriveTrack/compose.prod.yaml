@@ -6,8 +6,10 @@ name: drivetrack
 #   docker compose -f compose.prod.yaml up
 #
 # The `-f` is not optional. The file is deliberately not called `compose.yaml`, so nothing is
-# started by a bare `docker compose up` that did not say which stack it wanted — see
-# compose.dev.yaml for the development overlay that layers on top of this one.
+# started by a bare `docker compose up` that did not say which stack it wanted.
+#
+# This file is standalone and describes production only. Development is a separate stack in a
+# separate file with a separate compose project, and neither layers onto the other.
 #
 # Every setting arrives as an environment variable (AD-19); copy .env.example to .env before
 # the first run.

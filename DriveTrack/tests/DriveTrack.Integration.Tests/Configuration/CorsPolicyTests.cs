@@ -196,7 +196,7 @@ public class CorsPolicyTests(PostgresFixture postgres)
         // and what makes deleting it from .env alone a blank entry rather than no entry.
         Assert.Contains(
             EnvironmentOriginKey,
-            ComposeStack.EnvironmentKeysOf("app"),
+            ComposeStack.Prod.EnvironmentKeysOf("app"),
             StringComparer.Ordinal);
     }
 

@@ -352,13 +352,13 @@ public class InfrastructureRegistrationTests
         // brought forward to startup to prevent.
         const string key = "Geocoder__MinimumRequestIntervalMilliseconds";
 
-        Assert.Contains(key, ComposeStack.EnvironmentKeysOf("app"), StringComparer.Ordinal);
+        Assert.Contains(key, ComposeStack.Prod.EnvironmentKeysOf("app"), StringComparer.Ordinal);
 
         // Defaulted, not forwarded bare. The two neighbouring Geocoder__Endpoint lines are bare on
         // purpose, so `${...}` is a shape somebody could copy here in good faith - and it would be
         // wrong: compose substitutes an unset variable with the empty string, and a blank value is
         // one this key refuses to start on. Every .env written before this story leaves it unset.
-        var forwarded = ComposeStack.EnvironmentValueOf("app", key);
+        var forwarded = ComposeStack.Prod.EnvironmentValueOf("app", key);
 
         var prefix = "${" + key + ":-";
 

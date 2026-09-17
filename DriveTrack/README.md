@@ -31,6 +31,11 @@ object-store volumes.
 There is no `compose.yaml`, so a bare `docker compose up` finds nothing: the `-f` says which
 stack you mean, and the production one is never what you get by forgetting a flag.
 
+There are two stacks — `compose.prod.yaml` and `compose.dev.yaml` — and each is standalone.
+Neither layers onto the other, and they run under different compose projects, so their
+containers, networks and volumes are separate. The development database is not the production
+stack's database.
+
 ## The first administrator
 
 There is no sign-up for privileged roles, so the first administrator is provisioned from the
@@ -85,17 +90,23 @@ Alpine layer with no SDK and diagnostics switched off. That is what makes it a d
 artifact, and it is also why it cannot hot reload — the code inside was copied in at build time
 and nothing in the image can recompile it. Every edit needs a rebuild.
 
-For UI work, add the overlay:
+For UI work, run the development stack instead:
 
 ```bash
 cd DriveTrack
-docker compose -f compose.prod.yaml -f compose.dev.yaml up
+docker compose -f compose.dev.yaml up
 ```
 
-Same database, same object store, same `.env`. Only `app` changes: it builds from
-`Dockerfile.dev`, keeps the SDK, mounts `src/` from the host and runs `dotnet watch`. The two
-stacks build separate images — `drivetrack-app` and `drivetrack-app-dev` — so neither overwrites
-the other.
+It brings up the same four services from the same `.env`, but `app` builds from `Dockerfile.dev`:
+the SDK stays, `src/` is mounted from the host, and `dotnet watch` rebuilds on every edit. It
+also publishes PostgreSQL on `${DB_PORT:-5432}`, which the production stack deliberately does not.
+
+The two stacks are independent files, not a base and an overlay. That is deliberate — a change
+meant for development must not be able to reach a deployment by inheritance — and it has a cost:
+the services they share are duplicated text, and duplicated text drifts. `StackParityTests` reads
+both files and fails when the parts that have to agree stop agreeing (the Garage provisioning
+script, the shared images, the app's settings), while asserting that the parts that have to
+differ still do.
 
 What reloads, and what does not:
 
@@ -115,8 +126,8 @@ assets in Development, without which `MapStaticAssets` answers `304 Not Modified
 build-time ETag and the browser reuses stale JavaScript through reloads, hard reloads and browser
 restarts alike.
 
-The overlay also publishes PostgreSQL on `${DB_PORT:-5432}` for `psql` and GUI clients. The test
-suite does not use it; Testcontainers starts a database of its own per run.
+The database port the development stack publishes is for `psql` and GUI clients. The test suite
+does not use it; Testcontainers starts a database of its own per run.
 
 New migrations are generated against the `DriveTrack.Infrastructure` project:
 
@@ -130,10 +141,11 @@ dotnet dotnet-ef migrations add <Name> --project src/DriveTrack.Infrastructure -
 
 ```text
 DriveTrack/
-  compose.prod.yaml   app + PostgreSQL 18 + Garage, one named volume per stateful service
-  compose.dev.yaml    hot-reload overlay for `app`; layered over compose.prod.yaml
+  compose.prod.yaml   production stack: app + PostgreSQL 18 + Garage; project `drivetrack`
+  compose.dev.yaml    development stack: the same four services, hot-reloading; project
+                      `drivetrack-dev`, so its own volumes
   Dockerfile.prod     multi-stage build of DriveTrack.Web; no SDK in the runtime image
-  Dockerfile.dev      SDK image running `dotnet watch`; used only by the overlay
+  Dockerfile.dev      SDK image running `dotnet watch`; used by the development stack
   garage.toml         Garage node config; secrets come from the environment
   src/
     DriveTrack.Domain          entities and rules; depends on nothing

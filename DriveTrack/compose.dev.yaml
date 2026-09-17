@@ -1,34 +1,299 @@
-# The local development stack. Layered over compose.prod.yaml rather than replacing it:
+name: drivetrack-dev
+
+# The development stack: the whole system, built so that an edit on the host reaches the
+# browser in seconds.
 #
-#   docker compose -f compose.prod.yaml -f compose.dev.yaml up
+#   docker compose -f compose.dev.yaml up
 #
-# and the README spells that out. It is an overlay and not a standalone file on purpose — db,
-# objects and objects-init are the same services in both worlds, and a second copy of the Garage
-# bootstrap script is a second thing to keep in step. Only `app` differs, so only `app` is here.
+# Standalone and complete. This file is not an overlay and does not layer onto any other:
+# development and production are separate environments, and neither reads the other. Nothing
+# you change here can reach a production deployment, and nothing changed there arrives here by
+# inheritance.
 #
-# Neither file is named `compose.yaml`, so neither is picked up by a bare `docker compose up`.
-# That is deliberate: which stack you are starting is spelled out in the command, and the
-# published Release image is never what you get by forgetting a flag. compose.prod.yaml on its
-# own is the deliverable.
+# The compose project name is its own, so the containers, the network and — the part that
+# matters — the volumes are its own too. The database this brings up is a development database;
+# it is not the production stack's database under another name.
+#
+# The cost of standing alone is that the services below duplicate their production
+# counterparts, and duplicated text drifts. That is not left to discipline: the integration
+# suite reads both files and fails when the parts that have to agree stop agreeing — see
+# StackParityTests.
+#
+# Every setting arrives as an environment variable (AD-19); copy .env.example to .env before
+# the first run.
 
 services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is not set. Copy .env.example to .env before running docker compose.}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set. Copy .env.example to .env before running docker compose.}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set. Copy .env.example to .env before running docker compose.}
+    volumes:
+      # PostgreSQL 18's image expects a single mount at /var/lib/postgresql and places the
+      # cluster in a major-version subdirectory below it; mounting /var/lib/postgresql/data
+      # instead makes the image refuse to start.
+      - db-data:/var/lib/postgresql
+    # Published, which the production stack deliberately does not do: psql, a GUI client and an
+    # EF command run from the host all need to reach this, and a development database is not a
+    # thing worth hiding. The integration suite does not use it — Testcontainers starts a
+    # PostgreSQL of its own per run.
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      # The app waits on this condition; it is the only thing standing between a cold start
+      # and a migration run against a database that is not accepting connections yet.
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  objects:
+    image: dxflrs/garage:v2.4.0
+    command: ["/garage", "server"]
+    environment:
+      # Garage reads its secrets from the environment; garage.toml holds none.
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
+      GARAGE_METRICS_TOKEN: ${GARAGE_METRICS_TOKEN}
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - objects-data:/var/lib/garage
+    healthcheck:
+      # `garage health` exits non-zero until the cluster layout is live, so this reports
+      # unhealthy until objects-init has done its work.
+      test: ["CMD", "/garage", "-c", "/etc/garage.toml", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  objects-init:
+    # A fresh Garage node has no cluster layout and refuses S3 traffic until it gets one; a
+    # node with a layout still has no bucket and no S3 key until somebody makes them. This
+    # does all three, and every step is idempotent: a second `up` finds the layout applied,
+    # the bucket present and the key imported, reports so, and still exits 0 - which is what
+    # the `app` service's service_completed_successfully condition waits on.
+    image: alpine:3.22
+    depends_on:
+      objects:
+        condition: service_started
+    environment:
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
+      GARAGE_ZONE: ${GARAGE_ZONE:?GARAGE_ZONE is not set. Copy .env.example to .env before running docker compose.}
+      GARAGE_CAPACITY_BYTES: ${GARAGE_CAPACITY_BYTES:?GARAGE_CAPACITY_BYTES is not set. Copy .env.example to .env before running docker compose.}
+      # The same three values the app is given, so the key this creates is the key the app
+      # signs with and the bucket this creates is the bucket the app writes to. Required
+      # rather than defaulted: a proof capture against a bucket nobody made fails at the
+      # door, which is the worst possible place to discover a missing .env line.
+      ObjectStore__AccessKey: ${ObjectStore__AccessKey:?ObjectStore__AccessKey is not set. Copy .env.example to .env before running docker compose.}
+      ObjectStore__SecretKey: ${ObjectStore__SecretKey:?ObjectStore__SecretKey is not set. Copy .env.example to .env before running docker compose.}
+      ObjectStore__Bucket: ${ObjectStore__Bucket:?ObjectStore__Bucket is not set. Copy .env.example to .env before running docker compose.}
+    entrypoint: ["/bin/sh", "-eu", "-c"]
+    command:
+      - |
+        ADMIN="http://objects:3903"
+        AUTH="Authorization: Bearer $${GARAGE_ADMIN_TOKEN}"
+        JSON="Content-Type: application/json"
+        BUCKET="$${ObjectStore__Bucket}"
+        KEY_ID="$${ObjectStore__AccessKey}"
+        KEY_SECRET="$${ObjectStore__SecretKey}"
+
+        attempt=0
+        until wget -q -O /tmp/layout.json --header="$$AUTH" "$$ADMIN/v2/GetClusterLayout"; do
+          attempt=$$((attempt + 1))
+          if [ "$$attempt" -ge 60 ]; then
+            echo "garage admin API never became reachable" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+
+        # grep -o emits one match per line in document order, so head -n 1 really is the
+        # first match. A `sed 's/.*"version".../'` would let the greedy .* skip to the last
+        # match on a single-line JSON response and read the wrong number.
+        # `|| true` matters under `sh -eu`: without it an empty match aborts the script
+        # right here and the :-0 fallback below could never run.
+        version=$$(grep -o -E '"version"[[:space:]]*:[[:space:]]*[0-9]+' /tmp/layout.json \
+          | head -n 1 | grep -o -E '[0-9]+' || true)
+        version=$${version:-0}
+
+        if [ "$$version" -gt 0 ]; then
+          echo "Garage layout already at version $$version; leaving it alone."
+        else
+          wget -q -O /tmp/status.json --header="$$AUTH" "$$ADMIN/v2/GetClusterStatus"
+          # `|| true` for the same reason: an empty match must reach the check below,
+          # which says what went wrong, instead of killing the script silently.
+          node=$$(grep -o -E '"id"[[:space:]]*:[[:space:]]*"[0-9a-f]{64}"' /tmp/status.json \
+            | head -n 1 | grep -o -E '[0-9a-f]{64}' || true)
+
+          if [ -z "$$node" ]; then
+            echo "could not read the garage node id" >&2
+            exit 1
+          fi
+
+          echo "Assigning zone $$GARAGE_ZONE to garage node $$node."
+          wget -q -O /dev/null --header="$$AUTH" --header="$$JSON" \
+            --post-data="{\"roles\":[{\"id\":\"$$node\",\"zone\":\"$$GARAGE_ZONE\",\"capacity\":$$GARAGE_CAPACITY_BYTES,\"tags\":[]}]}" \
+            "$$ADMIN/v2/UpdateClusterLayout"
+
+          echo "Applying cluster layout version 1."
+          wget -q -O /dev/null --header="$$AUTH" --header="$$JSON" \
+            --post-data='{"version":1}' \
+            "$$ADMIN/v2/ApplyClusterLayout"
+
+          echo "Garage layout applied."
+        fi
+
+        # The layout reaches the storage engine a moment after ApplyClusterLayout answers, and
+        # a bucket created in that moment is refused. Retried rather than slept through, so a
+        # fast machine pays nothing and a slow one still succeeds.
+        attempt=0
+        until wget -q -O /tmp/bucket.json --header="$$AUTH" \
+          "$$ADMIN/v2/GetBucketInfo?globalAlias=$$BUCKET" \
+          || wget -q -O /dev/null --header="$$AUTH" --header="$$JSON" \
+            --post-data="{\"globalAlias\":\"$$BUCKET\"}" "$$ADMIN/v2/CreateBucket"; do
+          attempt=$$((attempt + 1))
+          if [ "$$attempt" -ge 30 ]; then
+            echo "could not create or find the bucket $$BUCKET" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+
+        # Read again, because the loop above may have exited through the create arm, which answers
+        # the new bucket rather than writing /tmp/bucket.json.
+        #
+        # Retried for the reason the loop is: this is the same propagation race, and under `sh -eu`
+        # a bare wget that met it would abort the job with no message at all - leaving the app's
+        # service_completed_successfully gate waiting on a container that died silently.
+        attempt=0
+        until wget -q -O /tmp/bucket.json --header="$$AUTH" \
+          "$$ADMIN/v2/GetBucketInfo?globalAlias=$$BUCKET"; do
+          attempt=$$((attempt + 1))
+          if [ "$$attempt" -ge 30 ]; then
+            echo "bucket $$BUCKET never became readable" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+
+        bucket=$$(grep -o -E '"id"[[:space:]]*:[[:space:]]*"[0-9a-f]{64}"' /tmp/bucket.json \
+          | head -n 1 | grep -o -E '[0-9a-f]{64}' || true)
+
+        if [ -z "$$bucket" ]; then
+          echo "could not read the id of bucket $$BUCKET" >&2
+          exit 1
+        fi
+
+        echo "Bucket $$BUCKET is $$bucket."
+
+        # Imported rather than created, and that is the whole reason this step can exist at
+        # all: CreateKey mints an access key id nobody can predict, so the .env would have to
+        # be edited by hand after the first start. ImportKey takes the pair the .env already
+        # names, which is what makes one `docker compose up` enough.
+        if wget -q -O /dev/null --header="$$AUTH" "$$ADMIN/v2/GetKeyInfo?id=$$KEY_ID"; then
+          echo "S3 key $$KEY_ID already present."
+        else
+          echo "Importing S3 key $$KEY_ID."
+          wget -q -O /dev/null --header="$$AUTH" --header="$$JSON" \
+            --post-data="{\"name\":\"drivetrack\",\"accessKeyId\":\"$$KEY_ID\",\"secretAccessKey\":\"$$KEY_SECRET\"}" \
+            "$$ADMIN/v2/ImportKey"
+        fi
+
+        # Read and write, not owner: the application stores proof assets and reads them back,
+        # and nothing in it ever deletes a bucket or changes who may see one.
+        echo "Granting read and write on $$BUCKET to $$KEY_ID."
+        wget -q -O /dev/null --header="$$AUTH" --header="$$JSON" \
+          --post-data="{\"bucketId\":\"$$bucket\",\"accessKeyId\":\"$$KEY_ID\",\"permissions\":{\"read\":true,\"write\":true,\"owner\":false}}" \
+          "$$ADMIN/v2/AllowBucketKey"
+
+        echo "Garage object storage ready."
+    restart: "no"
+
   app:
-    # A tag of its own, and not a detail. Both files name the same service in the same project, so
-    # both builds default to `drivetrack-app` — building dev would quietly overwrite the image the
-    # production stack then runs, and that stack would come up running `dotnet watch` against a
-    # mount that is not there.
+    # A tag of its own. Both stacks name a service `app`, and an image name left to default
+    # would be derived from the project name — close enough to invite confusion about which
+    # image a given container is running.
     image: drivetrack-app-dev
     build:
       context: .
-      # The SDK image with `dotnet watch` as its entrypoint. See Dockerfile.dev for why the
-      # production image cannot hot reload and this one can.
+      # The SDK image with `dotnet watch` as its entrypoint, rather than a published Release
+      # build: the production image carries no SDK and cannot recompile what it runs, which is
+      # correct for a deployable artifact and useless for editing.
       dockerfile: Dockerfile.dev
-
+    depends_on:
+      db:
+        condition: service_healthy
+      objects:
+        condition: service_healthy
+      objects-init:
+        condition: service_completed_successfully
     environment:
-      # Overrides the ${ASPNETCORE_ENVIRONMENT} the base file forwards from .env. Hot reload is a
-      # Development-environment feature, and a Production value here would silently disable it.
+      # Not forwarded from .env: this stack *is* the development environment, and hot reload
+      # is a Development-environment feature. A .env carrying Production would otherwise
+      # disable the one thing this file exists to provide.
       ASPNETCORE_ENVIRONMENT: Development
-
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__Default: ${ConnectionStrings__Default:?ConnectionStrings__Default is not set. Copy .env.example to .env before running docker compose.}
+      # Forwarded bare, and unlike the keys below that is not a default waiting to be taken: an
+      # unset variable arrives as an empty entry rather than as no entry, and the app refuses to
+      # start on a blank origin (NFR-12). So blanking the line in .env does not disable CORS -
+      # allowing no cross-origin caller at all means deleting this line AND the matching
+      # Cors__AllowedOrigins__0 line in .env. A second origin needs a __1 line in both files.
+      Cors__AllowedOrigins__0: ${Cors__AllowedOrigins__0}
+      Jwt__SigningKey: ${Jwt__SigningKey:?Jwt__SigningKey is not set. Copy .env.example to .env before running docker compose.}
+      # Defaulted, not forwarded bare: an .env predating these keys would otherwise set them to
+      # the empty string, which overrides the options defaults rather than falling back to them.
+      Jwt__Issuer: ${Jwt__Issuer:-DriveTrack}
+      Jwt__Audience: ${Jwt__Audience:-DriveTrack}
+      Jwt__LifetimeMinutes: ${Jwt__LifetimeMinutes:-60}
+      Admin__Email: ${Admin__Email}
+      Admin__Password: ${Admin__Password}
+      # Defaulted for the same reason as the JWT keys above: an .env predating these two would
+      # forward the empty string, and an empty string is a value - it overrides the seeder's
+      # fallback rather than falling back to it, and seeds an administrator with no name.
+      Admin__FirstName: ${Admin__FirstName:-Адміністратор}
+      Admin__LastName: ${Admin__LastName:-Системи}
+      # The Secure flag on the session cookie. Defaulted rather than forwarded bare, for the reason
+      # the JWT keys above are: an .env predating this key would otherwise forward the empty string,
+      # and blank is a value the start-up check refuses outright - the container would stop coming up
+      # for every operator whose .env is older than this line. This stack terminates plain HTTP, so
+      # the default has to stay SameAsRequest; Always belongs to a deployment that terminates TLS.
+      Session__CookieSecurePolicy: ${Session__CookieSecurePolicy:-SameAsRequest}
+      # Host stays bare on purpose: blank is a state this system has an answer for - no relay is
+      # configured, and the notification becomes a Failed attempt saying so.
+      Smtp__Host: ${Smtp__Host}
+      # The next three are defaulted for the reason the Geocoder keys below are. An .env predating
+      # them forwards the empty string, and an empty string is a value: it overrides the option's
+      # default rather than falling back to it. For the port and the TLS switch that is a value the
+      # startup check refuses and the container never starts; for the from-address it is an address
+      # MailAddress rejects, so every notification fails with a message naming no key at all.
+      Smtp__Port: ${Smtp__Port:-587}
+      Smtp__UseStartTls: ${Smtp__UseStartTls:-false}
+      Smtp__User: ${Smtp__User}
+      Smtp__Password: ${Smtp__Password}
+      Smtp__FromAddress: ${Smtp__FromAddress:-no-reply@drivetrack.local}
+      Smtp__FromName: ${Smtp__FromName}
+      Geocoder__Endpoint: ${Geocoder__Endpoint}
+      Geocoder__SearchEndpoint: ${Geocoder__SearchEndpoint}
+      # Defaulted rather than forwarded bare, for the reason the JWT keys above are: an .env
+      # predating these three would otherwise set them to the empty string, and an empty string
+      # overrides the option's default instead of falling back to it - which for the timeout and
+      # the pacing interval is a value the binder refuses and startup aborts on, by design.
+      Geocoder__UserAgent: ${Geocoder__UserAgent:-DriveTrack/1.0}
+      Geocoder__TimeoutSeconds: ${Geocoder__TimeoutSeconds:-10}
+      # One request per second is Nominatim's public usage policy; 0 disables the pacing for a
+      # self-hosted instance, which carries no such policy.
+      Geocoder__MinimumRequestIntervalMilliseconds: ${Geocoder__MinimumRequestIntervalMilliseconds:-1000}
+      ObjectStore__ServiceUrl: ${ObjectStore__ServiceUrl}
+      ObjectStore__Region: ${ObjectStore__Region}
+      ObjectStore__AccessKey: ${ObjectStore__AccessKey}
+      ObjectStore__SecretKey: ${ObjectStore__SecretKey}
+      ObjectStore__Bucket: ${ObjectStore__Bucket}
     volumes:
       # The source, live. This is the whole point: an edit on the host is an edit inside the
       # container, and `dotnet watch` rebuilds on it.
@@ -51,25 +316,20 @@ services:
       - /src/src/DriveTrack.Web/obj
 
       # AD-28 compiles the theme from Sass into wwwroot/css, which .dockerignore keeps out of the
-      # production context precisely so a stale local copy cannot ride in. The same reasoning
-      # applies to the mount: let the container generate its own.
+      # build context precisely so a stale local copy cannot ride in. The same reasoning applies
+      # to the mount: let the container generate its own.
       - /src/src/DriveTrack.Web/wwwroot/css
 
       # The NuGet cache, kept across restarts. A named volume rather than a mount of the host's
       # ~/.nuget: the packages are restored for linux-x64 here and for the host's RID there, and
       # sharing one directory between them is how a corrupt cache happens.
-      - dev-nuget:/root/.nuget/packages
-
+      - nuget:/root/.nuget/packages
+    ports:
+      - "${APP_PORT:?APP_PORT is not set. Copy .env.example to .env before running docker compose.}:8080"
     # A watch that dies should stay dead and show its error, not loop behind a restart policy.
     restart: "no"
 
-  db:
-    # Published for local tooling only — psql, a GUI client, an EF command run from the host.
-    # The base file deliberately leaves the database unreachable from outside the compose
-    # network, and that stays true of the production stack. The integration suite does not use
-    # this: Testcontainers starts a PostgreSQL of its own per run.
-    ports:
-      - "${DB_PORT:-5432}:5432"
-
 volumes:
-  dev-nuget:
+  db-data:
+  objects-data:
+  nuget:

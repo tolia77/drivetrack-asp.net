@@ -1,11 +1,12 @@
 # The development image. Its only job is to run `dotnet watch` against source bind-mounted
 # from the host, so an edit to a .razor or .razor.css file reaches the browser in seconds.
 #
-# This is not a smaller Dockerfile than the production one; it is the opposite of it. Dockerfile
-# publishes a Release build into a runtime-only Alpine image with no SDK and diagnostics off,
-# which is exactly right for a deployable artifact and exactly why it cannot hot reload:
-# nothing inside it can compile, and the code it runs was copied in at build time. Here the SDK
-# stays, the source arrives over a mount rather than a COPY, and nothing is published at all.
+# This is not a smaller Dockerfile than the production one; it is the opposite of it.
+# Dockerfile.prod publishes a Release build into a runtime-only Alpine image with no SDK and
+# diagnostics off, which is exactly right for a deployable artifact and exactly why it cannot
+# hot reload: nothing inside it can compile, and the code it runs was copied in at build time.
+# Here the SDK stays, the source arrives over a mount rather than a COPY, and nothing is
+# published at all.
 FROM mcr.microsoft.com/dotnet/sdk:10.0
 WORKDIR /src
 

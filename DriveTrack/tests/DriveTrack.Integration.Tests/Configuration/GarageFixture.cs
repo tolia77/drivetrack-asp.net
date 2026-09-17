@@ -108,7 +108,7 @@ public sealed class GarageFixture : IAsyncLifetime
     /// that.
     /// </summary>
     public async Task<ObjectsInitRun> RunObjectsInitAsync(CancellationToken cancellationToken) =>
-        await RunInitContainerAsync(Node.Network, ComposeStack.ObjectsInitScript, cancellationToken);
+        await RunInitContainerAsync(Node.Network, ComposeStack.Prod.ObjectsInitScript, cancellationToken);
 
     /// <summary>
     /// Runs an arbitrary script under the entrypoint <c>compose.prod.yaml</c> gives
@@ -192,18 +192,18 @@ public sealed class GarageFixture : IAsyncLifetime
         // container behind them, or a failing run leaks Docker resources on every retry.
         try
         {
-            container = new ContainerBuilder(ComposeStack.ImageOf(NodeAlias))
+            container = new ContainerBuilder(ComposeStack.Prod.ImageOf(NodeAlias))
 
                 // The argument vector compose gives the service, read from compose rather than
                 // copied out of it. The image carries no entrypoint, so the binary is the first word.
-                .WithCommand(ComposeStack.CommandOf(NodeAlias))
+                .WithCommand(ComposeStack.Prod.CommandOf(NodeAlias))
 
                 // The repository's own configuration, at the path compose mounts it to - read from
                 // compose rather than restated, because the ports, the region and the replication
                 // factor the adapter has to match are decided by whatever lands at that path.
                 .WithResourceMapping(
                     ComposeStack.GarageConfigBytes,
-                    ComposeStack.GarageConfigMountTarget(NodeAlias))
+                    ComposeStack.Prod.GarageConfigMountTarget(NodeAlias))
                 .WithNetwork(network)
                 .WithNetworkAliases(NodeAlias)
                 .WithEnvironment(EnvironmentOf(NodeAlias))
@@ -218,7 +218,7 @@ public sealed class GarageFixture : IAsyncLifetime
             // is only one of it.
             var provisioning = await RunInitContainerAsync(
                 network,
-                ComposeStack.ObjectsInitScript,
+                ComposeStack.Prod.ObjectsInitScript,
                 CancellationToken.None);
 
             if (provisioning.ExitCode != 0)
@@ -249,7 +249,7 @@ public sealed class GarageFixture : IAsyncLifetime
     /// renamed in either file throws.
     /// </summary>
     private static IReadOnlyDictionary<string, string> EnvironmentOf(string service) =>
-        ComposeStack.EnvironmentKeysOf(service)
+        ComposeStack.Prod.EnvironmentKeysOf(service)
             .ToDictionary(key => key, ComposeStack.EnvExample, StringComparer.Ordinal);
 
     /// <summary>
@@ -261,13 +261,13 @@ public sealed class GarageFixture : IAsyncLifetime
         string script,
         CancellationToken cancellationToken)
     {
-        var init = new ContainerBuilder(ComposeStack.ImageOf(InitService))
+        var init = new ContainerBuilder(ComposeStack.Prod.ImageOf(InitService))
             .WithNetwork(network)
 
             // Read rather than copied, because the flags are the contract: drop the `-e` and a
             // provisioning step that failed halfway would still exit 0, leaving an S3 key with no
             // grant on a bucket and a `docker compose up` that reports success.
-            .WithEntrypoint(ComposeStack.EntrypointOf(InitService))
+            .WithEntrypoint(ComposeStack.Prod.EntrypointOf(InitService))
             .WithCommand(script)
             .WithEnvironment(EnvironmentOf(InitService))
 

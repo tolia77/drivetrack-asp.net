@@ -213,7 +213,7 @@ public class SessionCookieTests(PostgresFixture postgres)
         // key absent from compose is a key the app never sees, however carefully .env documents it.
         Assert.Contains(
             EnvironmentPolicyKey,
-            ComposeStack.EnvironmentKeysOf("app"),
+            ComposeStack.Prod.EnvironmentKeysOf("app"),
             StringComparer.Ordinal);
     }
 
@@ -225,7 +225,7 @@ public class SessionCookieTests(PostgresFixture postgres)
         // substitutes a bare reference to an unset variable with the empty string, the check refuses
         // a blank value, and every container whose .env predates this key would stop coming up. The
         // key's presence alone cannot see that, because the name is identical either way.
-        var forwarded = ComposeStack.EnvironmentValueOf("app", EnvironmentPolicyKey);
+        var forwarded = ComposeStack.Prod.EnvironmentValueOf("app", EnvironmentPolicyKey);
 
         var prefix = "${" + EnvironmentPolicyKey + ":-";
 
