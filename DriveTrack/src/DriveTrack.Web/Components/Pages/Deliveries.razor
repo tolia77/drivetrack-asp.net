@@ -42,22 +42,22 @@
     <div class="alert alert-warning" role="status">@Localizer["DeliveriesTruncated"]</div>
 }
 
-<div class="row g-3 align-items-end mb-3">
+<div class="row g-4 align-items-end mb-4">
     <div class="col-sm-auto">
-        <button type="button" class="btn btn-success" @onclick="OpenCreateAsync">
+        <button type="button" class="btn btn-primary" @onclick="OpenCreateAsync">
             <Icon Name="IconName.Create" />@Localizer["Create"]
         </button>
     </div>
     <div class="col-sm-auto">
         @* FR-101: one action clears every filter, including the date range. A per-field clear would
            leave a dispatcher hunting for the one box still narrowing the list. *@
-        <button type="button" class="btn btn-secondary" @onclick="ResetFilters">
+        <button type="button" class="btn btn-outline-secondary" @onclick="ResetFilters">
             <Icon Name="IconName.Close" />@Localizer["ResetFilters"]
         </button>
     </div>
 </div>
 
-<div class="row g-3 align-items-end mb-3">
+<div class="row g-4 align-items-end mb-4">
     <div class="col-sm">
         <label class="form-label" for="delivery-filter-driver">@Localizer["Driver"]</label>
         <input id="delivery-filter-driver" type="search" class="form-control"
@@ -80,7 +80,7 @@
     </div>
 </div>
 
-<div class="row g-3 align-items-end mb-3">
+<div class="row g-4 align-items-end mb-4">
     <div class="col-sm">
         <label class="form-label" for="delivery-filter-details">@Localizer["PackageDetails"]</label>
         <input id="delivery-filter-details" type="search" class="form-control"
@@ -105,7 +105,7 @@
     </div>
 </div>
 
-<div class="row g-3 align-items-end mb-3">
+<div class="row g-4 align-items-end mb-4">
     <div class="col-sm">
         <label class="form-label" for="delivery-filter-created-from">@Localizer["CreatedFrom"]</label>
         <input id="delivery-filter-created-from" type="date" class="form-control"
@@ -241,13 +241,13 @@
             }
         </td>
         <td>
-            <button type="button" class="btn btn-primary btn-sm dt-delivery-edit"
+            <button type="button" class="btn btn-secondary btn-sm dt-delivery-edit"
                     @onclick="EditHandler(delivery)">
                 <Icon Name="IconName.Edit" />@Localizer["Edit"]
             </button>
             @* FR-108: the history is a row action rather than a column, because it is a
                conversation about one delivery and not a value to be compared across the table. *@
-            <button type="button" class="btn btn-secondary btn-sm dt-delivery-timeline"
+            <button type="button" class="btn btn-outline-secondary btn-sm dt-delivery-timeline"
                     @onclick="TimelineHandler(delivery)">
                 <Icon Name="IconName.Timeline" />@Localizer["Timeline"]
             </button>
@@ -255,7 +255,7 @@
                (AD-17). There is no capture action here - FR-119 puts that at the door, and a
                dispatcher behind a desk has nothing to photograph; the note arm of FR-120 is what
                dispatch has instead, and it lives on the history panel beside this button. *@
-            <button type="button" class="btn btn-secondary btn-sm dt-proof-open"
+            <button type="button" class="btn btn-outline-secondary btn-sm dt-proof-open"
                     @onclick="ProofHandler(delivery)">
                 <Icon Name="IconName.Proof" />@Localizer["ProofOpen"]
             </button>
@@ -303,7 +303,7 @@
            half-screen maps put the second one below the fold. They fall back to full width under
            `lg`, where side-by-side maps would be too narrow to aim at, and the dialog asks for the
            wide panel so the desktop pair has room. *@
-        <div class="row g-3 mb-3">
+        <div class="row g-4 mb-4">
             <div class="col-lg-6">
                 <DtLocationPicker Prefix="pickup"
                                   Label="@Localizer["Pickup"]"
@@ -331,12 +331,12 @@
                `For="@(() => ...)"` lambda inside an attribute is what NFR-14's scan misreads. *@
             <ValidationSummary />
 
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="delivery-details">@Localizer["PackageDetails"]</label>
                 <InputText id="delivery-details" class="form-control" @bind-Value="_form.PackageDetails" />
                 <DtFieldError Field="PackageDetails" Failures="_failures" />
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="delivery-weight">@Localizer["PackageWeightKg"]</label>
                 @* No {0} in the message: the framework fills it with the CLR property name, which
                    would put a Latin word in front of a user (NFR-14). *@
@@ -349,7 +349,7 @@
                 <DtFieldError Field="PackageWeightKg" Failures="_failures" />
                 <div class="form-text">@Localizer["VehicleCapacityHint"] @CapacityText</div>
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="delivery-notes">@Localizer["DeliveryNotes"]</label>
                 <InputTextArea id="delivery-notes" class="form-control" @bind-Value="_form.DeliveryNotes" />
                 <DtFieldError Field="DeliveryNotes" Failures="_failures" />
@@ -357,14 +357,14 @@
 
             @* FR-100: either bound may stand alone and both may be absent; only an inverted pair is
                refused, by the validator and by the check constraint behind it. *@
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="delivery-window-earliest">@Localizer["WindowEarliestAt"]</label>
                 <InputDate id="delivery-window-earliest" class="form-control"
                            Type="InputDateType.DateTimeLocal"
                            ParsingErrorMessage="@Localizer["DateParseError"]"
                            @bind-Value="_form.WindowEarliestAt" />
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="delivery-window-latest">@Localizer["WindowLatestAt"]</label>
                 <InputDate id="delivery-window-latest" class="form-control"
                            Type="InputDateType.DateTimeLocal"
@@ -375,7 +375,7 @@
 
             @* FR-16: both are optional, and the empty choice is how a dispatcher says so - on an
                edit it is also how they unassign, which AD-23 carries as a present null. *@
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="delivery-driver">@Localizer["Driver"]</label>
                 <select id="delivery-driver" class="form-select" @bind="_form.DriverId">
                     <option value="">@Localizer["NoDriver"]</option>
@@ -388,7 +388,7 @@
                     }
                 </select>
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="delivery-client">@Localizer["Client"]</label>
                 <select id="delivery-client" class="form-select" @bind="_form.ClientId">
                     <option value="">@Localizer["NoClient"]</option>
@@ -403,10 +403,10 @@
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would dispatch a second write, and nothing downstream would recognise it as a repeat. *@
-        <button type="submit" form="delivery-form" class="btn btn-primary" disabled="@_saving">
+        <button type="submit" form="delivery-form" class="btn btn-secondary" disabled="@_saving">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary" @onclick="CloseFormAsync">
+        <button type="button" class="btn btn-outline-secondary" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>

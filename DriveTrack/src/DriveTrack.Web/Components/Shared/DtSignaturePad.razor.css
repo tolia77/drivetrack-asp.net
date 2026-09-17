@@ -17,7 +17,7 @@
 .dt-signature-canvas {
     width: 100%;
     height: 10rem;
-    border: var(--dt-border-width-emphasis) dashed var(--dt-border-strong);
+    border: var(--dt-border-width-focus) dashed var(--dt-border-control);
     border-radius: var(--dt-radius-md);
     background-color: var(--dt-surface-card);
 

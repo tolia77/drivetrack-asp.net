@@ -32,7 +32,7 @@
            @bind="Search.Query"
            @bind:event="oninput"
            @onkeydown="Enter" />
-    <button type="button" class="btn btn-secondary @SearchHook"
+    <button type="button" class="btn btn-outline-secondary @SearchHook"
             disabled="@Search.IsBusy"
             @onclick="Run">
         <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]

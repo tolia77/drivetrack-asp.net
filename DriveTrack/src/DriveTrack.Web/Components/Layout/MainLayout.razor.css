@@ -17,13 +17,13 @@ main {
 
 /* The dark navigation surface, flat rather than the scaffold's purple gradient. */
 .sidebar {
-    background-color: var(--dt-surface-nav);
+    background-color: var(--dt-nav-bg);
 }
 
 /* A white bar over the tinted page, separated by a hairline rather than a shadow. */
 .top-row {
     background-color: var(--dt-surface-card);
-    border-bottom: var(--dt-border-width) solid var(--dt-border-subtle);
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
     justify-content: flex-end;
     height: 3.5rem;
     display: flex;
@@ -91,10 +91,10 @@ main {
 */
 #blazor-error-ui {
     color-scheme: light only;
-    background-color: var(--dt-feedback-warning-surface);
-    color: var(--dt-text-primary);
-    border-top: var(--dt-border-width) solid var(--dt-feedback-warning);
-    box-shadow: var(--dt-shadow-up);
+    background-color: var(--dt-warning-subtle);
+    color: var(--dt-ink);
+    border-top: var(--dt-border-width) solid var(--dt-warning-mark);
+    box-shadow: var(--dt-shadow-raised);
     bottom: 0;
     box-sizing: border-box;
     display: none;

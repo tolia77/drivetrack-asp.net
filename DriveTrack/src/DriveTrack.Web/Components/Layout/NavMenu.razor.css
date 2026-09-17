@@ -9,41 +9,52 @@
     cursor: pointer;
     width: 3.5rem;
     height: 2.5rem;
-    color: var(--dt-text-on-nav-strong);
+    color: var(--dt-ink-inverse);
     position: absolute;
     top: 0.5rem;
     right: 1rem;
-    border: var(--dt-border-width) solid var(--dt-border-nav);
+    border: var(--dt-border-width) solid var(--dt-nav-control-border);
     /*
-        Split out of the scaffold's `background` shorthand so the colour is a token while the
-        icon stays an inline asset. Icon geometry is layout, not palette.
+        The bars are drawn rather than fetched. Three one-colour gradient layers, sized and
+        positioned by geometry, give the same hamburger the scaffold's data URI drew - and give it
+        in `currentColor`, so it follows the token on the `color` line above instead of carrying a
+        literal of its own.
 
-        NFR-29 EXEMPTION - the one literal colour left in the component tree, declared here so
-        it is a recorded decision rather than an oversight, and asserted as the ONLY one by
-        `Only_the_recorded_url_asset_carries_a_literal_colour`.
-
-        The sibling `.bi-house-door-fill-nav-menu` solves this by masking, which cannot work
-        here: a mask clips the whole element, and this one has to paint a surface as well as a
-        glyph. The other two escapes are also closed - this element is an `<input>`, which
-        renders no `::before`/`::after` to carry the glyph on its own layer, and a scoped
-        `.razor.css` is processed by Razor rather than the Sass pipeline, so a token value
-        cannot be interpolated into the data URI at build time. Removing the literal therefore
-        needs a markup change (a `<label>` wrapping the input), which is a story of its own.
+        That closes NFR-29's last exemption. The data URI it replaced was the one recorded literal
+        colour left in the component tree, and it was unremovable by masking: the element is an
+        `<input>`, which renders no `::before` to carry a glyph on its own layer, and a scoped
+        `.razor.css` is processed by Razor rather than by Sass, so a token cannot be interpolated
+        into a URI at build time. A gradient needs neither - it is a paint, and a paint may say
+        `currentColor`.
     */
-    background-color: var(--dt-surface-nav-hover);
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+    background-color: var(--dt-nav-hover-bg);
+    background-image:
+        linear-gradient(currentColor, currentColor),
+        linear-gradient(currentColor, currentColor),
+        linear-gradient(currentColor, currentColor);
     background-repeat: no-repeat;
-    background-position: center;
-    background-size: 1.75rem;
+    background-size: 1.25rem 2px;
+    background-position: center 0.75rem, center 1.25rem, center 1.75rem;
 }
 
 .navbar-toggler:checked {
-    background-color: var(--dt-surface-nav-active);
+    background-color: var(--dt-nav-active-bg);
 }
 
+/*
+    NOT a pure rename: this was `surface-nav-sunken`, a step darker than the sidebar, and the new
+    palette has no sunken nav surface - `nav-bg` is the whole shell. So on a phone, where this bar
+    is what shows above the collapsed menu, it now reads as one surface with the sidebar rather
+    than as a header sitting on it. Recorded because the rest of this sweep was mechanical.
+
+    Flattening is the direction the design goes anyway - the navigation is one colour with the
+    current destination picked out in `nav-active-bg` - so the bar is left to merge rather than
+    given a tint the palette does not name. Spec C rebuilds this shell and can separate the two
+    with a rule if the phone layout needs one.
+*/
 .top-row {
     min-height: 3.5rem;
-    background-color: var(--dt-surface-nav-sunken);
+    background-color: var(--dt-nav-bg);
 }
 
 /*
@@ -52,13 +63,13 @@
     size changes, and the size is a token that a later story is free to change.
 */
 .navbar-brand {
-    font-size: var(--dt-font-size-lg);
+    font-size: var(--dt-h2-font-size);
     display: inline-flex;
     align-items: center;
 }
 
 .nav-item {
-    font-size: var(--dt-font-size-sm);
+    font-size: var(--dt-body-font-size);
     padding-bottom: var(--dt-space-2);
 }
 
@@ -75,12 +86,12 @@
         `line-height: 3rem` was a second, competing way of saying the same thing and is gone.
     */
     .nav-item ::deep .nav-link {
-        color: var(--dt-text-on-nav);
+        color: var(--dt-nav-ink);
         background: none;
         border: none;
         border-radius: var(--dt-radius-sm);
         padding: var(--dt-space-2) var(--dt-space-3);
-        line-height: var(--dt-line-height-base);
+        line-height: var(--dt-body-line-height);
         height: 3rem;
         display: flex;
         align-items: center;
@@ -88,8 +99,8 @@
     }
 
 .nav-item ::deep a.active {
-    background-color: var(--dt-surface-nav-active);
-    color: var(--dt-text-on-nav-strong);
+    background-color: var(--dt-nav-active-bg);
+    color: var(--dt-ink-inverse);
 }
 
 /*
@@ -100,8 +111,8 @@
     reason: the ARIA state and the paint are then one fact rather than two that can disagree.
 */
 .nav-item ::deep .nav-link[aria-current] {
-    background-color: var(--dt-surface-nav-active);
-    color: var(--dt-text-on-nav-strong);
+    background-color: var(--dt-nav-active-bg);
+    color: var(--dt-ink-inverse);
 }
 
 /*
@@ -122,8 +133,8 @@
     }
 
 .nav-item ::deep .nav-link:hover {
-    background-color: var(--dt-surface-nav-hover);
-    color: var(--dt-text-on-nav-strong);
+    background-color: var(--dt-nav-hover-bg);
+    color: var(--dt-ink-inverse);
 }
 
 .nav-scrollable {

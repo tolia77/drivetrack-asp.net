@@ -26,5 +26,5 @@
 */
 .dt-review-refused,
 .dt-review-nothing-to-review {
-    color: var(--dt-text-muted);
+    color: var(--dt-ink-muted);
 }

@@ -167,11 +167,15 @@ function resize(element, state) {
  * The ink colour, read from the design token the stylesheet publishes rather than written here.
  * NFR-29 keeps literal palette values out of everything but the token file, and a canvas stroke is
  * as visible as a border.
+ *
+ * `signature-ink` rather than the body text colour: the two carry the same value today, but a
+ * signature is a mark on a pad rather than text on a surface, and the palette names it separately
+ * so it can be changed without repainting every sentence in the app.
  * @param {HTMLCanvasElement} element The canvas element.
  * @returns {string} A CSS colour.
  */
 function readInk(element) {
-    const value = getComputedStyle(element).getPropertyValue("--dt-text-primary").trim();
+    const value = getComputedStyle(element).getPropertyValue("--dt-signature-ink").trim();
 
     // currentColor is not a value a canvas context understands, so the computed text colour is the
     // fallback when the token is not resolvable - which is what a test harness with no stylesheet

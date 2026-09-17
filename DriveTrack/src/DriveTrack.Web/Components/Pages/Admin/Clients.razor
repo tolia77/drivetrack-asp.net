@@ -50,7 +50,7 @@
                after it would be read as rendered English. *@
             @if (_isAdmin)
             {
-                <button type="button" class="btn btn-primary btn-sm dt-client-edit" @onclick="Edit(client)">
+                <button type="button" class="btn btn-secondary btn-sm dt-client-edit" @onclick="Edit(client)">
                     <Icon Name="IconName.Edit" />@Localizer["Edit"]
                 </button>
                 <button type="button" class="btn btn-danger btn-sm dt-client-delete" @onclick="Remove(client)">
@@ -67,30 +67,30 @@
            showModal() sits in the top layer with everything behind it inert, so a banner rendered up
            there is invisible to the administrator who just pressed Save and got a 422. *@
         <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="client-first-name">@Localizer["FirstName"]</label>
             <input id="client-first-name" class="form-control" @bind="_form.FirstName" />
             <DtFieldError Field="FirstName" Failures="_failures" />
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="client-last-name">@Localizer["LastName"]</label>
             <input id="client-last-name" class="form-control" @bind="_form.LastName" />
             <DtFieldError Field="LastName" Failures="_failures" />
         </div>
         @* FR-92's administrator half, in the dialog that already edits the rest of the account: one
            Save, one transaction, so a taken address takes the name back with it (AD-5). *@
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="client-email">@Localizer["Email"]</label>
             <input id="client-email" type="email" class="form-control" @bind="_form.Email" />
             <DtFieldError Field="Email" Failures="_failures" />
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="client-phone">@Localizer["PhoneNumber"]</label>
             <input id="client-phone" class="form-control" @bind="_form.PhoneNumber" />
             <DtFieldError Field="PhoneNumber" Failures="_failures" />
             <div class="form-text">@Localizer["PhoneNumberHint"]</div>
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="client-password">@Localizer["Password"]</label>
             @* new-password, so a browser does not offer the signed-in administrator's own saved
                password for somebody else's account. *@
@@ -105,11 +105,11 @@
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would send the same edit again. *@
-        <button type="button" class="btn btn-primary dt-client-save" disabled="@_saving"
+        <button type="button" class="btn btn-secondary dt-client-save" disabled="@_saving"
                 @onclick="SaveAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary dt-client-cancel" @onclick="CancelEditAsync">
+        <button type="button" class="btn btn-outline-secondary dt-client-cancel" @onclick="CancelEditAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>

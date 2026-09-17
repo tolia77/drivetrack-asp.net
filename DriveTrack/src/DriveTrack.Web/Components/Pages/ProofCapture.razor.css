@@ -13,8 +13,8 @@
 /* The sentences that explain a control rather than label it: quieter than the label above them. */
 .dt-proof-hint {
     margin: var(--dt-space-1) 0 0;
-    color: var(--dt-text-muted);
-    font-size: var(--dt-font-size-sm);
+    color: var(--dt-ink-muted);
+    font-size: var(--dt-body-font-size);
 }
 
 .dt-proof-actions {

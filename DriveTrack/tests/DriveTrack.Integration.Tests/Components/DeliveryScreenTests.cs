@@ -124,10 +124,10 @@ public class DeliveryScreenTests
         var dispatch = await RenderDeliveriesAsync(UserRole.Dispatcher);
         var mine = await RenderMyDeliveriesAsync();
 
-        Assert.Contains("btn btn-success", dispatch, StringComparison.Ordinal);
+        Assert.Contains("btn btn-primary", dispatch, StringComparison.Ordinal);
         Assert.Contains("Створити", dispatch, StringComparison.Ordinal);
 
-        Assert.DoesNotContain("btn btn-success", mine, StringComparison.Ordinal);
+        Assert.DoesNotContain("btn btn-primary", mine, StringComparison.Ordinal);
         Assert.DoesNotContain("Створити", mine, StringComparison.Ordinal);
 
         // No dispatch form, no edit form and no deletion prompt: the three dialogs the dispatch
@@ -183,8 +183,8 @@ public class DeliveryScreenTests
 
         // Nor dispatch's own create action, which the driver's test rules out for a driver and
         // nothing ruled out here: a client asks for a delivery of their own and opens none for
-        // anybody else, so the green button belongs on the dispatch board alone.
-        Assert.DoesNotContain("btn btn-success", mine, StringComparison.Ordinal);
+        // anybody else, so the create button belongs on the dispatch board alone.
+        Assert.DoesNotContain("btn btn-primary", mine, StringComparison.Ordinal);
         Assert.DoesNotContain("Створити", mine, StringComparison.Ordinal);
 
         // Still not the dispatch board's form, and still not its edit or delete prompts.
@@ -387,10 +387,10 @@ public class DeliveryScreenTests
 
         Assert.Contains("dt-dialog-wide", panel, StringComparison.Ordinal);
 
-        var row = panel.IndexOf(@"class=""row g-3 mb-3""", StringComparison.Ordinal);
+        var row = panel.IndexOf(@"class=""row g-4 mb-4""", StringComparison.Ordinal);
 
         Assert.True(row >= 0, "The two pickers are not laid out in a row.");
-        Assert.Equal(1, SharedMarkup.Occurrences(panel, @"class=""row g-3 mb-3"""));
+        Assert.Equal(1, SharedMarkup.Occurrences(panel, @"class=""row g-4 mb-4"""));
 
         // `col-lg-6` as a class token rather than as a whole attribute value: a column that gained a
         // second class would still be a column, and failing on that would report drift where there

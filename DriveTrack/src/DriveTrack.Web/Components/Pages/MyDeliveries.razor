@@ -43,7 +43,7 @@
 @if (_offersRequest)
 {
     <p>
-        <button type="button" class="btn btn-primary dt-delivery-request" @onclick="OpenRequestAsync">
+        <button type="button" class="btn btn-secondary dt-delivery-request" @onclick="OpenRequestAsync">
             <Icon Name="IconName.Create" />@Localizer["RequestDeliveryAction"]
         </button>
     </p>
@@ -106,7 +106,7 @@
         <td>
             @* FR-107 and FR-108 for both roles, FR-26 for the driver: a client reads the history
                and adds a note, a driver does that and advances the parcel they are carrying. *@
-            <button type="button" class="btn btn-secondary btn-sm dt-delivery-timeline"
+            <button type="button" class="btn btn-outline-secondary btn-sm dt-delivery-timeline"
                     @onclick="TimelineHandler(delivery)">
                 <Icon Name="IconName.Timeline" />@Localizer["Timeline"]
             </button>
@@ -116,7 +116,7 @@
                refuses a client's capture whether or not this screen ever drew a button (FR-12). *@
             @if (OffersProofCapture(_role, _captured.Contains(delivery.Id)))
             {
-                <button type="button" class="btn btn-primary btn-sm dt-proof-capture"
+                <button type="button" class="btn btn-secondary btn-sm dt-proof-capture"
                         @onclick="CaptureHandler(delivery)">
                     <Icon Name="IconName.Camera" />@Localizer["ProofCapture"]
                 </button>
@@ -125,7 +125,7 @@
             @* FR-122: reading the evidence is for anyone who can see the delivery, the client
                included. The panel answers "nothing captured yet" the same way it answers "not
                yours", which is what stops the action disclosing anything by being pressed. *@
-            <button type="button" class="btn btn-secondary btn-sm dt-proof-open"
+            <button type="button" class="btn btn-outline-secondary btn-sm dt-proof-open"
                     @onclick="ProofHandler(delivery)">
                 <Icon Name="IconName.Proof" />@Localizer["ProofOpen"]
             </button>
@@ -207,7 +207,7 @@
                rather than two stacked maps with the second below the fold - the layout the dispatch
                board gives the same pair. Full width under lg, where side-by-side maps are too narrow
                to aim at. Both blocks still sit outside <EditForm>; see the header comment above. *@
-            <div class="row g-3 mb-3">
+            <div class="row g-4 mb-4">
                 <div class="col-lg-6">
                     <DtLocationPicker Prefix="request-pickup"
                                       Label="@Localizer["Pickup"]"
@@ -235,12 +235,12 @@
                    `For="@(() => ...)"` lambda inside an attribute is what NFR-14's scan misreads. *@
                 <ValidationSummary />
 
-                <div class="mb-3">
+                <div class="mb-4">
                     <label class="form-label" for="request-details">@Localizer["PackageDetails"]</label>
                     <InputText id="request-details" class="form-control" @bind-Value="_request.PackageDetails" />
                     <DtFieldError Field="PackageDetails" Failures="_failures" />
                 </div>
-                <div class="mb-3">
+                <div class="mb-4">
                     <label class="form-label" for="request-weight">@Localizer["PackageWeightKg"]</label>
                     @* No {0} in the message: the framework fills it with the CLR property name,
                        which would put a Latin word in front of a user (NFR-14). *@
@@ -251,7 +251,7 @@
                        there is no vehicle whose capacity a client could be about to exceed. *@
                     <DtFieldError Field="PackageWeightKg" Failures="_failures" />
                 </div>
-                <div class="mb-3">
+                <div class="mb-4">
                     <label class="form-label" for="request-notes">@Localizer["DeliveryNotes"]</label>
                     <InputTextArea id="request-notes" class="form-control" @bind-Value="_request.DeliveryNotes" />
                     <DtFieldError Field="DeliveryNotes" Failures="_failures" />
@@ -262,11 +262,11 @@
             @* Disabled while a request is in flight: the circuit yields at the await, so a second
                click would ask for a second, identical Pending delivery, and there is no dedupe
                anywhere downstream to undo one that got through. *@
-            <button type="submit" form="request-form" class="btn btn-primary dt-request-submit"
+            <button type="submit" form="request-form" class="btn btn-secondary dt-request-submit"
                     disabled="@_saving">
                 <Icon Name="IconName.Confirm" />@Localizer["RequestDeliverySubmit"]
             </button>
-            <button type="button" class="btn btn-secondary" @onclick="CloseRequestAsync">
+            <button type="button" class="btn btn-outline-secondary" @onclick="CloseRequestAsync">
                 <Icon Name="IconName.Close" />@Localizer["Cancel"]
             </button>
         </Actions>

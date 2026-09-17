@@ -51,7 +51,7 @@
             <nav class="dt-chat-roster" aria-label="@Localizer["ChatThreads"]">
                 @foreach (var summary in _threads)
                 {
-                    <button type="button" class="btn btn-secondary dt-chat-thread" @onclick="Open(summary)">
+                    <button type="button" class="btn btn-outline-secondary dt-chat-thread" @onclick="Open(summary)">
                         <Icon Name="IconName.Chat" />@summary.DriverName
                     </button>
                 }
@@ -109,7 +109,7 @@
                     @* Disabled while a send is in flight: a double-click must not persist two rows,
                        and there is no dedupe anywhere downstream to undo one that did. *@
                     <button type="button"
-                            class="btn btn-primary dt-chat-send"
+                            class="btn btn-secondary dt-chat-send"
                             disabled="@_sending"
                             @onclick="SendAsync">
                         <Icon Name="IconName.Send" />@Localizer["ChatSend"]

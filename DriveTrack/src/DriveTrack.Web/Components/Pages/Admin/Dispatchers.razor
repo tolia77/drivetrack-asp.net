@@ -23,7 +23,7 @@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <p>
-    <button type="button" class="btn btn-success dt-dispatcher-new" @onclick="ShowCreateAsync">
+    <button type="button" class="btn btn-primary dt-dispatcher-new" @onclick="ShowCreateAsync">
         <Icon Name="IconName.Create" />@Localizer["Create"]
     </button>
 </p>
@@ -40,7 +40,7 @@
         <td>@dispatcher.LastName</td>
         <td>@dispatcher.Email</td>
         <td class="dt-row-actions">
-            <button type="button" class="btn btn-primary btn-sm dt-dispatcher-edit" @onclick="Edit(dispatcher)">
+            <button type="button" class="btn btn-secondary btn-sm dt-dispatcher-edit" @onclick="Edit(dispatcher)">
                 <Icon Name="IconName.Edit" />@Localizer["Edit"]
             </button>
             <button type="button" class="btn btn-danger btn-sm dt-dispatcher-delete" @onclick="Remove(dispatcher)">
@@ -58,17 +58,17 @@
            - AUTH_EMAIL_ALREADY_IN_USE - names no field, which is why it stays in the banner while
            the shape refusals below move under their boxes. *@
         <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="new-dispatcher-first-name">@Localizer["FirstName"]</label>
             <input id="new-dispatcher-first-name" class="form-control" @bind="_createForm.FirstName" />
             <DtFieldError Field="FirstName" Failures="_failures" />
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="new-dispatcher-last-name">@Localizer["LastName"]</label>
             <input id="new-dispatcher-last-name" class="form-control" @bind="_createForm.LastName" />
             <DtFieldError Field="LastName" Failures="_failures" />
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="new-dispatcher-email">@Localizer["Email"]</label>
             <input id="new-dispatcher-email" class="form-control" @bind="_createForm.Email" />
             <DtFieldError Field="Email" Failures="_failures" />
@@ -81,7 +81,7 @@
                from, which is why the field is here and not below. *@
             <div class="form-text">@Localizer["EmailAtCreationHint"]</div>
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="new-dispatcher-password">@Localizer["Password"]</label>
             @* new-password, so a browser does not offer the signed-in administrator's own saved
                password for the account they are opening. *@
@@ -93,11 +93,11 @@
     <Actions>
         @* Disabled while a creation is in flight: the circuit yields at the await, and there was no
            early return here at all, so a second click opened a second dispatcher account. *@
-        <button type="button" class="btn btn-success dt-dispatcher-create" disabled="@_creating"
+        <button type="button" class="btn btn-primary dt-dispatcher-create" disabled="@_creating"
                 @onclick="CreateAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Create"]
         </button>
-        <button type="button" class="btn btn-secondary dt-dispatcher-create-cancel" @onclick="CancelCreateAsync">
+        <button type="button" class="btn btn-outline-secondary dt-dispatcher-create-cancel" @onclick="CancelCreateAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>
@@ -108,17 +108,17 @@
         @* Same reason as the create dialog above: the page behind a modal is inert, so a refusal has
            to appear where the administrator is looking. *@
         <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="dispatcher-first-name">@Localizer["FirstName"]</label>
             <input id="dispatcher-first-name" class="form-control" @bind="_editForm.FirstName" />
             <DtFieldError Field="FirstName" Failures="_failures" />
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="dispatcher-last-name">@Localizer["LastName"]</label>
             <input id="dispatcher-last-name" class="form-control" @bind="_editForm.LastName" />
             <DtFieldError Field="LastName" Failures="_failures" />
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="dispatcher-password">@Localizer["Password"]</label>
             <input id="dispatcher-password" type="password" autocomplete="new-password"
                    class="form-control" @bind="_editForm.Password" />
@@ -129,11 +129,11 @@
     <Actions>
         @* Its own flag, for the same reason the create dialog has one: this edit is a separate
            form, and a save in flight here says nothing about the dialog above. *@
-        <button type="button" class="btn btn-primary dt-dispatcher-save" disabled="@_saving"
+        <button type="button" class="btn btn-secondary dt-dispatcher-save" disabled="@_saving"
                 @onclick="SaveAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary dt-dispatcher-cancel" @onclick="CancelEditAsync">
+        <button type="button" class="btn btn-outline-secondary dt-dispatcher-cancel" @onclick="CancelEditAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>

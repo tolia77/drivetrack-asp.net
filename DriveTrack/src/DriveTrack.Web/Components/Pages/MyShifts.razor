@@ -34,7 +34,7 @@
    both stay here; FR-111's backwards window names both ends and is said under each box instead. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-<div class="row g-3 align-items-end mb-3">
+<div class="row g-4 align-items-end mb-4">
     @* The one place on either screen where the subject really is the driver: this is a claim about
        the caller, right now, rather than a label on a row in a history - so it wears the pickers'
        wording ("на зміні") and not ShiftStateLabel's, which says whether a shift is open or over.
@@ -58,7 +58,7 @@
     @if (_driverId is not null && Open is null)
     {
         <div class="col-sm-auto">
-            <button type="button" class="btn btn-success dt-shift-start" @onclick="StartAsync">
+            <button type="button" class="btn btn-primary dt-shift-start" @onclick="StartAsync">
                 <Icon Name="IconName.Confirm" />@Localizer["GoOnDuty"]
             </button>
         </div>
@@ -66,7 +66,7 @@
     @if (_driverId is not null && Open is not null)
     {
         <div class="col-sm-auto">
-            <button type="button" class="btn btn-primary dt-shift-end" @onclick="EndAsync">
+            <button type="button" class="btn btn-secondary dt-shift-end" @onclick="EndAsync">
                 <Icon Name="IconName.Close" />@Localizer["GoOffDuty"]
             </button>
         </div>
@@ -109,7 +109,7 @@
         <td class="dt-row-actions">
             @* The handlers are built in code rather than written as lambdas here: a `=>` inside an
                attribute closes the tag as far as a source scan is concerned. *@
-            <button type="button" class="btn btn-primary btn-sm dt-shift-edit" @onclick="EditHandler(shift)">
+            <button type="button" class="btn btn-secondary btn-sm dt-shift-edit" @onclick="EditHandler(shift)">
                 <Icon Name="IconName.Edit" />@Localizer["Edit"]
             </button>
             <button type="button" class="btn btn-danger btn-sm dt-shift-delete" @onclick="DeleteHandler(shift)">
@@ -133,7 +133,7 @@
                never fires, so without this the Save button would do nothing and say nothing. *@
             <ValidationSummary />
 
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="my-shift-started-at">@Localizer["ShiftStartedAt"]</label>
                 <InputDate id="my-shift-started-at" class="form-control"
                            Type="InputDateType.DateTimeLocal"
@@ -141,7 +141,7 @@
                            @bind-Value="_form.StartedAt" />
                 <DtFieldError Field="StartedAt" Failures="_failures" />
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="my-shift-ended-at">@Localizer["ShiftEndedAt"]</label>
                 <InputDate id="my-shift-ended-at" class="form-control"
                            Type="InputDateType.DateTimeLocal"
@@ -157,11 +157,11 @@
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would send the same correction again. *@
-        <button type="submit" form="my-shift-form" class="btn btn-primary dt-shift-save"
+        <button type="submit" form="my-shift-form" class="btn btn-secondary dt-shift-save"
                 disabled="@_saving">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary dt-shift-cancel" @onclick="CloseFormAsync">
+        <button type="button" class="btn btn-outline-secondary dt-shift-cancel" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>

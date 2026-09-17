@@ -33,7 +33,7 @@
    those states its own refusal under itself through DtFieldError. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-<div class="row g-3 align-items-end mb-3">
+<div class="row g-4 align-items-end mb-4">
     <div class="col-sm">
         <label class="form-label" for="vehicles-search">@Localizer["Search"]</label>
         @* Over the list already fetched: PRD section 8 excludes server-side filtering, so typing
@@ -42,7 +42,7 @@
                @bind="_search" @bind:event="oninput" />
     </div>
     <div class="col-sm-auto">
-        <button type="button" class="btn btn-success" @onclick="OpenCreateAsync">
+        <button type="button" class="btn btn-primary" @onclick="OpenCreateAsync">
             <Icon Name="IconName.Create" />@Localizer["Create"]
         </button>
     </div>
@@ -73,7 +73,7 @@
         <td>
             @* The handlers are built in code rather than written as lambdas here: a `=>` inside an
                attribute closes the tag as far as a source scan is concerned. *@
-            <button type="button" class="btn btn-primary btn-sm" @onclick="EditHandler(vehicle)">
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="EditHandler(vehicle)">
                 <Icon Name="IconName.Edit" />@Localizer["Edit"]
             </button>
             <button type="button" class="btn btn-danger btn-sm" @onclick="DeleteHandler(vehicle)">
@@ -102,18 +102,18 @@
                ValidationMessage: a `For="@(() => ...)"` lambda inside an attribute is the
                construct NFR-14's source scan misreads. *@
             <ValidationSummary />
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="vehicle-model">@Localizer["Model"]</label>
                 <InputText id="vehicle-model" class="form-control" @bind-Value="_form.Model" />
                 <DtFieldError Field="Model" Failures="_failures" />
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="vehicle-license-plate">@Localizer["LicensePlate"]</label>
                 <InputText id="vehicle-license-plate" class="form-control"
                            @bind-Value="_form.LicensePlate" />
                 <DtFieldError Field="LicensePlate" Failures="_failures" />
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="vehicle-capacity">@Localizer["CapacityKg"]</label>
                 @* No {0} in the message: the framework fills it with the CLR property name,
                    which would put a Latin word in front of a user (NFR-14). *@
@@ -126,14 +126,14 @@
                excludes the maintenance alerting rather than the fields. So they belong on the form,
                where a dispatcher captures them, and not in the table above, which shows what a
                screen in this milestone actually needs to read. *@
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="vehicle-mileage">@Localizer["Mileage"]</label>
                 <InputNumber id="vehicle-mileage" class="form-control"
                              ParsingErrorMessage="@Localizer["NumberParseError"]"
                              @bind-Value="_form.Mileage" />
                 <DtFieldError Field="Mileage" Failures="_failures" />
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="vehicle-maintenance">@Localizer["NextMaintenanceDate"]</label>
                 <InputDate id="vehicle-maintenance" class="form-control"
                            ParsingErrorMessage="@Localizer["DateParseError"]"
@@ -144,10 +144,10 @@
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would dispatch a second write before the first has answered. *@
-        <button type="submit" form="vehicle-form" class="btn btn-primary" disabled="@_saving">
+        <button type="submit" form="vehicle-form" class="btn btn-secondary" disabled="@_saving">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary" @onclick="CloseFormAsync">
+        <button type="button" class="btn btn-outline-secondary" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>

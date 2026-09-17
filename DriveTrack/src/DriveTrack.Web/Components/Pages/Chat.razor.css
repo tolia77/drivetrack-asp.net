@@ -36,16 +36,16 @@
     min-width: 0;
     gap: var(--dt-space-3);
     padding: var(--dt-space-4);
-    border: var(--dt-border-width) solid var(--dt-border-subtle);
+    border: var(--dt-border-width) solid var(--dt-border);
     border-radius: var(--dt-radius-lg);
     background-color: var(--dt-surface-card);
 }
 
 .dt-chat-header {
     margin: 0;
-    font-size: var(--dt-font-size-lg);
-    font-weight: var(--dt-font-weight-bold);
-    line-height: var(--dt-line-height-heading);
+    font-size: var(--dt-h2-font-size);
+    font-weight: var(--dt-h2-font-weight);
+    line-height: var(--dt-h2-line-height);
 }
 
 /*
@@ -72,26 +72,26 @@
     align-self: flex-start;
     max-width: 85%;
     padding: var(--dt-space-2) var(--dt-space-3);
-    border: var(--dt-border-width) solid var(--dt-border-subtle);
+    border: var(--dt-border-width) solid var(--dt-border);
     border-radius: var(--dt-radius-md);
-    background-color: var(--dt-surface-muted);
-    color: var(--dt-text-primary);
+    background-color: var(--dt-surface-sunken);
+    color: var(--dt-ink);
 }
 
 .dt-chat-line-own {
     align-self: flex-end;
-    border-color: var(--dt-border-strong);
+    border-color: var(--dt-border-control);
     background-color: var(--dt-surface-card);
 }
 
 .dt-chat-sender {
-    font-weight: var(--dt-font-weight-medium);
+    font-weight: var(--dt-label-font-weight);
 }
 
 .dt-chat-time {
     margin-left: var(--dt-space-2);
-    color: var(--dt-text-muted);
-    font-size: var(--dt-font-size-xs);
+    color: var(--dt-ink-muted);
+    font-size: var(--dt-small-font-size);
 }
 
 /* Wrapped and preserved: a message typed over several lines reads as it was written. */
@@ -103,7 +103,7 @@
 
 .dt-chat-empty {
     margin: 0;
-    color: var(--dt-text-muted);
+    color: var(--dt-ink-muted);
 }
 
 .dt-chat-composer {

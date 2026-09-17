@@ -23,13 +23,13 @@
     position: sticky;
     top: 0;
     background-color: var(--dt-surface-card);
-    border-bottom: var(--dt-border-width) solid var(--dt-border-subtle);
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
 }
 
 /* The two status rows are a statement, not data: centred and quietened so they do not read as a row. */
 .dt-table-status td,
 .dt-table-empty td {
-    color: var(--dt-text-muted);
+    color: var(--dt-ink-muted);
     text-align: center;
     padding: var(--dt-space-5);
 }

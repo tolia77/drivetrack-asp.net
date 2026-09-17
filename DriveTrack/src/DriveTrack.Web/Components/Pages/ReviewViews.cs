@@ -25,7 +25,7 @@ namespace DriveTrack.Web.Components.Pages;
 internal static class ReviewViews
 {
     /// <summary>The class a rating nobody has given wears — muted, and never one of the three bands.</summary>
-    public const string NoRatingClass = "dt-rating dt-rating-none";
+    public const string NoRatingClass = "dt-rating dt-rating--unrated";
 
     /// <summary>The class for a band.</summary>
     /// <param name="band">The judgement <see cref="RatingScale.Band"/> reached.</param>
@@ -35,9 +35,9 @@ internal static class ReviewViews
     /// </exception>
     public static string ClassFor(RatingBand band) => band switch
     {
-        RatingBand.Favourable => "dt-rating dt-rating-favourable",
-        RatingBand.Neutral => "dt-rating dt-rating-neutral",
-        RatingBand.Unfavourable => "dt-rating dt-rating-unfavourable",
+        RatingBand.Favourable => "dt-rating dt-rating--favourable",
+        RatingBand.Neutral => "dt-rating dt-rating--neutral",
+        RatingBand.Unfavourable => "dt-rating dt-rating--unfavourable",
         _ => throw new ArgumentOutOfRangeException(
             nameof(band),
             band,

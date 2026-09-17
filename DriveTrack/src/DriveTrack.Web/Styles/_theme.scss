@@ -1,8 +1,8 @@
 // =============================================================================
-// The runtime face of the token layer, plus the app-level rules that used to
-// live in the scaffolded `wwwroot/app.css`.
+// The runtime face of the token layer, plus the app-level rules that sit on top
+// of Bootstrap.
 //
-// Two jobs, in this order:
+// Three jobs, in this order:
 //
 //   1. Publish every semantic token as a `--dt-*` custom property. Component
 //      stylesheets are scoped CSS compiled separately from this file, so they
@@ -10,10 +10,13 @@
 //      through which a `.razor.css` can reach the token layer.
 //   2. Restate the handful of app-wide rules the Blazor scaffold shipped as
 //      literals, now expressed in tokens.
+//   3. Carry the vocabulary that is the same fact on more than one screen: the
+//      nine type styles, the status label, the rating band, the badge, and the
+//      four small utilities everything reaches for.
 //
 // Anything Bootstrap already derives from the bridge - button colours, link
-// colours, card chrome, the focus ring's colour - is deliberately absent: a rule
-// here that restates a Bootstrap-derived value would be a second source of truth.
+// colours, card chrome - is deliberately absent: a rule here that restated a
+// Bootstrap-derived value would be a second source of truth.
 // =============================================================================
 
 // `meta.inspect` rather than the global `inspect()`: the global built-ins are
@@ -43,13 +46,13 @@
 // Reboot already sets the body font from `--bs-body-font-family`; stating it on
 // `html` too keeps form controls and anything outside `<body>` on the same stack.
 html {
-    font-family: var(--dt-font-family-base);
+    font-family: var(--dt-font-sans);
 }
 
 // The tinted page background that white cards sit on.
 body {
     background-color: var(--dt-surface-page);
-    color: var(--dt-text-primary);
+    color: var(--dt-ink);
 }
 
 .content {
@@ -65,17 +68,49 @@ h1:focus {
 // -----------------------------------------------------------------------------
 // Focus ring
 //
-// Bootstrap derives the ring's colour from `$primary`, but the scaffold's rule
-// covers a wider selector set than Bootstrap's own `:focus-visible` styling, and
-// dropping it would lose the ring on `.btn-link.nav-link`. The whole shadow is a
-// single token so the ring cannot drift between selectors.
+// One ring, and it is an outline rather than a shadow. The design states it as a
+// 2px solid `focus-ring` with a 2px gap, and an outline is the only form of that
+// which follows the element's own shape and is never clipped by an ancestor's
+// `overflow: hidden` - which a table's scroll box and a dialog panel both have.
+//
+// Bootstrap's own ring is a translucent box-shadow derived from `$primary`, so
+// the two would otherwise both be drawn. It is turned off here rather than in the
+// bridge because `$focus-ring-color` still feeds the `.focus-ring` utility.
+//
+// The selector set is wider than Bootstrap's `:focus-visible` styling on purpose:
+// dropping the scaffold's list would lose the ring on `.btn-link.nav-link`.
 // -----------------------------------------------------------------------------
 .btn:focus,
+.btn:focus-visible,
 .btn:active:focus,
 .btn-link.nav-link:focus,
 .form-control:focus,
+.form-select:focus,
 .form-check-input:focus {
-    box-shadow: var(--dt-focus-ring);
+    box-shadow: none;
+    outline: var(--dt-border-width-focus) solid var(--dt-focus-ring);
+    outline-offset: var(--dt-border-width-focus);
+}
+
+// The same ring, on the one surface where it cannot be seen.
+//
+// `focus-ring` is teal-700, which holds comfortably against a white card and reaches about
+// 2.1:1 against `nav-bg` - under the 3:1 a non-text indicator has to clear. So the navigation's
+// focusable controls (the destination links, the two language buttons and the toggler) take
+// `focus-ring-on-dark`, which the palette declares for exactly this and which holds at 7:1.
+//
+// `.sidebar` is the anchor because it is the element that paints `nav-bg`, so the rule is scoped
+// to the ground rather than to the controls: anything focusable a later story puts on that
+// surface inherits the right ring without being named here. The whole outline is restated rather
+// than only its colour, because the language buttons also match `.btn-link.nav-link:focus` above
+// and an `outline-color` alone would lose the specificity contest to it.
+.sidebar .nav-link:focus,
+.sidebar .nav-link:focus-visible,
+.sidebar .btn-link.nav-link:focus,
+.sidebar .navbar-toggler:focus,
+.sidebar .navbar-toggler:focus-visible {
+    outline: var(--dt-border-width-focus) solid var(--dt-focus-ring-on-dark);
+    outline-offset: var(--dt-border-width-focus);
 }
 
 
@@ -83,19 +118,21 @@ h1:focus {
 // Validation
 // -----------------------------------------------------------------------------
 .valid.modified:not([type="checkbox"]) {
-    outline: var(--dt-border-width) solid var(--dt-feedback-success);
+    outline: var(--dt-border-width) solid var(--dt-success);
 }
 
 .invalid {
-    outline: var(--dt-border-width) solid var(--dt-feedback-danger);
+    outline: var(--dt-border-width-focus) solid var(--dt-danger);
 }
 
 .validation-message {
-    color: var(--dt-feedback-danger);
+    color: var(--dt-danger);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
 }
 
 .darker-border-checkbox.form-check-input {
-    border-color: var(--dt-border-strong);
+    border-color: var(--dt-border-control);
 }
 
 
@@ -113,9 +150,10 @@ h1:focus {
 // know what colour it will land on.
 // -----------------------------------------------------------------------------
 .blazor-error-boundary {
-    background-color: var(--dt-feedback-danger-surface);
-    color: var(--dt-text-primary);
-    border: var(--dt-border-width) solid var(--dt-feedback-danger);
+    background-color: var(--dt-danger-subtle);
+    color: var(--dt-danger-text);
+    border: var(--dt-border-width) solid var(--dt-danger);
+    border-radius: var(--dt-radius-md);
     padding: var(--dt-space-4) var(--dt-space-5);
 }
 
@@ -140,35 +178,309 @@ h1:focus {
 
 
 // -----------------------------------------------------------------------------
+// The nine type styles
+//
+// Each style is three custom properties and one utility class. Three rather than
+// one shorthand, because a component often wants the size without the weight -
+// and because `font:` resets half a dozen properties a caller never asked about.
+//
+// The class is namespaced `dt-type-*` rather than spelled `.h1` or `.dt-table`:
+// the design system already uses `dt-table`, `dt-label` and `dt-card__title` as
+// *component* class names, and a type utility sharing one of those names would be
+// two rules fighting over one selector the first time a component is built.
+// -----------------------------------------------------------------------------
+.dt-type-display {
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-display-font-size);
+    line-height: var(--dt-display-line-height);
+    font-weight: var(--dt-display-font-weight);
+}
+
+.dt-type-h1 {
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-h1-font-size);
+    line-height: var(--dt-h1-line-height);
+    font-weight: var(--dt-h1-font-weight);
+}
+
+.dt-type-h2 {
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-h2-font-size);
+    line-height: var(--dt-h2-line-height);
+    font-weight: var(--dt-h2-font-weight);
+}
+
+.dt-type-h3 {
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-h3-font-size);
+    line-height: var(--dt-h3-line-height);
+    font-weight: var(--dt-h3-font-weight);
+}
+
+.dt-type-body {
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-body-font-size);
+    line-height: var(--dt-body-line-height);
+    font-weight: var(--dt-body-font-weight);
+}
+
+.dt-type-label {
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-label-font-size);
+    line-height: var(--dt-label-line-height);
+    font-weight: var(--dt-label-font-weight);
+}
+
+.dt-type-table {
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-table-font-size);
+    line-height: var(--dt-table-line-height);
+    font-weight: var(--dt-table-font-weight);
+}
+
+.dt-type-small {
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
+    font-weight: var(--dt-small-font-weight);
+}
+
+.dt-type-code {
+    font-family: var(--dt-font-mono);
+    font-size: var(--dt-code-font-size);
+    line-height: var(--dt-code-line-height);
+    font-weight: var(--dt-code-font-weight);
+}
+
+
+// -----------------------------------------------------------------------------
+// Status labels (FR-18, FR-109)
+//
+// Published ahead of its consumers. No screen renders `.dt-status` yet - the four
+// statuses are still drawn as Bootstrap badges - and Spec B is what moves them onto
+// these classes. The rules are app-level rather than scoped because the same four
+// statuses will be read on the dispatch board, a driver's own list, the timeline
+// and the proof view, and a scoped copy per screen is where two start disagreeing.
+//
+// The shape is not decoration. StatusLabel's specification says the green and the
+// red "differ by shape and word; they are not colour-blind safe on hue alone", so
+// each status carries a `::before` glyph as well as a fill: hollow circle for
+// Pending, triangle for In Transit, filled circle for Delivered, cross for Failed,
+// square for Finished. Drawn in CSS rather than as a character, so it inherits the
+// label's own colour and needs no font that has the glyph.
+//
+// `clip-path` and the box's `em` size are geometry, which is why they are literal:
+// a shape that did not scale with the label's text would drift the first time the
+// type scale moved.
+// -----------------------------------------------------------------------------
+.dt-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--dt-space-1);
+    padding: var(--dt-space-1) var(--dt-space-2);
+    border-radius: var(--dt-radius-sm);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
+    font-weight: var(--dt-label-font-weight);
+    white-space: nowrap;
+}
+
+// The default shape is the square, which is Finished's; every other status
+// reshapes it below.
+.dt-status::before {
+    content: "";
+    flex: none;
+    box-sizing: border-box;
+    width: 0.625em;
+    height: 0.625em;
+    background-color: currentColor;
+}
+
+.dt-status--pending,
+.dt-status--finished {
+    background-color: var(--dt-status-pending-bg);
+    color: var(--dt-status-pending-text);
+}
+
+// Hollow: an outline drawn by the box's own border, so the ring follows the text
+// colour without a second token.
+.dt-status--pending::before {
+    background-color: transparent;
+    border: var(--dt-border-width-focus) solid currentColor;
+    border-radius: 50%;
+}
+
+.dt-status--transit {
+    background-color: var(--dt-status-transit-bg);
+    color: var(--dt-status-transit-text);
+}
+
+.dt-status--transit::before {
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+
+.dt-status--delivered {
+    background-color: var(--dt-status-delivered-bg);
+    color: var(--dt-status-delivered-text);
+}
+
+.dt-status--delivered::before {
+    border-radius: 50%;
+}
+
+.dt-status--failed {
+    background-color: var(--dt-status-failed-bg);
+    color: var(--dt-status-failed-text);
+}
+
+.dt-status--failed::before {
+    clip-path: polygon(
+        20% 0%, 50% 30%, 80% 0%, 100% 20%, 70% 50%,
+        100% 80%, 80% 100%, 50% 70%, 20% 100%, 0% 80%, 30% 50%, 0% 20%
+    );
+}
+
+// Shift state. Two members, so the two shapes only have to differ from each
+// other: Running is a filled circle, Finished keeps the base square.
+.dt-status--running {
+    background-color: var(--dt-success-subtle);
+    color: var(--dt-success-text);
+}
+
+.dt-status--running::before {
+    border-radius: 50%;
+}
+
+
+// -----------------------------------------------------------------------------
 // Ratings (FR-98, AD-18, AD-28)
 //
-// App-level rather than scoped to one component, because two screens render the
-// same judgement: the reviews screen shows a single verdict, and the driver roster
-// shows the average derived from many. A scoped rule would have been the same
-// three colours written twice, and the second copy is where a divergence starts.
+// App-level for the same reason as the status labels: two screens render the same
+// judgement. The reviews screen shows a single verdict, and the driver roster
+// shows the average derived from many. A scoped rule would have been the same four
+// colours written twice, and the second copy is where a divergence starts.
 //
 // The class carries no threshold. Which band a number falls in is RatingScale's
 // answer in Domain, because "four and above is good" is a product rule - this only
 // says what each band looks like once something else has decided.
 // -----------------------------------------------------------------------------
 .dt-rating {
-    font-weight: var(--dt-font-weight-medium);
+    font-weight: var(--dt-label-font-weight);
 }
 
-.dt-rating-favourable {
+.dt-rating--favourable {
     color: var(--dt-rating-favourable);
 }
 
-.dt-rating-neutral {
+.dt-rating--neutral {
     color: var(--dt-rating-neutral);
 }
 
-.dt-rating-unfavourable {
+.dt-rating--unfavourable {
     color: var(--dt-rating-unfavourable);
 }
 
-// A driver nobody has reviewed. Muted rather than any of the three above: the
-// absence of a verdict is not a verdict, and colouring it would make it one.
-.dt-rating-none {
-    color: var(--dt-text-muted);
+// A driver nobody has reviewed. Muted rather than any of the three above - the
+// absence of a verdict is not a verdict, and colouring it would make it one - and
+// dashed rather than solid, so the state is legible without relying on the hue.
+.dt-rating--unrated {
+    color: var(--dt-rating-unrated);
+    border: var(--dt-border-width) dashed var(--dt-rating-unrated);
+    border-radius: var(--dt-radius-sm);
+    padding: 0 var(--dt-space-1);
+    font-weight: var(--dt-body-font-weight);
+}
+
+
+// -----------------------------------------------------------------------------
+// Badges
+//
+// A small marker for a fact beside a value. Pills with no border, so they can
+// never be mistaken for a StatusLabel, which keeps square corners.
+// -----------------------------------------------------------------------------
+.dt-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--dt-space-1);
+    padding: var(--dt-space-1) var(--dt-space-2);
+    border-radius: var(--dt-radius-pill);
+    background-color: var(--dt-surface-sunken);
+    color: var(--dt-ink);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
+    font-weight: var(--dt-small-font-weight);
+    white-space: nowrap;
+}
+
+// One step darker than the warning tint, so the pill still reads on a striped row
+// and on the page behind it.
+.dt-badge--overdue {
+    background-color: var(--dt-overdue-bg);
+    color: var(--dt-warning-text);
+}
+
+// Every role wears the same badge. Roles are not ranked, and a colour per role
+// would rank them.
+.dt-badge--role {
+    color: var(--dt-ink-muted);
+}
+
+
+// -----------------------------------------------------------------------------
+// The four utilities
+// -----------------------------------------------------------------------------
+
+// A bar standing in for a value that has not arrived. Paired with a status line
+// in the markup: a shape alone says something is loading to a sighted reader and
+// nothing at all to a screen reader.
+.dt-skeleton {
+    display: block;
+    min-height: var(--dt-body-line-height);
+    border-radius: var(--dt-radius-sm);
+    background-color: var(--dt-surface-sunken);
+    animation: dt-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dt-skeleton-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.55;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dt-skeleton {
+        animation: none;
+    }
+}
+
+// Plates, licence numbers and IDs: strings a reader compares character by
+// character, which a proportional font makes harder than it needs to be.
+.dt-mono {
+    font-family: var(--dt-font-mono);
+    font-size: var(--dt-code-font-size);
+}
+
+.dt-muted {
+    color: var(--dt-ink-muted);
+}
+
+// Available to a screen reader, absent from the page. The `clip-path` form rather
+// than the older negative-margin one: a `margin: -1px` is a literal visual value
+// and NFR-29 is right to refuse it, and `inset(50%)` says the same thing without
+// pulling the element out of its own box.
+.dt-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    padding: 0;
+    border: 0;
 }

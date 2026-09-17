@@ -11,8 +11,10 @@
 // the fact leaves two sources of truth and a specificity war; assigning the
 // variables leaves one.
 //
-// Only *semantic* tokens appear here. The bridge is a consumer of the token
-// layer exactly like a component is.
+// Only *semantic* tokens appear here, and nothing but a token reference: NFR-29
+// reads every `$variable:` declaration in this file as a visual one, so a bare
+// `0.875rem` fails the gate exactly as a bare `#0c6f62` would. Anything that
+// needs a map or a sum is assembled in `_tokens.scss` and named here.
 // =============================================================================
 
 
@@ -28,40 +30,62 @@ $enable-dark-mode:            false;
 
 // -----------------------------------------------------------------------------
 // Theme colours
-// -----------------------------------------------------------------------------
-$primary:                     $dt-action-edit;
-$success:                     $dt-action-create;
-$danger:                      $dt-action-destructive;
-$warning:                     $dt-feedback-warning;
-// The remaining four are as load-bearing as the first four: `.btn-secondary` is the
-// natural Cancel beside the create/edit/destructive trio, and `.bg-light` / `.bg-dark`
-// are how a utility class reaches the page tint and the navigation surface. Left
-// unassigned they would ship Bootstrap's stock grey, cyan and near-black, which belong
-// to no palette in this app. Info takes the link hue: an informational control and a
-// link say the same thing.
-$secondary:                   $dt-text-muted;
-// `$info` resolves to the same hue as `$primary`, and that is deliberate rather than an
-// oversight: NFR-23's vocabulary is create / edit / destructive, with success / warning /
-// danger for feedback. There is no `info` action in this product, so there is no hue to
-// give it - inventing a sixth would be design this spec never asked for.
 //
-// The consequence is that `.btn-info` and `.btn-primary` render identically, as do the
-// `.alert-`, `.text-bg-` and `.border-` pairs. A component reaching for `-info` expecting a
-// distinction would get none and the screen would look right until someone put the two side
-// by side. `No_component_uses_the_info_variant` closes that off, so the collision cannot
-// become a silent bug in a later story.
-$info:                        $dt-text-link;
+// Five, not eight. `$theme-colors` is stated in full rather than left to
+// Bootstrap's derivation, so the three dropped names generate no variant of their
+// own: no `.btn-info`, no `.btn-outline-light`, no `.text-bg-dark`, no `.bg-info`,
+// and no `--bs-info:` / `--bs-light:` / `--bs-dark:` in `:root`.
+//
+// What it does not remove - read off the compiled bundle rather than assumed - is
+// anything Bootstrap builds from a *different* map. `.table-info`, `.table-light`
+// and `.table-dark` come from `$table-variants`; `.bg-light-subtle` and
+// `--bs-info-bg-subtle` come from the `$theme-colors-*-subtle` maps, which name
+// the eight keys literally. Those still ship. They are harmless rather than
+// correct: they are built from the Sass variables assigned below, so they are
+// still on the palette, and `No_component_uses_the_info_variant` refuses any
+// component that reaches for one.
+//
+// `info` goes because NFR-23's vocabulary is create / edit / destructive with
+// success / warning / danger for feedback. There is no informational action in
+// this product, so the palette declares no hue for one, and inventing a sixth
+// would be design this spec never asked for. `light` and `dark` go because the
+// page tint and the navigation surface are reached by name, and a sweep found no
+// `.bg-light` or `.bg-dark` anywhere in the component tree.
+//
+// The three Sass variables stay assigned below all the same: Bootstrap builds
+// `$table-variants` out of them rather than out of the map, so leaving them
+// unassigned would not remove `.table-info` - it would repaint it in stock cyan.
+// -----------------------------------------------------------------------------
+$primary:                     $dt-action-create;
+$secondary:                   $dt-action-edit;
+$success:                     $dt-success;
+$warning:                     $dt-warning-mark;
+$danger:                      $dt-action-destructive;
+$info:                        $dt-brand;
 $light:                       $dt-surface-page;
-$dark:                        $dt-surface-nav;
+$dark:                        $dt-nav-bg;
+
+$theme-colors:                $dt-theme-colors;
+
+// Which of the two inks Bootstrap lays over a generated fill. Left stock these
+// are `$body-color` and `$white`, which are Bootstrap's neutrals rather than
+// ours; named here, `.btn-primary` and `.text-bg-success` pick between the two
+// colours the palette actually has.
+$color-contrast-dark:         $dt-ink;
+$color-contrast-light:        $dt-ink-inverse;
 
 
 // -----------------------------------------------------------------------------
 // Body and links
 // -----------------------------------------------------------------------------
 $body-bg:                     $dt-surface-page;
-$body-color:                  $dt-text-primary;
-$link-color:                  $dt-text-link;
-$link-hover-color:            $dt-text-link-hover;
+$body-color:                  $dt-ink;
+// `--bs-secondary-color` is the one Bootstrap custom property the app reads back
+// (the floating-label placeholder in `_theme.scss`), so the muted ink has to be
+// what it carries.
+$body-secondary-color:        $dt-ink-muted;
+$link-color:                  $dt-brand;
+$link-hover-color:            $dt-action-create-hover;
 
 
 // -----------------------------------------------------------------------------
@@ -70,51 +94,125 @@ $link-hover-color:            $dt-text-link-hover;
 // `$font-family-base` is assigned the stack directly rather than left at
 // Bootstrap's `var(--bs-font-sans-serif)` indirection, so `--bs-body-font-family`
 // carries the token value where it can be read.
+//
+// The sizes are the composite styles, not a parallel scale: `body` is the base,
+// `small` is what Bootstrap calls `sm`, and `h2` is what it calls `lg`. Bootstrap
+// derives `.fs-*`, `.btn-lg` and `.btn-sm` from these, which is what keeps the
+// framework's type on the nine styles rather than running a tenth beside them.
 // -----------------------------------------------------------------------------
-$font-family-sans-serif:      $dt-font-family-base;
-$font-family-base:            $dt-font-family-base;
-$font-size-base:              $dt-font-size-base;
-// Bootstrap derives `.fs-*`, `.btn-lg` and `.btn-sm` from these two by multiplying the
-// base; assigning them is what keeps the framework's type on the token scale instead of
-// running a second one beside it.
-$font-size-sm:                $dt-font-size-sm;
-$font-size-lg:                $dt-font-size-lg;
-$font-weight-normal:          $dt-font-weight-regular;
-$font-weight-bold:            $dt-font-weight-bold;
+$font-family-sans-serif:      $dt-font-sans;
+$font-family-base:            $dt-font-sans;
+$font-family-monospace:       $dt-font-mono;
+$font-family-code:            $dt-font-mono;
+
+$font-size-base:              $dt-body-font-size;
+$font-size-sm:                $dt-small-font-size;
+$font-size-lg:                $dt-h2-font-size;
+
+$font-weight-normal:          $dt-body-font-weight;
+$font-weight-semibold:        $dt-label-font-weight;
+$font-weight-bold:            $dt-display-font-weight;
+
 $line-height-base:            $dt-line-height-base;
 $headings-line-height:        $dt-line-height-heading;
+$headings-font-weight:        $dt-h1-font-weight;
+
+// Bootstrap's `$h1-font-size` is `$font-size-base * 2.5`, which on a 14px base is
+// 35px - a headline the design does not have. The scale has four heading styles,
+// so h4 to h6 repeat the smallest rather than inventing three more.
+$h1-font-size:                $dt-h1-font-size;
+$h2-font-size:                $dt-h2-font-size;
+$h3-font-size:                $dt-h3-font-size;
+$h4-font-size:                $dt-h3-font-size;
+$h5-font-size:                $dt-h3-font-size;
+$h6-font-size:                $dt-h3-font-size;
+
+$code-font-size:              $dt-code-font-size;
+$code-color:                  $dt-ink;
 
 
 // -----------------------------------------------------------------------------
 // Spacing
 //
-// Bootstrap builds its whole `$spacers` map - and every `.p-*` / `.m-*` utility -
-// from this one value.
+// Bootstrap builds `$spacers` - and every `.p-*` / `.m-*` utility - by
+// multiplying `$spacer`, which produces 48px where this scale's sixth step is
+// 32px. The map is therefore stated, so a utility class can only land on one of
+// the six steps.
 // -----------------------------------------------------------------------------
 $spacer:                      $dt-space-4;
+$spacers:                     $dt-spacers;
 
 
 // -----------------------------------------------------------------------------
-// Borders and radii
+// Breakpoints
+//
+// One breakpoint carries this design: the phone. Bootstrap's `sm` is 576px and
+// the shell switches between a sidebar and a top bar at 641px, so `sm` is moved
+// onto the token and the responsive utilities agree with the layout.
+// -----------------------------------------------------------------------------
+$grid-breakpoints:            $dt-grid-breakpoints;
+
+
+// -----------------------------------------------------------------------------
+// Borders, radii and focus
 // -----------------------------------------------------------------------------
 $border-width:                $dt-border-width;
-$border-color:                $dt-border-subtle;
-$border-color-translucent:    $dt-border-subtle;
+$border-color:                $dt-border;
+$border-color-translucent:    $dt-border;
 
 $border-radius:               $dt-radius-md;
 $border-radius-sm:            $dt-radius-sm;
 $border-radius-lg:            $dt-radius-lg;
 $border-radius-xl:            $dt-radius-lg;
 $border-radius-xxl:           $dt-radius-lg;
+$border-radius-pill:          $dt-radius-pill;
+
+// A solid ring rather than Bootstrap's translucent glow. `_theme.scss` turns the
+// box-shadow off and draws the design's 2px outline instead; these two are
+// assigned all the same, because `$focus-ring-color` also feeds the `.focus-ring`
+// utility and the nav-link focus shadow.
+$focus-ring-width:            $dt-border-width-focus;
+$focus-ring-color:            $dt-focus-ring;
 
 
 // -----------------------------------------------------------------------------
 // Elevation
 // -----------------------------------------------------------------------------
-$box-shadow:                  $dt-shadow-md;
-$box-shadow-sm:               $dt-shadow-sm;
-$box-shadow-lg:               $dt-shadow-md;
-$box-shadow-inset:            inset $dt-shadow-sm;
+$box-shadow:                  $dt-shadow-raised;
+$box-shadow-sm:               $dt-shadow-card;
+$box-shadow-lg:               $dt-shadow-dialog;
+$box-shadow-inset:            inset $dt-shadow-card;
+
+
+// -----------------------------------------------------------------------------
+// Controls
+//
+// `$input-btn-padding-y` is the height `control-height` implies once the line box
+// and the two borders are taken out of it, so a button and a field come out the
+// same height as each other and as the token says. `$input-height` is stated as
+// well because Bootstrap otherwise recomputes it from the same parts and would
+// round differently.
+// -----------------------------------------------------------------------------
+$input-btn-padding-y:         $dt-control-padding-y;
+$input-btn-padding-y-sm:      $dt-space-1;
+$input-btn-padding-x:         $dt-space-3;
+$input-btn-padding-x-sm:      $dt-space-2;
+
+$input-height:                $dt-control-height;
+$input-height-sm:             $dt-control-height-sm;
+
+$btn-font-size:               $dt-label-font-size;
+$btn-font-weight:             $dt-label-font-weight;
+$btn-border-radius:           $dt-radius-sm;
+$btn-border-radius-sm:        $dt-radius-sm;
+$btn-border-radius-lg:        $dt-radius-sm;
+
+$input-font-size:             $dt-body-font-size;
+$input-border-radius:         $dt-radius-sm;
+$input-border-radius-sm:      $dt-radius-sm;
+$input-border-radius-lg:      $dt-radius-sm;
+$input-border-color:          $dt-border-control;
+$input-color:                 $dt-ink;
 
 
 // -----------------------------------------------------------------------------
@@ -126,12 +224,12 @@ $box-shadow-inset:            inset $dt-shadow-sm;
 // -----------------------------------------------------------------------------
 $card-bg:                     $dt-surface-card;
 $card-cap-bg:                 $dt-surface-card;
-$card-border-color:           $dt-border-subtle;
+$card-border-color:           $dt-border;
 $card-border-width:           $dt-border-width;
-$card-border-radius:          $dt-radius-lg;
-$card-spacer-x:               $dt-space-5;
-$card-spacer-y:               $dt-space-5;
-$card-box-shadow:             $dt-shadow-sm;
+$card-border-radius:          $dt-radius-md;
+$card-spacer-x:               $dt-space-4;
+$card-spacer-y:               $dt-space-4;
+$card-box-shadow:             $dt-shadow-card;
 
 
 // -----------------------------------------------------------------------------
@@ -151,6 +249,25 @@ $accordion-bg:                $dt-surface-card;
 
 
 // -----------------------------------------------------------------------------
+// Dialogs
+//
+// Two widths, because the design has two dialogs: a form, and the one that shows
+// two map columns side by side.
+// -----------------------------------------------------------------------------
+$modal-inner-padding:         $dt-space-5;
+$modal-content-border-radius: $dt-radius-lg;
+$modal-content-box-shadow-xs: $dt-shadow-dialog;
+$modal-content-box-shadow-sm-up: $dt-shadow-dialog;
+$modal-md:                    $dt-dialog-narrow;
+$modal-lg:                    $dt-dialog-wide;
+$modal-xl:                    $dt-dialog-wide;
+// The backdrop token already carries its opacity, so Bootstrap's second multiply
+// is turned off rather than left to darken it twice.
+$modal-backdrop-bg:           $dt-backdrop;
+$modal-backdrop-opacity:      $dt-backdrop-opacity;
+
+
+// -----------------------------------------------------------------------------
 // Form controls and pagination
 //
 // The same `var(--bs-body-bg)` default as the surfaces above, and for a CRUD app the
@@ -166,14 +283,17 @@ $accordion-bg:                $dt-surface-card;
 // of lightness - the state is invisible rather than merely subtle.
 // -----------------------------------------------------------------------------
 $input-bg:                    $dt-surface-card;
-$input-disabled-bg:           $dt-surface-muted;
-$input-group-addon-bg:        $dt-surface-page;
+$input-disabled-bg:           $dt-surface-sunken;
+$input-group-addon-bg:        $dt-surface-sunken;
+
+$form-label-font-size:        $dt-label-font-size;
+$form-label-font-weight:      $dt-label-font-weight;
 
 $nav-tabs-link-active-bg:     $dt-surface-card;
 
 $pagination-bg:               $dt-surface-card;
-$pagination-hover-bg:         $dt-surface-page;
-$pagination-disabled-bg:      $dt-surface-muted;
+$pagination-hover-bg:         $dt-surface-hover;
+$pagination-disabled-bg:      $dt-surface-sunken;
 
 
 // -----------------------------------------------------------------------------
@@ -182,6 +302,32 @@ $pagination-disabled-bg:      $dt-surface-muted;
 // `$table-bg` has to be stated for the same reason: left at the page tint it would be
 // the same colour as the stripe below it, and `.table-striped` would show no stripe.
 // -----------------------------------------------------------------------------
+$table-color:                 $dt-ink;
 $table-bg:                    $dt-surface-card;
 $table-striped-bg:            $dt-surface-page;
-$table-hover-bg:              $dt-surface-muted;
+$table-hover-bg:              $dt-surface-hover;
+$table-border-color:          $dt-border;
+$table-cell-padding-y:        $dt-space-2;
+$table-cell-padding-x:        $dt-space-2;
+$table-cell-padding-y-sm:     $dt-space-1;
+$table-cell-padding-x-sm:     $dt-space-1;
+
+
+// -----------------------------------------------------------------------------
+// Badges
+// -----------------------------------------------------------------------------
+$badge-font-size:             $dt-small-font-size;
+$badge-font-weight:           $dt-label-font-weight;
+$badge-padding-y:             $dt-space-1;
+$badge-padding-x:             $dt-space-2;
+$badge-border-radius:         $dt-radius-sm;
+
+
+// -----------------------------------------------------------------------------
+// Depth
+//
+// Bootstrap's own ladder already agrees with the tokens; assigning it is what
+// stops the two drifting apart the next time either moves.
+// -----------------------------------------------------------------------------
+$zindex-fixed:                $dt-z-nav;
+$zindex-modal:                $dt-z-dialog;

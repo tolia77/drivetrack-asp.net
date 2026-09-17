@@ -73,7 +73,7 @@
            without one can only ever return a 422 naming CaptureLocation - a refusal about something
            this panel never offered to fill in, paid for with every photograph streamed up the
            circuit first. The sentence above the map is what the driver acts on instead. *@
-        <button type="button" class="btn btn-primary dt-proof-submit" disabled="@(_saving || _location is null)"
+        <button type="button" class="btn btn-secondary dt-proof-submit" disabled="@(_saving || _location is null)"
                 @onclick="CaptureAsync">
             <Icon Name="IconName.Camera" />@Localizer["ProofCaptureAction"]
         </button>

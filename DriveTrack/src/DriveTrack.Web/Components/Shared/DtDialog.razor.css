@@ -12,11 +12,11 @@
     max-width: 32rem;
     /* The panel owns the padding, so the surface can run edge to edge if a screen wants it to. */
     padding: 0;
-    border: var(--dt-border-width) solid var(--dt-border-subtle);
+    border: var(--dt-border-width) solid var(--dt-border);
     border-radius: var(--dt-radius-lg);
     background-color: var(--dt-surface-card);
-    color: var(--dt-text-primary);
-    box-shadow: var(--dt-shadow-md);
+    color: var(--dt-ink);
+    box-shadow: var(--dt-shadow-dialog);
 }
 
 /*
@@ -34,7 +34,7 @@
     of its own.
 */
 .dt-dialog::backdrop {
-    background-color: var(--dt-overlay-backdrop);
+    background-color: var(--dt-backdrop);
 }
 
 .dt-dialog-panel {
@@ -46,13 +46,13 @@
 
 .dt-dialog-title {
     margin: 0;
-    font-size: var(--dt-font-size-lg);
-    font-weight: var(--dt-font-weight-bold);
-    line-height: var(--dt-line-height-heading);
+    font-size: var(--dt-h2-font-size);
+    font-weight: var(--dt-h2-font-weight);
+    line-height: var(--dt-h2-line-height);
 }
 
 .dt-dialog-body {
-    color: var(--dt-text-primary);
+    color: var(--dt-ink);
 }
 
 /*

@@ -49,9 +49,9 @@
    the same rule: a finished delivery of theirs that they have not already written about. *@
 @if (_authors && _reviewable.Count > 0)
 {
-    <div class="row g-3 align-items-end mb-3">
+    <div class="row g-4 align-items-end mb-4">
         <div class="col-sm-auto">
-            <button type="button" class="btn btn-success dt-review-create" @onclick="OpenCreateAsync">
+            <button type="button" class="btn btn-primary dt-review-create" @onclick="OpenCreateAsync">
                 <Icon Name="IconName.Create" />@Localizer["WriteReview"]
             </button>
         </div>
@@ -84,8 +84,8 @@
             <td>@review.DeliveryId</td>
             <td>
                 @* AD-18: the band is Domain's reading of the number and the class is only what that
-                   band looks like. No threshold here, and no colour - the class resolves to a
-                   --dt-rating-* token (AD-28, NFR-29). *@
+                   band looks like. No threshold here, and no colour - the `dt-rating--*` modifier
+                   resolves to a --dt-rating-* token in _theme.scss (AD-28, NFR-29). *@
                 <span class="@ReviewViews.ClassFor(review.Band)">@ReviewViews.Format(review.Rating)</span>
             </td>
             <td>@review.Text</td>
@@ -94,7 +94,7 @@
                 @* The handler is built in C# rather than written as a lambda in the attribute: a
                    `=>` here would close the tag as far as NFR-14's markup scan is concerned, and
                    everything after it would be read as rendered English. *@
-                <button type="button" class="btn btn-primary btn-sm dt-review-edit" @onclick="EditMine(review)">
+                <button type="button" class="btn btn-secondary btn-sm dt-review-edit" @onclick="EditMine(review)">
                     <Icon Name="IconName.Edit" />@Localizer["Edit"]
                 </button>
                 <button type="button" class="btn btn-danger btn-sm dt-review-delete" @onclick="Remove(review.Id)">
@@ -164,7 +164,7 @@
             @if (_moderates)
             {
                 <td class="dt-row-actions">
-                    <button type="button" class="btn btn-primary btn-sm dt-review-edit" @onclick="EditAny(review)">
+                    <button type="button" class="btn btn-secondary btn-sm dt-review-edit" @onclick="EditAny(review)">
                         <Icon Name="IconName.Edit" />@Localizer["Edit"]
                     </button>
                     <button type="button" class="btn btn-danger btn-sm dt-review-delete" @onclick="Remove(review.Id)">
@@ -206,7 +206,7 @@
            existing one is deleting it and writing another - there is nothing here to change. *@
         @if (_editingId is null)
         {
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="review-delivery">@Localizer["ReviewDelivery"]</label>
                 <select id="review-delivery" class="form-select" @bind="_form.DeliveryId">
                     @foreach (var delivery in _reviewable)
@@ -221,7 +221,7 @@
             </div>
         }
 
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="review-rating">@Localizer["ReviewRating"]</label>
             @* The options are the scale's own values, so the control cannot offer a number the
                column would refuse (FR-67, AD-18). It opens on RatingScale.Default. *@
@@ -234,7 +234,7 @@
             <DtFieldError Field="Rating" Failures="_failures" />
         </div>
 
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="review-text">@Localizer["ReviewText"]</label>
             <textarea id="review-text" class="form-control" rows="4"
                       maxlength="@CreateReviewCommandValidator.TextMaximumLength"
@@ -245,11 +245,11 @@
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would post the same verdict twice. *@
-        <button type="button" class="btn btn-primary dt-review-save" disabled="@_saving"
+        <button type="button" class="btn btn-secondary dt-review-save" disabled="@_saving"
                 @onclick="SaveAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary dt-review-cancel" @onclick="CloseFormAsync">
+        <button type="button" class="btn btn-outline-secondary dt-review-cancel" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>

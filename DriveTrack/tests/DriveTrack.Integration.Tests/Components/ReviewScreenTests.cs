@@ -200,10 +200,22 @@ public class ReviewScreenTests
         }
 
         // And the absence case, which must not wear any of the three: no verdict is not a verdict.
+        // It has a token of its own now - `rating-unrated`, which the palette declares as the muted
+        // ink and documents as "not a verdict colour" - so the claim is named band by band rather
+        // than by the `--dt-rating-` prefix the fourth state now shares with them.
         var none = Rule(theme, "." + ReviewViews.NoRatingClass.Split(' ')[1]);
 
-        Assert.Contains("var(--dt-text-muted)", none, StringComparison.Ordinal);
-        Assert.DoesNotContain("--dt-rating-", none, StringComparison.Ordinal);
+        Assert.Contains("var(--dt-rating-unrated)", none, StringComparison.Ordinal);
+
+        foreach (var verdict in new[]
+                 {
+                     "--dt-rating-favourable",
+                     "--dt-rating-neutral",
+                     "--dt-rating-unfavourable",
+                 })
+        {
+            Assert.DoesNotContain(verdict, none, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

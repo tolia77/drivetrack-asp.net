@@ -31,7 +31,7 @@
    same catalogue the REST envelope uses. Nothing an exception carries reaches this page. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-<div class="row g-3 align-items-end mb-3">
+<div class="row g-4 align-items-end mb-4">
     <div class="col-sm">
         <label class="form-label" for="drivers-search">@Localizer["Search"]</label>
         @* FR-36 runs over the list already fetched - PRD section 8 excludes server-side filtering,
@@ -40,7 +40,7 @@
                @bind="_search" @bind:event="oninput" />
     </div>
     <div class="col-sm-auto">
-        <button type="button" class="btn btn-success" @onclick="OpenCreateAsync">
+        <button type="button" class="btn btn-primary" @onclick="OpenCreateAsync">
             <Icon Name="IconName.Create" />@Localizer["Create"]
         </button>
     </div>
@@ -78,8 +78,9 @@
             @* FR-98: the aggregate, derived on demand and never stored. Null and zero are different
                claims - nobody has said anything, versus everybody said the worst thing - so a
                driver with no reviews gets the "no value" text rather than a number. The class comes
-               from Domain's band through ReviewViews and resolves to a --dt-rating-* token; no
-               threshold and no colour is written here (AD-18, AD-28). *@
+               from Domain's band through ReviewViews - a `dt-rating--*` modifier whose one rule in
+               _theme.scss resolves to a --dt-rating-* token; no threshold and no colour is written
+               here (AD-18, AD-28). *@
             @if (driver.Rating is null)
             {
                 <span class="@ReviewViews.NoRatingClass">@Localizer["NoRating"]</span>
@@ -93,7 +94,7 @@
             @* The handler is built in code rather than written as a lambda here: a `=>` inside an
                attribute closes the tag as far as a source scan is concerned, and everything after
                it reads as rendered English. *@
-            <button type="button" class="btn btn-primary btn-sm" @onclick="EditHandler(driver)">
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="EditHandler(driver)">
                 <Icon Name="IconName.Edit" />@Localizer["Edit"]
             </button>
             <button type="button" class="btn btn-danger btn-sm" @onclick="DeleteHandler(driver)">
@@ -128,12 +129,12 @@
             <ValidationSummary />
             @* FR-37 names the driver's name among the things a dispatcher may change, so these two
                are on both the create and the edit form. *@
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="driver-first-name">@Localizer["FirstName"]</label>
                 <InputText id="driver-first-name" class="form-control" @bind-Value="_form.FirstName" />
                 <DtFieldError Field="FirstName" Failures="_failures" />
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="driver-last-name">@Localizer["LastName"]</label>
                 <InputText id="driver-last-name" class="form-control" @bind-Value="_form.LastName" />
                 <DtFieldError Field="LastName" Failures="_failures" />
@@ -143,12 +144,12 @@
                keeps this screen's reach into an account to what a requirement asks for. *@
             @if (_form.Id is null)
             {
-                <div class="mb-3">
+                <div class="mb-4">
                     <label class="form-label" for="driver-email">@Localizer["Email"]</label>
                     <InputText id="driver-email" class="form-control" @bind-Value="_form.Email" />
                     <DtFieldError Field="Email" Failures="_failures" />
                 </div>
-                <div class="mb-3">
+                <div class="mb-4">
                     <label class="form-label" for="driver-password">@Localizer["Password"]</label>
                     <InputText id="driver-password" type="password" class="form-control"
                                @bind-Value="_form.Password" />
@@ -156,14 +157,14 @@
                 </div>
             }
 
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="driver-license-number">@Localizer["LicenseNumber"]</label>
                 <InputText id="driver-license-number" class="form-control"
                            @bind-Value="_form.LicenseNumber" />
                 <DtFieldError Field="LicenseNumber" Failures="_failures" />
             </div>
 
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="driver-vehicle">@Localizer["Vehicle"]</label>
                 @* FR-45 and FR-38 in one control: the choices are the vehicles nobody holds, and the
                    empty option is an explicit "no vehicle" - which is how a dispatcher releases an
@@ -182,10 +183,10 @@
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would create a second account from the same form. *@
-        <button type="submit" form="driver-form" class="btn btn-primary" disabled="@_saving">
+        <button type="submit" form="driver-form" class="btn btn-secondary" disabled="@_saving">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary" @onclick="CloseFormAsync">
+        <button type="button" class="btn btn-outline-secondary" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>

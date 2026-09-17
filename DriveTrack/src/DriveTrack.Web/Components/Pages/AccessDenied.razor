@@ -29,14 +29,14 @@
    one. Where "back" leads is LandingRoute's to know, not this page's. *@
 @if (Caller.IsAuthenticated)
 {
-    <a class="btn btn-primary" href="@LandingRoute.For(Caller.Role)">
+    <a class="btn btn-link" href="@LandingRoute.For(Caller.Role)">
         <Icon Name="IconName.Back" />@Localizer["BackToHome"]
     </a>
 }
 
 @if (!Caller.IsAuthenticated)
 {
-    <a class="btn btn-primary" href="/">
+    <a class="btn btn-link" href="/">
         <Icon Name="IconName.Back" />@Localizer["BackToHome"]
     </a>
 }

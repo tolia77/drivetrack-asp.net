@@ -38,7 +38,7 @@
    backwards names both ends of it and is said under each of the two boxes instead. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-<div class="row g-3 align-items-end mb-3">
+<div class="row g-4 align-items-end mb-4">
     <div class="col-sm">
         <label class="form-label" for="shifts-search">@Localizer["Search"]</label>
         @* Over the list already fetched: PRD section 8 excludes server-side filtering, so typing
@@ -47,7 +47,7 @@
                @bind="_search" @bind:event="oninput" />
     </div>
     <div class="col-sm-auto">
-        <button type="button" class="btn btn-success dt-shift-create" @onclick="OpenCreateAsync">
+        <button type="button" class="btn btn-primary dt-shift-create" @onclick="OpenCreateAsync">
             <Icon Name="IconName.Create" />@Localizer["Create"]
         </button>
     </div>
@@ -93,7 +93,7 @@
         <td class="dt-row-actions">
             @* The handlers are built in code rather than written as lambdas here: a `=>` inside an
                attribute closes the tag as far as a source scan is concerned. *@
-            <button type="button" class="btn btn-primary btn-sm dt-shift-edit" @onclick="EditHandler(shift)">
+            <button type="button" class="btn btn-secondary btn-sm dt-shift-edit" @onclick="EditHandler(shift)">
                 <Icon Name="IconName.Edit" />@Localizer["Edit"]
             </button>
             <button type="button" class="btn btn-danger btn-sm dt-shift-delete" @onclick="DeleteHandler(shift)">
@@ -126,7 +126,7 @@
                let an edit carry an open row to a driver who already has one. *@
             @if (_form.Id is null)
             {
-                <div class="mb-3">
+                <div class="mb-4">
                     <label class="form-label" for="shift-driver">@Localizer["Driver"]</label>
                     <select id="shift-driver" class="form-select" @bind="_form.DriverId">
                         @foreach (var driver in _drivers)
@@ -137,7 +137,7 @@
                 </div>
             }
 
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="shift-started-at">@Localizer["ShiftStartedAt"]</label>
                 <InputDate id="shift-started-at" class="form-control"
                            Type="InputDateType.DateTimeLocal"
@@ -145,7 +145,7 @@
                            @bind-Value="_form.StartedAt" />
                 <DtFieldError Field="StartedAt" Failures="_failures" />
             </div>
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="shift-ended-at">@Localizer["ShiftEndedAt"]</label>
                 <InputDate id="shift-ended-at" class="form-control"
                            Type="InputDateType.DateTimeLocal"
@@ -162,11 +162,11 @@
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would open a second shift from the same form. *@
-        <button type="submit" form="shift-form" class="btn btn-primary dt-shift-save"
+        <button type="submit" form="shift-form" class="btn btn-secondary dt-shift-save"
                 disabled="@_saving">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary dt-shift-cancel" @onclick="CloseFormAsync">
+        <button type="button" class="btn btn-outline-secondary dt-shift-cancel" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>

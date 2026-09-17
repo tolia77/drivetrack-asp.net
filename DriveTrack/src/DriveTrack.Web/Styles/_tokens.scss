@@ -6,10 +6,16 @@
 // exempt; everything else - the Bootstrap bridge, the theme, every `.razor.css` -
 // must reference a token. `DesignTokenTests` enforces that.
 //
+// The values are transcribed from the design system's own
+// `_bmad-output/planning-artifacts/design-system/tokens.json`, and each token
+// carries that file's `usage` sentence as its comment. That prose is the
+// palette's only documentation: it is what stops a later reader re-deriving a
+// value from the pixels of a screenshot and getting a different answer.
+//
 // Two layers, and the distinction is load-bearing:
 //
-//   * PRIMITIVES (`$dt-blue-600`) name a value in the palette. Nothing outside
-//     this file may name one: a component that says "blue" cannot be restyled
+//   * PRIMITIVES (`$dt-teal-600`) name a value in the palette. Nothing outside
+//     this file may name one: a component that says "teal" cannot be restyled
 //     without editing the component.
 //   * SEMANTICS (`$dt-action-edit`) name a *role*. Components consume these, and
 //     only these, so a palette change is a one-line edit here.
@@ -17,105 +23,147 @@
 // The semantic layer is also published as a map (`$dt-tokens`) so `_theme.scss`
 // can emit every entry as a `--dt-*` custom property mechanically - a semantic
 // token cannot exist at compile time and be missing at runtime.
+//
+// The `--dt-` prefix is kept rather than matching the design's unprefixed
+// `--surface-card`: globals like `--border` and `--ink` would sit in the same
+// `:root` as vendored Leaflet's, and the prefix costs one interpolation in
+// `_theme.scss`.
 // =============================================================================
+
+// `math.div` rather than `/`: division with the slash operator is deprecated, and
+// a deprecation raised from a project file is a build error here.
+@use "sass:math";
 
 
 // -----------------------------------------------------------------------------
 // Primitives - palette
+//
+// Five ramps. `slate` carries the page, the cards, the rules and the navigation;
+// `teal` is the brand and every create action; `amber`, `green` and `red` are
+// feedback. Nothing else is a colour in this product.
 // -----------------------------------------------------------------------------
 
-// Neutrals: the page/card/text ramp. The page is tinted and cards are white, so
-// the ramp needs a step above the page tint as well as below it.
-$dt-neutral-0:                #ffffff;
-$dt-neutral-50:               #f4f6fa;
-$dt-neutral-200:              #e3e8ef;
-$dt-neutral-500:              #64748b;
-// One step darker than 500, and the reason is contrast rather than taste: #64748b is 4.33:1
-// on the tinted page, under the 4.5:1 AA floor. This is 5.2:1. 500 stays as it is because
-// $dt-border-strong consumes it, and a border is not held to a text ratio.
-$dt-neutral-600:              #5a6880;
-$dt-neutral-900:              #0f172a;
+$dt-slate-0:                  #ffffff;   // Pure white. Use via surface-card.
+$dt-slate-50:                 #f2f4f7;   // Tinted near-white. Use via surface-page.
+$dt-slate-100:                #e6eaef;   // Light grey. Use via surface-sunken and status-pending-bg.
+$dt-slate-200:                #d2d9e0;   // Hairline grey. Use via border.
+// The one step tokens.json states on the semantic rather than the primitive tier
+// (`nav-ink: #c3ccd6`). Named here so the semantic layer stays free of literals
+// and so the ramp reads in order; it sits exactly between 200 and 400.
+$dt-slate-300:                #c3ccd6;   // Dimmed white. Use via nav-ink.
+$dt-slate-400:                #7d8997;   // Mid grey. Use via border-control.
+$dt-slate-500:                #56626f;   // Muted text grey. Use via ink-muted.
+$dt-slate-700:                #34404c;   // Dark grey. Use via action-edit.
+$dt-slate-800:                #222c36;   // Near-black. Use via action-edit-hover.
+$dt-slate-900:                #151d26;   // Deepest ink. Use via ink and nav-bg.
 
-// Navy: the navigation surface and its raised/hover/active steps. Solid colours
-// rather than white-alpha overlays, so a nav element keeps its colour wherever
-// it is placed.
-$dt-navy-950:                 #0e1726;
-$dt-navy-900:                 #152238;
-$dt-navy-800:                 #1f3455;
-$dt-navy-700:                 #2c4570;
-$dt-navy-100:                 #c9d4e5;
+$dt-teal-50:                  #e4f2ef;   // Teal tint. Use via surface-hover and status-transit-bg.
+$dt-teal-600:                 #0c6f62;   // Brand teal. Use via brand and action-create.
+$dt-teal-700:                 #095a4f;   // Deep teal. Use via action-create-hover and focus-ring.
 
-// Accents. One hue per action so a control's colour states what it does.
-$dt-blue-600:                 #2563eb;
-$dt-blue-700:                 #1d4ed8;
-$dt-green-700:                #15803d;
-$dt-green-800:                #12652f;
-$dt-red-100:                  #fbe0e0;
-$dt-red-700:                  #b91c1c;
-$dt-red-800:                  #991b1b;
-$dt-amber-700:                #b45309;
-$dt-amber-100:                #fdf3d7;
+$dt-amber-50:                 #fcf1d8;   // Amber tint. Use via warning-subtle.
+$dt-amber-100:                #f6dfa0;   // Soft amber. Use via overdue-bg.
+$dt-amber-300:                #f2c65a;   // Bright amber. Use via focus-ring-on-dark.
+$dt-amber-500:                #b07600;   // Amber mark. Use via warning-mark.
+$dt-amber-700:                #7f5200;   // Dark amber. Use via warning-text.
 
-// Alpha primitives. Only overlays and shadows need transparency: an overlay sits
-// over unknown content, so it cannot be a solid colour.
-$dt-alpha-scrim:              rgba(15, 23, 42, .55);
-$dt-alpha-shadow-soft:        rgba(15, 23, 42, .08);
-$dt-alpha-shadow-strong:      rgba(15, 23, 42, .18);
-$dt-alpha-focus:              rgba(37, 99, 235, .35);
+$dt-green-50:                 #e3f3e7;   // Green tint. Use via success-subtle.
+$dt-green-600:                #1b7639;   // Green. Use via success.
+$dt-green-700:                #145c2c;   // Dark green. Use via success-text.
+
+$dt-red-50:                   #fbe8e6;   // Red tint. Use via danger-subtle.
+$dt-red-600:                  #b3302a;   // Red. Use via action-destructive and danger.
+$dt-red-700:                  #8f231e;   // Dark red. Use via action-destructive-hover and danger-text.
+
+// Alpha primitives. Only the scrim and the three elevations need transparency: a
+// backdrop sits over unknown content and a shadow over an unknown surface, so
+// neither can be a solid colour. All four are the deepest ink at an opacity.
+$dt-alpha-scrim:              rgba(21, 29, 38, .55);
+$dt-alpha-shadow-soft:        rgba(21, 29, 38, .08);
+$dt-alpha-shadow-medium:      rgba(21, 29, 38, .12);
+$dt-alpha-shadow-strong:      rgba(21, 29, 38, .24);
 
 
 // -----------------------------------------------------------------------------
 // Primitives - type
+//
+// System fonts only (NFR-21): no webfont means no network dependency for type, so
+// the interface renders identically offline and on first paint.
+//
+// The size and leading steps carry no meaning on their own. Nine composite styles
+// below assemble them, and a component names a style - never a step.
 // -----------------------------------------------------------------------------
 
-// System fonts only (NFR-21 note): no webfont means no network dependency for
-// type, so the interface renders identically offline and on first paint.
-$dt-font-family-system:       system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$dt-family-sans:              system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+$dt-family-mono:              ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
-$dt-font-size-100:            .8125rem;
-$dt-font-size-200:            .875rem;
-$dt-font-size-300:            1rem;
-$dt-font-size-400:            1.125rem;
-$dt-font-size-500:            1.5rem;
+$dt-font-size-12:             0.75rem;    // 12px
+$dt-font-size-13:             0.8125rem;  // 13px
+$dt-font-size-14:             0.875rem;   // 14px
+$dt-font-size-17:             1.0625rem;  // 17px
+$dt-font-size-22:             1.375rem;   // 22px
+$dt-font-size-32:             2rem;       // 32px
+
+$dt-line-height-16:           1rem;       // 16px
+$dt-line-height-18:           1.125rem;   // 18px
+$dt-line-height-20:           1.25rem;    // 20px
+$dt-line-height-24:           1.5rem;     // 24px
+$dt-line-height-30:           1.875rem;   // 30px
+$dt-line-height-40:           2.5rem;     // 40px
 
 $dt-font-weight-400:          400;
-$dt-font-weight-500:          500;
+$dt-font-weight-600:          600;
 $dt-font-weight-700:          700;
 
-$dt-line-height-tight:        1.25;
-$dt-line-height-normal:       1.5;
-
 
 // -----------------------------------------------------------------------------
-// Primitives - space, radius, border, shadow
+// Primitives - space, radius, border, shadow, size, depth
+//
+// These six scales have no second tier: the design publishes `space-4` and
+// `radius-md` themselves, so the name a component says is the name declared here.
 // -----------------------------------------------------------------------------
 
-// A 4px step scale. Every gap, pad and margin in the app is one of these.
-$dt-space-0:                  0;
-$dt-space-1:                  .25rem;
-$dt-space-2:                  .5rem;
-$dt-space-3:                  .75rem;
-$dt-space-4:                  1rem;
-$dt-space-5:                  1.5rem;
-$dt-space-6:                  2rem;
-$dt-space-7:                  3rem;
+// A six-step scale - 4, 8, 12, 16, 24, 32 - stated in rem rather than in the px
+// the design writes, for two reasons: Bootstrap multiplies and adds these to its
+// own rem figures, and `20px + 1rem` is a compile error rather than a length; and
+// a scale in rem follows a reader who has enlarged their browser's text. At the
+// 16px root every value below is exactly the figure tokens.json names.
+$dt-space-1:                  0.25rem;       // Icon-to-text gap, badge padding. Bootstrap spacer 1.
+$dt-space-2:                  0.5rem;       // Table cell padding, gap between buttons. Bootstrap spacer 2.
+$dt-space-3:                  0.75rem;      // Field to field gap, dialog footer gap. Bootstrap spacer 3.
+$dt-space-4:                  1rem;      // Card padding, phone gutter. Bootstrap spacer 4.
+$dt-space-5:                  1.5rem;      // Dialog padding, gap between cards. Bootstrap spacer 5.
+$dt-space-6:                  2rem;      // Page padding on desktop, landing sections. Bootstrap spacer 6 (added).
 
-$dt-radius-100:               .25rem;
-$dt-radius-200:               .5rem;
-$dt-radius-300:               .75rem;
-$dt-radius-full:              50%;
+$dt-radius-sm:                0.25rem;       // Inputs, buttons, badges, status labels. Bootstrap $border-radius-sm and $btn-border-radius.
+$dt-radius-md:                0.5rem;       // Cards, banners, map container, signature pad. Bootstrap $border-radius.
+$dt-radius-lg:                0.75rem;      // Dialogs and chat bubbles. Bootstrap $border-radius-lg.
+$dt-radius-pill:              999px;     // Language switcher track, on-duty dot.
 
-$dt-border-width-100:         1px;
-$dt-border-width-300:         3px;
+$dt-border-width:             1px;       // Every border and hairline. Bootstrap $border-width.
+$dt-border-width-focus:       2px;       // Focus outline width and invalid-field edge.
 
-$dt-shadow-100:               0 1px 2px $dt-alpha-shadow-soft;
-$dt-shadow-300:               0 8px 24px $dt-alpha-shadow-strong;
-$dt-shadow-up-100:            0 -1px 2px $dt-alpha-shadow-soft;
-// Two layers, like the scaffold's ring it replaces. A single translucent blue layer
-// composites to about 1.9:1 over the navy navigation - invisible on the one surface the
-// `.btn-link.nav-link` rule exists for. The opaque inner halo separates the ring from
-// whatever is behind it, so the outer layer is read against white either way.
-$dt-focus-ring-100:           0 0 0 .125rem $dt-neutral-0, 0 0 0 .25rem $dt-alpha-focus;
+$dt-shadow-card:              0 1px 2px $dt-alpha-shadow-soft;     // Content cards on surface-page. Bootstrap $box-shadow-sm.
+$dt-shadow-raised:            0 4px 12px $dt-alpha-shadow-medium;  // Sticky table header when scrolled, address match list, connection dock. Bootstrap $box-shadow.
+$dt-shadow-dialog:            0 16px 40px $dt-alpha-shadow-strong; // Dialogs only. Bootstrap $box-shadow-lg.
+
+$dt-control-height:           2.25rem;      // Buttons, inputs and selects. Bootstrap $input-height.
+$dt-control-height-sm:        1.75rem;      // Buttons inside table row-action cells. Bootstrap .btn-sm.
+$dt-touch-target:             2.75rem;      // Minimum hit area on phone screens: proof capture, nav toggle, status control.
+$dt-icon-size:                1.15em;    // Icon box, relative to the adjacent text.
+$dt-nav-width:                14.5rem;     // Sidebar width above the phone breakpoint.
+$dt-dialog-narrow:            30rem;     // Max width of a form dialog. Bootstrap .modal default.
+$dt-dialog-wide:              60rem;     // Max width of a dialog with two map columns. Bootstrap .modal-lg / -xl.
+$dt-map-height:               13.75rem;     // Map height in pickers and proof view.
+// At or above: sidebar, side-by-side columns. Below: collapsed nav, stacked
+// layouts. Reference for media queries; CSS custom properties cannot be used
+// inside @media, so a stylesheet repeats the figure as `640.98px`.
+$dt-breakpoint-phone:         641px;
+
+$dt-z-sticky:                 20;        // Sticky table header.
+$dt-z-nav:                    1030;      // Navigation shell. Bootstrap $zindex-fixed.
+$dt-z-dialog:                 1055;      // Dialog and backdrop. Bootstrap $zindex-modal.
+$dt-z-dock:                   1090;      // Connection-lost dock and reconnect modal, above everything.
 
 
 // -----------------------------------------------------------------------------
@@ -123,80 +171,125 @@ $dt-focus-ring-100:           0 0 0 .125rem $dt-neutral-0, 0 0 0 .25rem $dt-alph
 // -----------------------------------------------------------------------------
 
 // Surfaces. One light theme (NFR-21): tinted page, white cards, dark navigation.
-$dt-surface-page:             $dt-neutral-50;
-$dt-surface-card:             $dt-neutral-0;
-$dt-surface-muted:            $dt-neutral-200;
-$dt-surface-nav:              $dt-navy-900;
-$dt-surface-nav-sunken:       $dt-navy-950;
-$dt-surface-nav-hover:        $dt-navy-800;
-$dt-surface-nav-active:       $dt-navy-700;
+$dt-surface-page:             $dt-slate-50;   // Page background behind cards. Bootstrap $body-bg.
+$dt-surface-card:             $dt-slate-0;    // Cards, dialogs, table body, inputs. Bootstrap $card-bg, $input-bg.
+$dt-surface-sunken:           $dt-slate-100;  // Striped table rows, map placeholder, disabled inputs. Bootstrap $table-striped-bg.
+$dt-surface-hover:            $dt-teal-50;    // Table row hover and roster hover. Bootstrap $table-hover-bg.
+
+// Borders. Two, and the difference is whether you can operate the thing: a
+// hairline is decoration, a control's edge has to be findable.
+$dt-border:                   $dt-slate-200;  // Hairlines: card edges, table rules, dividers. Decorative only, never the only edge of a control. Bootstrap $border-color.
+$dt-border-control:           $dt-slate-400;  // Edge of inputs, selects, signature pad, secondary buttons. 3.5:1 on surface-card. Bootstrap $input-border-color.
 
 // Text.
-$dt-text-primary:             $dt-neutral-900;
-$dt-text-muted:               $dt-neutral-600;
-$dt-text-on-nav:              $dt-navy-100;
-$dt-text-on-nav-strong:       $dt-neutral-0;
-$dt-text-on-accent:           $dt-neutral-0;
-$dt-text-link:                $dt-blue-600;
-$dt-text-link-hover:          $dt-blue-700;
+$dt-ink:                      $dt-slate-900;  // Body text on surface-page, surface-card, surface-sunken, surface-hover. Bootstrap $body-color.
+$dt-ink-muted:                $dt-slate-500;  // Hints, meta lines, timestamps, table empty state. On surface-card, surface-page, surface-sunken. Bootstrap $secondary-color.
+$dt-ink-inverse:              $dt-slate-0;    // Text on nav-bg, action-* fills, brand fills and chat-own.
 
-// Borders.
-$dt-border-subtle:            $dt-neutral-200;
-$dt-border-strong:            $dt-neutral-500;
-$dt-border-nav:               $dt-navy-800;
-$dt-border-width:             $dt-border-width-100;
-$dt-border-width-emphasis:    $dt-border-width-300;
+// The brand, and the navigation it lives in.
+$dt-brand:                    $dt-teal-600;   // Logo mark, active nav marker, links. Links on surface-card and surface-page. Bootstrap $primary.
+$dt-nav-bg:                   $dt-slate-900;  // Navigation shell background. Bootstrap navbar dark background.
+$dt-nav-ink:                  $dt-slate-300;  // Inactive nav link text on nav-bg.
+$dt-nav-hover-bg:             $dt-slate-800;  // Nav link hover and language switcher track on nav-bg.
+$dt-nav-divider:              $dt-slate-700;  // Rule above the nav footer. Decorative.
+$dt-nav-control-border:       $dt-slate-400;  // Edge of the language switcher on nav-bg. 5:1 on nav-bg.
+$dt-nav-active-bg:            $dt-teal-700;   // Current destination fill in the nav, under ink-inverse text.
 
-// Actions (AD-28): create is green, edit is blue, destructive is red. A component
-// asks for the *action*, never for the colour.
-$dt-action-create:            $dt-green-700;
-$dt-action-create-hover:      $dt-green-800;
-$dt-action-edit:              $dt-blue-600;
-$dt-action-edit-hover:        $dt-blue-700;
-$dt-action-destructive:       $dt-red-700;
-$dt-action-destructive-hover: $dt-red-800;
+// Actions (AD-28, NFR-23): create is teal, edit is slate, destructive is red. A
+// component asks for the *action*, never for the colour.
+$dt-action-create:            $dt-teal-600;   // Create buttons. ink-inverse on it. Bootstrap $primary / .btn-primary.
+$dt-action-create-hover:      $dt-teal-700;   // Create button hover and active.
+$dt-action-edit:              $dt-slate-700;  // Edit buttons. ink-inverse on it. Bootstrap $secondary / .btn-secondary.
+$dt-action-edit-hover:        $dt-slate-800;  // Edit button hover and active.
+$dt-action-destructive:       $dt-red-600;    // Delete buttons and the confirm button of a confirmation dialog. ink-inverse on it. Bootstrap $danger / .btn-danger.
+$dt-action-destructive-hover: $dt-red-700;    // Destructive button hover and active.
 
-// FR-98 ratings. Deliberately separate from the action colours even where the
-// hue coincides: a rating is a judgement, not a button, and the two are free to
+// Feedback. Three, and no `info`: NFR-23's vocabulary has no informational state,
+// so the palette declares no hue for one.
+$dt-success:                  $dt-green-600;  // Success fill and icon. ink-inverse on it. Bootstrap $success.
+$dt-success-subtle:           $dt-green-50;   // Success banner and badge background, under success-text.
+$dt-success-text:             $dt-green-700;  // Success text on success-subtle and surface-card.
+$dt-warning-mark:             $dt-amber-500;  // Warning icon and banner edge on surface-card and warning-subtle. Never text. Bootstrap $warning.
+$dt-warning-subtle:           $dt-amber-50;   // Warning banner and truncated-table note background, under warning-text.
+$dt-warning-text:             $dt-amber-700;  // Warning text on warning-subtle and surface-card.
+$dt-overdue-bg:               $dt-amber-100;  // Overdue badge background, under warning-text (5.1:1). One step darker than warning-subtle so the pill reads on surface-page and striped rows.
+$dt-danger:                   $dt-red-600;    // Danger icon, field error text on surface-card, invalid input edge. Bootstrap $danger.
+$dt-danger-subtle:            $dt-red-50;     // Failure banner and Failed badge background, under danger-text.
+$dt-danger-text:              $dt-red-700;    // Failure text on danger-subtle and surface-card.
+
+// Delivery status. A pair per status, because a label is a fill and a text colour
+// that have to be chosen together; the shape that goes with each is in _theme.scss.
+$dt-status-pending-bg:        $dt-slate-100;      // Pending status label background.
+$dt-status-pending-text:      $dt-slate-700;      // Pending status label text on status-pending-bg.
+$dt-status-transit-bg:        $dt-teal-50;        // In Transit status label background.
+$dt-status-transit-text:      $dt-teal-700;       // In Transit status label text on status-transit-bg.
+$dt-status-delivered-bg:      $dt-success-subtle; // Delivered status label background.
+$dt-status-delivered-text:    $dt-success-text;   // Delivered status label text on status-delivered-bg.
+$dt-status-failed-bg:         $dt-danger-subtle;  // Failed status label background.
+$dt-status-failed-text:       $dt-danger-text;    // Failed status label text on status-failed-bg.
+
+// FR-98 ratings. Deliberately separate from the feedback colours even where the
+// hue coincides: a rating is a judgement, not a notice, and the two are free to
 // diverge later without a find-and-replace.
-$dt-rating-favourable:        $dt-green-700;
-$dt-rating-neutral:           $dt-amber-700;
-$dt-rating-unfavourable:      $dt-red-700;
+$dt-rating-favourable:        $dt-success-text;   // Rating 4.0 and above. Text and stars on surface-card.
+$dt-rating-neutral:           $dt-warning-text;   // Rating 3.0 to 3.9. Text and stars on surface-card.
+$dt-rating-unfavourable:      $dt-danger-text;    // Rating below 3.0. Text and stars on surface-card.
+$dt-rating-unrated:           $dt-ink-muted;      // A driver with no reviews. Text and dashed outline on surface-card. Not a verdict colour.
 
-// Feedback.
-$dt-feedback-success:         $dt-green-700;
-$dt-feedback-warning:         $dt-amber-700;
-$dt-feedback-warning-surface: $dt-amber-100;
-$dt-feedback-danger:          $dt-red-700;
-$dt-feedback-danger-surface:  $dt-red-100;
+// Focus, overlays and the two surfaces that are neither a card nor the page.
+$dt-focus-ring:               $dt-teal-700;   // 2px solid focus outline on surface-card, surface-page and surface-sunken, with a 2px surface-card gap.
+$dt-focus-ring-on-dark:       $dt-amber-300;  // 2px solid focus outline on nav-bg and on the connection dock.
+$dt-chat-own-bg:              $dt-teal-600;   // Bubble of the message the viewer sent. ink-inverse on it.
+$dt-chat-other-bg:            $dt-slate-0;    // Bubble of a received message, with a border edge. ink on it.
+$dt-signature-ink:            $dt-slate-900;  // Stroke colour drawn on the signature pad.
+$dt-backdrop:                 $dt-alpha-scrim;// Dialog backdrop over the page. Bootstrap $modal-backdrop-bg with opacity baked in.
 
-// Overlay and focus.
-$dt-overlay-backdrop:         $dt-alpha-scrim;
-$dt-focus-ring:               $dt-focus-ring-100;
+// Type families, by the job rather than by the stack.
+$dt-font-sans:                $dt-family-sans;  // All UI text.
+$dt-font-mono:                $dt-family-mono;  // Plates, licence numbers and IDs.
 
-// Type.
-$dt-font-family-base:         $dt-font-family-system;
-$dt-font-size-sm:             $dt-font-size-200;
-$dt-font-size-xs:             $dt-font-size-100;
-$dt-font-size-base:           $dt-font-size-300;
-$dt-font-size-lg:             $dt-font-size-400;
-$dt-font-size-xl:             $dt-font-size-500;
-$dt-font-weight-regular:      $dt-font-weight-400;
-$dt-font-weight-medium:       $dt-font-weight-500;
-$dt-font-weight-bold:         $dt-font-weight-700;
-$dt-line-height-base:         $dt-line-height-normal;
-$dt-line-height-heading:      $dt-line-height-tight;
+// The nine composite type styles.
+//
+// Each is published as three custom properties rather than one `font` shorthand,
+// because a scoped `.razor.css` is compiled apart from this file and can only
+// reach the token layer through custom properties - and NFR-29 forbids it a
+// literal `font-size`. `_theme.scss` also emits a `.dt-type-*` utility per style
+// for the common case of wearing one whole.
+$dt-display-font-size:        $dt-font-size-32;   // Landing page headline only.
+$dt-display-line-height:      $dt-line-height-40;
+$dt-display-font-weight:      $dt-font-weight-700;
 
-// Radius.
-$dt-radius-sm:                $dt-radius-100;
-$dt-radius-md:                $dt-radius-200;
-$dt-radius-lg:                $dt-radius-300;
-$dt-radius-circle:            $dt-radius-full;
+$dt-h1-font-size:             $dt-font-size-22;   // Screen title, one per screen.
+$dt-h1-line-height:           $dt-line-height-30;
+$dt-h1-font-weight:           $dt-font-weight-600;
 
-// Shadow.
-$dt-shadow-sm:                $dt-shadow-100;
-$dt-shadow-md:                $dt-shadow-300;
-$dt-shadow-up:                $dt-shadow-up-100;
+$dt-h2-font-size:             $dt-font-size-17;   // Card and dialog titles.
+$dt-h2-line-height:           $dt-line-height-24;
+$dt-h2-font-weight:           $dt-font-weight-600;
+
+$dt-h3-font-size:             $dt-font-size-14;   // Section labels inside a card or dialog.
+$dt-h3-line-height:           $dt-line-height-20;
+$dt-h3-font-weight:           $dt-font-weight-600;
+
+$dt-body-font-size:           $dt-font-size-14;   // Default text. Bootstrap $font-size-base = 0.875rem.
+$dt-body-line-height:         $dt-line-height-20;
+$dt-body-font-weight:         $dt-font-weight-400;
+
+$dt-label-font-size:          $dt-font-size-13;   // Form labels, table headers, button text.
+$dt-label-line-height:        $dt-line-height-18;
+$dt-label-font-weight:        $dt-font-weight-600;
+
+$dt-table-font-size:          $dt-font-size-13;   // Dense table cells.
+$dt-table-line-height:        $dt-line-height-18;
+$dt-table-font-weight:        $dt-font-weight-400;
+
+$dt-small-font-size:          $dt-font-size-12;   // Hints, timestamps, status labels, badges.
+$dt-small-line-height:        $dt-line-height-16;
+$dt-small-font-weight:        $dt-font-weight-400;
+
+$dt-code-font-size:           $dt-font-size-12;   // Plate numbers, licence numbers, IDs.
+$dt-code-line-height:         $dt-line-height-16;
+$dt-code-font-weight:         $dt-font-weight-400;
 
 
 // -----------------------------------------------------------------------------
@@ -205,30 +298,34 @@ $dt-shadow-up:                $dt-shadow-up-100;
 // `_theme.scss` walks this map to emit `--dt-*` custom properties. A semantic
 // token that is not in the map does not exist at runtime, so the map - not the
 // variable list above it - is the contract components code against.
+//
+// The scales are published alongside the roles, because a `.razor.css` reaching
+// for `space-4` or `z-dialog` has the same problem a component reaching for
+// `ink` has: it cannot see Sass. A token with no consumer yet is published all
+// the same - a create colour nothing has reached for is still the palette's
+// answer for when something does.
 // -----------------------------------------------------------------------------
 
 $dt-tokens: (
     "surface-page":             $dt-surface-page,
     "surface-card":             $dt-surface-card,
-    "surface-muted":            $dt-surface-muted,
-    "surface-nav":              $dt-surface-nav,
-    "surface-nav-sunken":       $dt-surface-nav-sunken,
-    "surface-nav-hover":        $dt-surface-nav-hover,
-    "surface-nav-active":       $dt-surface-nav-active,
+    "surface-sunken":           $dt-surface-sunken,
+    "surface-hover":            $dt-surface-hover,
 
-    "text-primary":             $dt-text-primary,
-    "text-muted":               $dt-text-muted,
-    "text-on-nav":              $dt-text-on-nav,
-    "text-on-nav-strong":       $dt-text-on-nav-strong,
-    "text-on-accent":           $dt-text-on-accent,
-    "text-link":                $dt-text-link,
-    "text-link-hover":          $dt-text-link-hover,
+    "border":                   $dt-border,
+    "border-control":           $dt-border-control,
 
-    "border-subtle":            $dt-border-subtle,
-    "border-strong":            $dt-border-strong,
-    "border-nav":               $dt-border-nav,
-    "border-width":             $dt-border-width,
-    "border-width-emphasis":    $dt-border-width-emphasis,
+    "ink":                      $dt-ink,
+    "ink-muted":                $dt-ink-muted,
+    "ink-inverse":              $dt-ink-inverse,
+
+    "brand":                    $dt-brand,
+    "nav-bg":                   $dt-nav-bg,
+    "nav-ink":                  $dt-nav-ink,
+    "nav-hover-bg":             $dt-nav-hover-bg,
+    "nav-divider":              $dt-nav-divider,
+    "nav-control-border":       $dt-nav-control-border,
+    "nav-active-bg":            $dt-nav-active-bg,
 
     "action-create":            $dt-action-create,
     "action-create-hover":      $dt-action-create-hover,
@@ -237,46 +334,174 @@ $dt-tokens: (
     "action-destructive":       $dt-action-destructive,
     "action-destructive-hover": $dt-action-destructive-hover,
 
+    "success":                  $dt-success,
+    "success-subtle":           $dt-success-subtle,
+    "success-text":             $dt-success-text,
+    "warning-mark":             $dt-warning-mark,
+    "warning-subtle":           $dt-warning-subtle,
+    "warning-text":             $dt-warning-text,
+    "overdue-bg":               $dt-overdue-bg,
+    "danger":                   $dt-danger,
+    "danger-subtle":            $dt-danger-subtle,
+    "danger-text":              $dt-danger-text,
+
+    "status-pending-bg":        $dt-status-pending-bg,
+    "status-pending-text":      $dt-status-pending-text,
+    "status-transit-bg":        $dt-status-transit-bg,
+    "status-transit-text":      $dt-status-transit-text,
+    "status-delivered-bg":      $dt-status-delivered-bg,
+    "status-delivered-text":    $dt-status-delivered-text,
+    "status-failed-bg":         $dt-status-failed-bg,
+    "status-failed-text":       $dt-status-failed-text,
+
     "rating-favourable":        $dt-rating-favourable,
     "rating-neutral":           $dt-rating-neutral,
     "rating-unfavourable":      $dt-rating-unfavourable,
+    "rating-unrated":           $dt-rating-unrated,
 
-    "feedback-success":         $dt-feedback-success,
-    "feedback-warning":         $dt-feedback-warning,
-    "feedback-warning-surface": $dt-feedback-warning-surface,
-    "feedback-danger":          $dt-feedback-danger,
-    "feedback-danger-surface":  $dt-feedback-danger-surface,
-
-    "overlay-backdrop":         $dt-overlay-backdrop,
     "focus-ring":               $dt-focus-ring,
+    "focus-ring-on-dark":       $dt-focus-ring-on-dark,
+    "chat-own-bg":              $dt-chat-own-bg,
+    "chat-other-bg":            $dt-chat-other-bg,
+    "signature-ink":            $dt-signature-ink,
+    "backdrop":                 $dt-backdrop,
 
-    "font-family-base":         $dt-font-family-base,
-    "font-size-xs":             $dt-font-size-xs,
-    "font-size-sm":             $dt-font-size-sm,
-    "font-size-base":           $dt-font-size-base,
-    "font-size-lg":             $dt-font-size-lg,
-    "font-size-xl":             $dt-font-size-xl,
-    "font-weight-regular":      $dt-font-weight-regular,
-    "font-weight-medium":       $dt-font-weight-medium,
-    "font-weight-bold":         $dt-font-weight-bold,
-    "line-height-base":         $dt-line-height-base,
-    "line-height-heading":      $dt-line-height-heading,
+    "font-sans":                $dt-font-sans,
+    "font-mono":                $dt-font-mono,
 
-    "space-0":                  $dt-space-0,
+    "display-font-size":        $dt-display-font-size,
+    "display-line-height":      $dt-display-line-height,
+    "display-font-weight":      $dt-display-font-weight,
+    "h1-font-size":             $dt-h1-font-size,
+    "h1-line-height":           $dt-h1-line-height,
+    "h1-font-weight":           $dt-h1-font-weight,
+    "h2-font-size":             $dt-h2-font-size,
+    "h2-line-height":           $dt-h2-line-height,
+    "h2-font-weight":           $dt-h2-font-weight,
+    "h3-font-size":             $dt-h3-font-size,
+    "h3-line-height":           $dt-h3-line-height,
+    "h3-font-weight":           $dt-h3-font-weight,
+    "body-font-size":           $dt-body-font-size,
+    "body-line-height":         $dt-body-line-height,
+    "body-font-weight":         $dt-body-font-weight,
+    "label-font-size":          $dt-label-font-size,
+    "label-line-height":        $dt-label-line-height,
+    "label-font-weight":        $dt-label-font-weight,
+    "table-font-size":          $dt-table-font-size,
+    "table-line-height":        $dt-table-line-height,
+    "table-font-weight":        $dt-table-font-weight,
+    "small-font-size":          $dt-small-font-size,
+    "small-line-height":        $dt-small-line-height,
+    "small-font-weight":        $dt-small-font-weight,
+    "code-font-size":           $dt-code-font-size,
+    "code-line-height":         $dt-code-line-height,
+    "code-font-weight":         $dt-code-font-weight,
+
     "space-1":                  $dt-space-1,
     "space-2":                  $dt-space-2,
     "space-3":                  $dt-space-3,
     "space-4":                  $dt-space-4,
     "space-5":                  $dt-space-5,
     "space-6":                  $dt-space-6,
-    "space-7":                  $dt-space-7,
 
     "radius-sm":                $dt-radius-sm,
     "radius-md":                $dt-radius-md,
     "radius-lg":                $dt-radius-lg,
-    "radius-circle":            $dt-radius-circle,
+    "radius-pill":              $dt-radius-pill,
 
-    "shadow-sm":                $dt-shadow-sm,
-    "shadow-md":                $dt-shadow-md,
-    "shadow-up":                $dt-shadow-up,
+    "border-width":             $dt-border-width,
+    "border-width-focus":       $dt-border-width-focus,
+
+    "shadow-card":              $dt-shadow-card,
+    "shadow-raised":            $dt-shadow-raised,
+    "shadow-dialog":            $dt-shadow-dialog,
+
+    "control-height":           $dt-control-height,
+    "control-height-sm":        $dt-control-height-sm,
+    "touch-target":             $dt-touch-target,
+    "icon-size":                $dt-icon-size,
+    "nav-width":                $dt-nav-width,
+    "dialog-narrow":            $dt-dialog-narrow,
+    "dialog-wide":              $dt-dialog-wide,
+    "map-height":               $dt-map-height,
+    "breakpoint-phone":         $dt-breakpoint-phone,
+
+    "z-sticky":                 $dt-z-sticky,
+    "z-nav":                    $dt-z-nav,
+    "z-dialog":                 $dt-z-dialog,
+    "z-dock":                   $dt-z-dock,
+);
+
+
+// =============================================================================
+// Bridge-shaped values
+//
+// Everything below is a token in a shape Bootstrap's own variables want, and it
+// lives here for one reason: NFR-29 reads *every* `$variable:` declaration in
+// `_bootstrap-bridge.scss` as a visual one, so the bridge may contain nothing but
+// bare token references. A Sass map, an arithmetic expression or a quoted key
+// written there reads as a literal and fails the gate - correctly, because that
+// is also how a raw hex would get in.
+//
+// Declared after `$dt-tokens` on purpose. `DesignTokenTests` reads the semantic
+// tier as "everything between the Semantics divider and the map", so a variable
+// placed here is not held to being published as a custom property - which is
+// right: none of these is something a component can name.
+// =============================================================================
+
+// Bootstrap wants `$line-height-base` unitless: it multiplies it by font sizes in
+// several places, and `20px * 1em` is an error rather than a leading. The ratio is
+// derived from the two tokens so the body style stays the single source of it.
+$dt-line-height-base:         math.div($dt-line-height-20, $dt-font-size-14);
+$dt-line-height-heading:      math.div($dt-line-height-30, $dt-font-size-22);
+
+// The vertical padding that puts a button and a field on `control-height` exactly:
+// 36px less the 20px line box and the two 1px borders, halved. Not derived,
+// because the height is in rem and the border in device pixels and Sass will not
+// subtract one from the other - and not a seventh spacing step either, because it
+// is not a gap anyone chooses. It is whatever `control-height` implies.
+$dt-control-padding-y:        0.4375rem;  // 7px
+
+// Bootstrap multiplies `$modal-backdrop-bg` by `$modal-backdrop-opacity`. The
+// `backdrop` token already carries its own alpha, so the multiply is turned off
+// rather than left to darken the scrim a second time.
+$dt-backdrop-opacity:         1;
+
+// The five theme colours, and only five. `$info`, `$light` and `$dark` are gone
+// from the map (NFR-23 has no informational action, and `bg-light` / `bg-dark`
+// have no consumer), which is what stops `.btn-info`, `.text-bg-info`, `--bs-info`
+// and their light/dark siblings from being generated at all. The three Sass
+// variables themselves stay assigned in the bridge, so the `.table-*` variants
+// Bootstrap derives from them stay on the palette rather than falling back to
+// stock cyan.
+$dt-theme-colors: (
+    "primary":   $dt-action-create,
+    "secondary": $dt-action-edit,
+    "success":   $dt-success,
+    "warning":   $dt-warning-mark,
+    "danger":    $dt-action-destructive,
+);
+
+// Bootstrap derives `$spacers` from `$spacer` by multiplying it, which produces
+// 12px and 48px where this scale says 12px and 32px. Stated in full so the `.p-*`
+// and `.m-*` utilities land on the six steps and nowhere between them.
+$dt-spacers: (
+    0: 0,
+    1: $dt-space-1,
+    2: $dt-space-2,
+    3: $dt-space-3,
+    4: $dt-space-4,
+    5: $dt-space-5,
+    6: $dt-space-6,
+);
+
+// One breakpoint matters in this design - the phone - and it is `sm`. The rest
+// keep Bootstrap's own figures so the grid still has a ladder above it.
+$dt-grid-breakpoints: (
+    xs: 0,
+    sm: $dt-breakpoint-phone,
+    md: 768px,
+    lg: 992px,
+    xl: 1200px,
+    xxl: 1400px,
 );

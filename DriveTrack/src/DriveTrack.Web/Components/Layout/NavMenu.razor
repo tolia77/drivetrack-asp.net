@@ -24,7 +24,7 @@
     var destinations = isSignedIn ? NavDestinations.For(Caller.Role) : NavDestinations.Anonymous;
 }
 
-<div class="top-row ps-3 navbar navbar-dark">
+<div class="top-row ps-4 navbar navbar-dark">
     <div class="container-fluid">
         @* NFR-25: the mark and the wordmark travel together, on every screen. *@
         <a class="navbar-brand" href="">
@@ -39,7 +39,7 @@
     <nav class="nav flex-column">
         @if (destinations.Contains(NavDestination.Home))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
                     <Icon Name="IconName.Home" />@Localizer["NavHome"]
                 </NavLink>
@@ -48,7 +48,7 @@
 
         @if (destinations.Contains(NavDestination.Profile))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="profile">
                     <Icon Name="IconName.Profile" />@Localizer["Profile"]
                 </NavLink>
@@ -57,7 +57,7 @@
 
         @if (destinations.Contains(NavDestination.Drivers))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="drivers">
                     <Icon Name="IconName.Drivers" />@Localizer["NavDrivers"]
                 </NavLink>
@@ -66,7 +66,7 @@
 
         @if (destinations.Contains(NavDestination.Vehicles))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="vehicles">
                     <Icon Name="IconName.Vehicles" />@Localizer["NavVehicles"]
                 </NavLink>
@@ -75,7 +75,7 @@
 
         @if (destinations.Contains(NavDestination.Deliveries))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="deliveries">
                     <Icon Name="IconName.Deliveries" />@Localizer["NavDeliveries"]
                 </NavLink>
@@ -84,7 +84,7 @@
 
         @if (destinations.Contains(NavDestination.MyDeliveries))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="my-deliveries">
                     <Icon Name="IconName.Deliveries" />@Localizer["NavMyDeliveries"]
                 </NavLink>
@@ -93,7 +93,7 @@
 
         @if (destinations.Contains(NavDestination.Shifts))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="shifts">
                     <Icon Name="IconName.Shifts" />@Localizer["NavShifts"]
                 </NavLink>
@@ -102,7 +102,7 @@
 
         @if (destinations.Contains(NavDestination.MyShifts))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="my-shifts">
                     <Icon Name="IconName.Shifts" />@Localizer["NavMyShifts"]
                 </NavLink>
@@ -111,7 +111,7 @@
 
         @if (destinations.Contains(NavDestination.Clients))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="clients">
                     <Icon Name="IconName.Clients" />@Localizer["NavClients"]
                 </NavLink>
@@ -120,7 +120,7 @@
 
         @if (destinations.Contains(NavDestination.Dispatchers))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="dispatchers">
                     <Icon Name="IconName.Dispatchers" />@Localizer["NavDispatchers"]
                 </NavLink>
@@ -129,7 +129,7 @@
 
         @if (destinations.Contains(NavDestination.Chat))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="chat">
                     <Icon Name="IconName.Chat" />@Localizer["NavChat"]
                 </NavLink>
@@ -138,7 +138,7 @@
 
         @if (destinations.Contains(NavDestination.Reviews))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="reviews">
                     <Icon Name="IconName.Reviews" />@Localizer["NavReviews"]
                 </NavLink>
@@ -147,7 +147,7 @@
 
         @if (destinations.Contains(NavDestination.Notifications))
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="notifications">
                     <Icon Name="IconName.Notifications" />@Localizer["NavNotifications"]
                 </NavLink>
@@ -158,7 +158,7 @@
            they are, so they sit outside the destination table. *@
         @if (isSignedIn)
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <form method="post" action="/sign-out">
                     <AntiforgeryToken />
                     <button class="nav-link btn btn-link" type="submit">
@@ -170,12 +170,12 @@
 
         @if (!isSignedIn)
         {
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="sign-in">
                     <Icon Name="IconName.SignIn" />@Localizer["SignIn"]
                 </NavLink>
             </div>
-            <div class="nav-item px-3">
+            <div class="nav-item px-4">
                 <NavLink class="nav-link" href="register">
                     <Icon Name="IconName.Register" />@Localizer["Register"]
                 </NavLink>
@@ -196,7 +196,7 @@
            "Українська / Англійська" on a Ukrainian page and "Ukrainian / English" on an English
            one. aria-current marks the one already in force; it is not disabled, because a control
            that vanishes from the tab order is a control a keyboard user cannot find again. *@
-        <div class="nav-item px-3">
+        <div class="nav-item px-4">
             <form class="nav-language" method="post" action="/set-culture" aria-label="@Localizer["Language"]">
                 <AntiforgeryToken />
                 <input type="hidden" name="returnUrl" value="@ReturnUrl" />

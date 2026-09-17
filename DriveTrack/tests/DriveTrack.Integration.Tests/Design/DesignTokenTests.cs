@@ -215,6 +215,16 @@ public class DesignTokenTests
         RegexOptions.Compiled | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
+    /// <summary>
+    /// A <c>--dt-</c> token named anywhere, rather than only inside <c>var()</c>. A script reaches
+    /// a token through <c>getPropertyValue("--dt-name")</c>, so <see cref="DesignTokenReference"/>
+    /// - which anchors on <c>var(</c> - never sees it.
+    /// </summary>
+    private static readonly Regex ScriptTokenReference = new(
+        @"--dt-(?<name>[a-z0-9-]+)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
     private static readonly Regex SassVariable = new(
         @"\$[A-Za-z_][-A-Za-z0-9_]*",
         RegexOptions.Compiled | RegexOptions.CultureInvariant,
@@ -247,19 +257,23 @@ public class DesignTokenTests
         TimeSpan.FromSeconds(5));
 
     /// <summary>
-    /// The <c>url()</c> assets allowed to carry a literal colour, identified by a fragment
-    /// unique to each. There is exactly one, and
-    /// <c>Only_the_recorded_url_asset_carries_a_literal_colour</c> holds it to that: the
-    /// navigation toggler, whose reasoning is written out at the rule in
-    /// <c>NavMenu.razor.css</c>. Every other icon is masked and takes its colour from a token.
+    /// The <c>url()</c> assets allowed to carry a literal colour, identified by a fragment unique
+    /// to each. There are none, and <c>No_url_asset_carries_a_literal_colour</c> holds the list to
+    /// empty.
     /// <para>
-    /// An exemption list is a hole in a rule, so it is spelled as a path fragment rather than a
-    /// selector or a file: an asset that moves keeps its exemption, and an asset that changes
-    /// loses it and has to be argued for again.
+    /// There used to be one: the navigation toggler's hamburger data URI, whose stroke was a
+    /// percent-encoded <c>rgba()</c> because an <c>&lt;input&gt;</c> renders no pseudo-element to
+    /// mask and a scoped <c>.razor.css</c> cannot interpolate a token into a URI. It is gone - the
+    /// bars are three <c>linear-gradient(currentColor, currentColor)</c> layers now - so the hole
+    /// in the rule closed with it.
+    /// </para>
+    /// <para>
+    /// The array stays rather than being deleted outright, because <see cref="UrlAssetOffences"/>
+    /// still consults it: an exemption a later story argues for has somewhere to be written down,
+    /// and the test below makes writing one a deliberate act rather than a quiet one.
     /// </para>
     /// </summary>
-    private static readonly string[] RecordedUrlColourExemptions =
-        ["M4 7h22M4 15h22M4 23h22"];
+    private static readonly string[] RecordedUrlColourExemptions = [];
 
     /// <summary>
     /// A Bootstrap <c>-info</c> theme variant. The families are named rather than matched by a
@@ -291,7 +305,7 @@ public class DesignTokenTests
     [InlineData("color", "var(--dt-text-primary)", false)]
     [InlineData("background-color", "var(--bs-body-bg)", false)]
     [InlineData("padding", "$dt-space-3", false)]
-    [InlineData("border-bottom", "var(--dt-border-width) solid var(--dt-border-subtle)", false)]
+    [InlineData("border-bottom", "var(--dt-border-width) solid var(--dt-border)", false)]
     // Accepted: a keyword and a unitless zero name no palette value.
     [InlineData("border", "none", false)]
     [InlineData("margin", "0", false)]
@@ -396,25 +410,15 @@ public class DesignTokenTests
     }
 
     /// <summary>
-    /// The exemption list is a hole in NFR-29, so its size is itself asserted: one entry, and
-    /// that entry has to still be reachable in the component tree. An exemption for an asset
-    /// that has since been deleted or masked would otherwise sit there indefinitely, widening
-    /// the rule for nothing.
+    /// The exemption list is a hole in NFR-29, and the hole is now shut. Asserted rather than left
+    /// to the scan above, because the two fail differently: the scan says "this asset carries a
+    /// colour", which a new exemption silences, and this says "an exemption exists at all", which
+    /// nothing silences but deleting it.
     /// </summary>
     [Fact]
-    public void Only_the_recorded_url_asset_carries_a_literal_colour()
+    public void No_url_asset_carries_a_literal_colour()
     {
-        var exemption = Assert.Single(RecordedUrlColourExemptions);
-
-        var live = ScopedStylesheets()
-            .Concat(ProjectStylesheets())
-            .Concat(MarkupFiles())
-            .Any(path => File.ReadAllText(path).Contains(exemption, StringComparison.Ordinal));
-
-        Assert.True(
-            live,
-            $"The recorded url() colour exemption '{exemption}' matches no asset in the "
-                + "component tree. Delete it rather than leaving the rule widened.");
+        Assert.Empty(RecordedUrlColourExemptions);
     }
 
     /// <summary>
@@ -426,12 +430,19 @@ public class DesignTokenTests
     /// declaration to map, and between them the two tiers cannot drift apart.
     /// </summary>
     /// <summary>
-    /// NFR-23's action vocabulary has no <c>info</c>, and the palette has no hue for one, so
-    /// <c>$info</c> is aliased to the link colour in the bridge - which makes every
-    /// <c>-info</c> variant render identically to its <c>-primary</c> counterpart. A component
-    /// that reaches for one expecting a distinction gets none, and the screen looks correct
-    /// until the two appear side by side. Asserted rather than commented, because the comment
-    /// lives in the bridge and the component author is not reading the bridge.
+    /// NFR-23's action vocabulary has no <c>info</c> and the palette declares no hue for one, so
+    /// <c>info</c> is not in <c>$theme-colors</c> and Bootstrap generates no <c>.btn-info</c>,
+    /// <c>.bg-info</c>, <c>.text-info</c> or <c>.alert-info</c> at all.
+    /// <para>
+    /// Which changes what this test is for rather than retiring it. It used to catch a
+    /// <em>collision</em> - <c>$info</c> aliased to the link colour, so <c>.btn-info</c> rendered
+    /// identically to <c>.btn-primary</c> and a component reaching for a distinction silently got
+    /// none. Now it catches a <em>dead class</em>: a component that writes <c>.btn-info</c> gets an
+    /// unstyled button, which is the worse failure of the two and the harder one to see in a
+    /// screenshot. It also guards the classes that did survive - <c>.table-info</c> comes from
+    /// <c>$table-variants</c> rather than from <c>$theme-colors</c> and still ships - so reaching
+    /// for the one family that still resolves is refused as well.
+    /// </para>
     /// <para>
     /// Scoped to components: the bridge itself names these classes while explaining the rule.
     /// </para>
@@ -499,6 +510,58 @@ public class DesignTokenTests
         Assert.Empty(dangling);
     }
 
+    /// <summary>
+    /// The same rule as <see cref="Every_token_a_stylesheet_references_exists"/>, for the other
+    /// kind of consumer. A collocated module reads a token to paint a canvas, and neither half of
+    /// the stylesheet rule reaches it: the literal scan never opens a <c>.js</c> file, and the
+    /// reference scan anchors on <c>var(</c>, which a script does not write.
+    /// </summary>
+    [Fact]
+    public void Every_token_a_script_references_exists()
+    {
+        var published = SemanticTokenNames().ToHashSet(StringComparer.Ordinal);
+        var scripts = ComponentScripts();
+        var dangling = new List<string>();
+
+        // Vacuity guard, for the same reason There_is_something_to_scan carries one: a glob that
+        // stopped matching would leave this test green and the rule unenforced.
+        Assert.NotEmpty(scripts);
+
+        foreach (var path in scripts)
+        {
+            foreach (Match reference in ScriptTokenReference.Matches(File.ReadAllText(path)))
+            {
+                var name = reference.Groups["name"].Value;
+
+                if (!published.Contains(name))
+                {
+                    dangling.Add($"{Path.GetFileName(path)}: --dt-{name}");
+                }
+            }
+        }
+
+        Assert.Empty(dangling);
+    }
+
+    /// <summary>
+    /// The signature stroke, named rather than left to the rule above.
+    /// <para>
+    /// <c>signature-ink</c> is the one token in the map no stylesheet consumes, so every scan in
+    /// this class is satisfied whether or not anything still reads it. Repointing the module at a
+    /// different token would keep the suite green and draw the signature in the wrong colour - the
+    /// pad is a canvas, so there is no rendered markup for a screen test to read either. This is
+    /// the only place the two halves are held to each other.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void The_signature_pad_strokes_with_the_ink_the_palette_declares_for_it()
+    {
+        var module = File.ReadAllText(
+            Path.Combine(WebProject, "Components", "Shared", "DtSignaturePad.razor.js"));
+
+        Assert.Contains("--dt-signature-ink", module, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void An_inline_style_in_markup_is_scanned_like_a_stylesheet()
     {
@@ -527,10 +590,14 @@ public class DesignTokenTests
     // Bootstrap's own defaults sit in the third column. Each pair proves the framework was
     // *themed* - its Sass variables assigned before its import - rather than overridden after
     // the fact, which would leave the default in the custom property and a duplicate below it.
-    [InlineData("--bs-primary", "#2563eb", "#0d6efd")]
-    [InlineData("--bs-body-bg", "#f4f6fa", "#fff")]
+    [InlineData("--bs-primary", "#0c6f62", "#0d6efd")]
+    [InlineData("--bs-secondary", "#34404c", "#6c757d")]
+    [InlineData("--bs-body-bg", "#f2f4f7", "#fff")]
+    [InlineData("--bs-body-color", "#151d26", "#212529")]
+    [InlineData("--bs-border-color", "#d2d9e0", "#dee2e6")]
     [InlineData("--bs-border-radius", "0.5rem", "0.375rem")]
-    [InlineData("--bs-body-font-family", "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif", "\"Noto Sans\"")]
+    [InlineData("--bs-body-font-size", "0.875rem", "1rem")]
+    [InlineData("--bs-body-font-family", "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, \"Noto Sans\", sans-serif", "\"Noto Sans\"")]
     public void A_bootstrap_custom_property_carries_the_token_value(
         string property,
         string tokenValue,
@@ -547,19 +614,94 @@ public class DesignTokenTests
     }
 
     [Theory]
-    // The tokens the story names explicitly: the three AD-28 action colours and the three
-    // FR-98 rating colours. The map-driven assertion below covers the rest.
+    // The tokens the story names explicitly: the three AD-28 action colours, the four FR-98 rating
+    // colours, the four delivery-status pairs' text halves, and the one token only JavaScript
+    // reads - which no stylesheet scan would ever notice going missing. The map-driven assertion
+    // below covers the rest.
     [InlineData("--dt-action-create")]
     [InlineData("--dt-action-edit")]
     [InlineData("--dt-action-destructive")]
     [InlineData("--dt-rating-favourable")]
     [InlineData("--dt-rating-neutral")]
     [InlineData("--dt-rating-unfavourable")]
+    [InlineData("--dt-rating-unrated")]
+    [InlineData("--dt-status-pending-text")]
+    [InlineData("--dt-status-transit-text")]
+    [InlineData("--dt-status-delivered-text")]
+    [InlineData("--dt-status-failed-text")]
+    [InlineData("--dt-signature-ink")]
     public void A_named_semantic_token_reaches_the_browser(string property)
     {
         Assert.False(
             string.IsNullOrWhiteSpace(Declaration(CompiledTheme.Value, property)),
             $"The compiled theme declares no '{property}'.");
+    }
+
+    [Theory]
+    // The bridge is a mapping, and until this existed a mapping could be inverted without a
+    // single test noticing: every screen asserts the class string it writes, and `.btn-primary`
+    // is a perfectly valid class whichever token it happens to resolve to. Story A did invert
+    // three of them - `$primary` moved from edit to create - and the suite stayed green while
+    // every Create button in the app painted itself in the feedback colour.
+    //
+    // Read off the compiled bundle and compared against the token's own published value rather
+    // than against a hex, so the pair cannot drift and the assertion does not need editing the
+    // next time the palette moves.
+    [InlineData("btn-primary", "--dt-action-create")]
+    [InlineData("btn-secondary", "--dt-action-edit")]
+    [InlineData("btn-danger", "--dt-action-destructive")]
+    public void A_button_variant_resolves_to_the_action_token_it_is_named_for(
+        string variant,
+        string token)
+    {
+        var css = CompiledTheme.Value;
+        var role = Declaration(css, token);
+
+        Assert.False(
+            string.IsNullOrWhiteSpace(role),
+            $"The compiled theme declares no '{token}'.");
+
+        var rule = Regex.Match(
+            css,
+            @"\." + Regex.Escape(variant) + @"\s*\{(?<body>[^}]*)\}",
+            RegexOptions.None,
+            TimeSpan.FromSeconds(5));
+
+        Assert.True(rule.Success, $"The compiled theme declares no '.{variant}' rule.");
+
+        // `--bs-btn-bg` is the fill, which is the half of a button a reader reads as its colour.
+        Assert.Equal(role, Declaration(rule.Groups["body"].Value, "--bs-btn-bg"));
+    }
+
+    [Fact]
+    public void The_focus_ring_on_the_navigation_surface_is_the_on_dark_token()
+    {
+        // `focus-ring` is teal-700: it holds against a white card and reaches about 2.1:1 against
+        // `nav-bg`, under the 3:1 floor a non-text indicator has to clear. The palette declares
+        // `focus-ring-on-dark` for exactly that surface, and a ring that is drawn but invisible
+        // looks identical to a ring in a screenshot and in any scan that only counts `outline`.
+        var theme = File.ReadAllText(Path.Combine(StylesDirectory, "_theme.scss"));
+
+        var onDark = RuleBody(theme, @"\.sidebar");
+        var onPage = RuleBody(theme, @"\.form-control:focus");
+
+        Assert.Contains("var(--dt-focus-ring-on-dark)", onDark, StringComparison.Ordinal);
+        Assert.Contains("var(--dt-focus-ring)", onPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("var(--dt-focus-ring-on-dark)", onPage, StringComparison.Ordinal);
+    }
+
+    /// <summary>The declarations of the first rule whose selector list matches <paramref name="selector"/>.</summary>
+    private static string RuleBody(string stylesheet, string selector)
+    {
+        var match = Regex.Match(
+            stylesheet,
+            selector + @"[^{}]*\{(?<body>[^}]*)\}",
+            RegexOptions.Singleline,
+            TimeSpan.FromSeconds(5));
+
+        Assert.True(match.Success, $"No rule found for '{selector}'.");
+
+        return match.Groups["body"].Value;
     }
 
     [Fact]
@@ -983,6 +1125,14 @@ public class DesignTokenTests
     /// </summary>
     private static string[] ScopedStylesheets() =>
         [.. ProjectFiles().Where(path => path.EndsWith(".razor.css", StringComparison.OrdinalIgnoreCase))];
+
+    /// <summary>
+    /// Every collocated Blazor module in the project. Same reasoning as
+    /// <see cref="ScopedStylesheets"/>: rooted at the project rather than at <c>Components/</c>,
+    /// so a module a later story puts elsewhere is still scanned.
+    /// </summary>
+    private static string[] ComponentScripts() =>
+        [.. ProjectFiles().Where(path => path.EndsWith(".razor.js", StringComparison.OrdinalIgnoreCase))];
 
     /// <summary>
     /// The project's own Sass, at any depth. <c>_tokens.scss</c> is where the literals are

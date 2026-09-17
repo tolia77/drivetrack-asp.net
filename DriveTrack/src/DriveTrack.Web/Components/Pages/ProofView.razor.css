@@ -12,14 +12,14 @@
 }
 
 .dt-proof-facts dt {
-    color: var(--dt-text-muted);
-    font-size: var(--dt-font-size-sm);
-    font-weight: var(--dt-font-weight-regular);
+    color: var(--dt-ink-muted);
+    font-size: var(--dt-body-font-size);
+    font-weight: var(--dt-body-font-weight);
 }
 
 .dt-proof-facts dd {
     margin: 0;
-    font-weight: var(--dt-font-weight-medium);
+    font-weight: var(--dt-label-font-weight);
 }
 
 .dt-proof-place {
@@ -51,14 +51,14 @@
     */
     max-width: 12rem;
     height: auto;
-    border: var(--dt-border-width) solid var(--dt-border-subtle);
+    border: var(--dt-border-width) solid var(--dt-border);
     border-radius: var(--dt-radius-md);
-    background-color: var(--dt-surface-muted);
+    background-color: var(--dt-surface-sunken);
 }
 
 .dt-proof-empty {
     margin: 0;
     padding: var(--dt-space-5);
-    color: var(--dt-text-muted);
+    color: var(--dt-ink-muted);
     text-align: center;
 }

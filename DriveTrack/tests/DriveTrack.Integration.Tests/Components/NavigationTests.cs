@@ -440,12 +440,25 @@ public class NavigationTests
     [Fact]
     public void The_navigation_still_collapses_behind_its_toggler_on_a_narrow_viewport()
     {
-        // NFR-22 for the shell. The toggler rule also holds NFR-29's single recorded literal-colour
-        // exemption, which DesignTokenTests asserts is the only one - so it is left byte-identical
-        // and this only checks that the mechanism it drives is still there.
+        // NFR-22 for the shell: the checkbox reveals the menu, and the toggler has to carry a glyph
+        // or there is nothing on the bar to press.
+        //
+        // That glyph used to be a hamburger data URI whose stroke was a percent-encoded rgba() -
+        // NFR-29's one recorded literal-colour exemption. It is three `currentColor` gradient bars
+        // now, so the exemption is gone and the drawing is asserted by what paints it rather than
+        // by the path data that used to. The absence is asserted too: a data URI reappearing here
+        // is the exemption coming back.
         var stylesheet = SharedMarkup.ReadComponent("Layout", "NavMenu.razor.css");
 
         Assert.Contains(".navbar-toggler:checked ~ .nav-scrollable", stylesheet, StringComparison.Ordinal);
-        Assert.Contains("M4 7h22M4 15h22M4 23h22", stylesheet, StringComparison.Ordinal);
+
+        var bars = Regex.Matches(
+            stylesheet,
+            @"linear-gradient\(currentColor, currentColor\)",
+            RegexOptions.None,
+            TimeSpan.FromSeconds(5));
+
+        Assert.Equal(3, bars.Count);
+        Assert.DoesNotContain("M4 7h22M4 15h22M4 23h22", stylesheet, StringComparison.Ordinal);
     }
 }

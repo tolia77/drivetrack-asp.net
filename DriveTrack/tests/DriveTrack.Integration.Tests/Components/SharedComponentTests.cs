@@ -89,7 +89,7 @@ public class SharedComponentTests
         // itself, which is also why it renders identically on first paint and offline.
         var markup = SharedMarkup.ReadShared("Icon.razor");
 
-        Assert.Contains(@"viewBox=""0 0 16 16""", markup, StringComparison.Ordinal);
+        Assert.Contains(@"viewBox=""0 0 24 24""", markup, StringComparison.Ordinal);
         Assert.Contains(@"aria-hidden=""true""", markup, StringComparison.Ordinal);
         Assert.Contains(@"focusable=""false""", markup, StringComparison.Ordinal);
 

@@ -17,7 +17,7 @@
 */
 .dt-timeline-entry {
     padding: var(--dt-space-3);
-    border-bottom: var(--dt-border-width) solid var(--dt-border-subtle);
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
 }
 
 /* Who and when: quieter than the change itself, because the change is what a reader scans for. */
@@ -25,8 +25,8 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--dt-space-2);
-    color: var(--dt-text-muted);
-    font-size: var(--dt-font-size-xs);
+    color: var(--dt-ink-muted);
+    font-size: var(--dt-small-font-size);
 }
 
 .dt-timeline-change {
@@ -34,24 +34,24 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--dt-space-2);
-    font-weight: var(--dt-font-weight-medium);
+    font-weight: var(--dt-label-font-weight);
 }
 
 .dt-timeline-arrow {
-    color: var(--dt-text-muted);
+    color: var(--dt-ink-muted);
 }
 
 .dt-timeline-note {
     margin: var(--dt-space-1) 0 0;
-    color: var(--dt-text-primary);
-    font-size: var(--dt-font-size-sm);
+    color: var(--dt-ink);
+    font-size: var(--dt-body-font-size);
 }
 
 /* The two empty-ish states - loading and nothing yet - read as a statement, not as an entry. */
 .dt-timeline-empty {
     margin: 0;
     padding: var(--dt-space-5);
-    color: var(--dt-text-muted);
+    color: var(--dt-ink-muted);
     text-align: center;
 }
 
@@ -72,6 +72,6 @@
 }
 
 .dt-timeline-actions-label {
-    color: var(--dt-text-muted);
-    font-size: var(--dt-font-size-sm);
+    color: var(--dt-ink-muted);
+    font-size: var(--dt-body-font-size);
 }

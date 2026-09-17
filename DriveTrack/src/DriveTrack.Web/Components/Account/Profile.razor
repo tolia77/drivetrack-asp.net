@@ -86,13 +86,13 @@
     </dl>
 
     <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-primary dt-profile-edit" @onclick="ShowEditAsync">
+        <button type="button" class="btn btn-secondary dt-profile-edit" @onclick="ShowEditAsync">
             <Icon Name="IconName.Edit" />@Localizer["Edit"]
         </button>
-        <button type="button" class="btn btn-secondary dt-profile-password" @onclick="ShowPasswordAsync">
+        <button type="button" class="btn btn-outline-secondary dt-profile-password" @onclick="ShowPasswordAsync">
             <Icon Name="IconName.Edit" />@Localizer["ChangePassword"]
         </button>
-        <button type="button" class="btn btn-secondary dt-profile-email" @onclick="ShowEmailAsync">
+        <button type="button" class="btn btn-outline-secondary dt-profile-email" @onclick="ShowEmailAsync">
             <Icon Name="IconName.Edit" />@Localizer["ChangeEmail"]
         </button>
     </div>
@@ -108,12 +108,12 @@
            to a client: claiming a field this render does not show would be the one way a refusal
            could go missing (FR-83). *@
         <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="profile-first-name">@Localizer["FirstName"]</label>
             <input id="profile-first-name" class="form-control" @bind="_form.FirstName" />
             <DtFieldError Field="FirstName" Failures="_failures" />
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="profile-last-name">@Localizer["LastName"]</label>
             <input id="profile-last-name" class="form-control" @bind="_form.LastName" />
             <DtFieldError Field="LastName" Failures="_failures" />
@@ -123,7 +123,7 @@
            what stops a dispatcher's own rename being refused for a number they were never shown. *@
         @if (_isClient)
         {
-            <div class="mb-3">
+            <div class="mb-4">
                 <label class="form-label" for="profile-phone">@Localizer["PhoneNumber"]</label>
                 <input id="profile-phone" class="form-control" @bind="_form.PhoneNumber" />
                 <div class="form-text">@Localizer["PhoneNumberHint"]</div>
@@ -138,11 +138,11 @@
         @* Disabled while this save is in flight, and only this one: the circuit yields at the
            await, so a second click would dispatch a second write. Each dialog carries its own
            flag, so a save here leaves the other two dialogs alone. *@
-        <button type="button" class="btn btn-primary dt-profile-save" disabled="@_savingProfile"
+        <button type="button" class="btn btn-secondary dt-profile-save" disabled="@_savingProfile"
                 @onclick="SaveProfileAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary dt-profile-cancel" @onclick="CloseEditAsync">
+        <button type="button" class="btn btn-outline-secondary dt-profile-cancel" @onclick="CloseEditAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>
@@ -151,19 +151,19 @@
 <DtDialog @ref="_passwordDialog" Title="@Localizer["ChangePasswordTitle"]" OnClosed="ClearFailures">
     <ChildContent>
         <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="profile-current-password">@Localizer["CurrentPassword"]</label>
             <input id="profile-current-password" type="password" autocomplete="current-password"
                    class="form-control" @bind="_form.CurrentPassword" />
             <DtFieldError Field="CurrentPassword" Failures="_failures" />
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="profile-new-password">@Localizer["NewPassword"]</label>
             <input id="profile-new-password" type="password" autocomplete="new-password"
                    class="form-control" @bind="_form.NewPassword" />
             <DtFieldError Field="NewPassword" Failures="_failures" />
         </div>
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="profile-new-password-confirmation">@Localizer["NewPasswordConfirmation"]</label>
             <input id="profile-new-password-confirmation" type="password" autocomplete="new-password"
                    class="form-control" @bind="_form.NewPasswordConfirmation" />
@@ -174,11 +174,11 @@
         @* The double-click that misreports rather than merely duplicating: the second click sends
            the current password the first has already replaced, and the user is told their change
            failed when it did not. *@
-        <button type="button" class="btn btn-primary dt-password-save" disabled="@_savingPassword"
+        <button type="button" class="btn btn-secondary dt-password-save" disabled="@_savingPassword"
                 @onclick="SavePasswordAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary dt-password-cancel" @onclick="ClosePasswordAsync">
+        <button type="button" class="btn btn-outline-secondary dt-password-cancel" @onclick="ClosePasswordAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>
@@ -187,7 +187,7 @@
 <DtDialog @ref="_emailDialog" Title="@Localizer["ChangeEmailTitle"]" OnClosed="ClearFailures">
     <ChildContent>
         <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
-        <div class="mb-3">
+        <div class="mb-4">
             <label class="form-label" for="profile-email">@Localizer["Email"]</label>
             <input id="profile-email" type="email" class="form-control" @bind="_form.Email" />
             <DtFieldError Field="Email" Failures="_failures" />
@@ -195,11 +195,11 @@
     </ChildContent>
     <Actions>
         @* Disabled while this save is in flight, for the same reason as the other two dialogs. *@
-        <button type="button" class="btn btn-primary dt-email-save" disabled="@_savingEmail"
+        <button type="button" class="btn btn-secondary dt-email-save" disabled="@_savingEmail"
                 @onclick="SaveEmailAsync">
             <Icon Name="IconName.Confirm" />@Localizer["Save"]
         </button>
-        <button type="button" class="btn btn-secondary dt-email-cancel" @onclick="CloseEmailAsync">
+        <button type="button" class="btn btn-outline-secondary dt-email-cancel" @onclick="CloseEmailAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
         </button>
     </Actions>

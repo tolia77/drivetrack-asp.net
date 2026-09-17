@@ -29,12 +29,20 @@
 #components-reconnect-modal {
     background-color: var(--dt-surface-card);
     width: 20rem;
-    /* The scaffold's 20vh top offset became a spacing step: one scale owns every gap. */
-    margin: var(--dt-space-7) auto;
+    /*
+        The scaffold's 20vh top offset became a spacing step: one scale owns every gap.
+
+        NOT a pure rename: this was `space-7` (3rem), and the new six-step scale stops at
+        `space-6` (2rem), so the offset is 1rem shorter than it was. Recorded rather than left
+        silent, because the rest of this sweep was mechanical and this is the one figure in the
+        file that moved. It is a top margin on a centred dialog, so the cost is that the panel
+        sits a little higher; the alternative was a seventh step existing for one declaration.
+    */
+    margin: var(--dt-space-6) auto;
     padding: var(--dt-space-6);
     border: 0;
     border-radius: var(--dt-radius-lg);
-    box-shadow: var(--dt-shadow-md);
+    box-shadow: var(--dt-shadow-dialog);
     opacity: 0;
     transition: display 0.5s allow-discrete, overlay 0.5s allow-discrete;
     animation: components-reconnect-modal-fadeOutOpacity 0.5s both;
@@ -48,7 +56,7 @@
 }
 
 #components-reconnect-modal::backdrop {
-    background-color: var(--dt-overlay-backdrop);
+    background-color: var(--dt-backdrop);
     animation: components-reconnect-modal-fadeInOpacity 0.5s ease-in-out;
     opacity: 1;
 }
@@ -99,7 +107,7 @@
 #components-reconnect-modal button {
     border: 0;
     background-color: var(--dt-action-edit);
-    color: var(--dt-text-on-accent);
+    color: var(--dt-ink-inverse);
     padding: var(--dt-space-1) var(--dt-space-5);
     border-radius: var(--dt-radius-sm);
 }
@@ -120,9 +128,9 @@
 
     .components-rejoining-animation div {
         position: absolute;
-        border: var(--dt-border-width-emphasis) solid var(--dt-action-edit);
+        border: var(--dt-border-width-focus) solid var(--dt-action-edit);
         opacity: 1;
-        border-radius: var(--dt-radius-circle);
+        border-radius: var(--dt-radius-pill);
         animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
     }
 

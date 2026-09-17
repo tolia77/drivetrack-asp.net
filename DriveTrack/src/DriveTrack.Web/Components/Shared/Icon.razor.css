@@ -1,8 +1,9 @@
 /*
-    NFR-24: an icon is sized by the text it labels, not by a figure of its own. `em` units mean a
-    glyph beside a button label, a nav link and an <h1> each come out the right size without a
-    per-context rule - and NFR-29 is untouched either way, because width and height are geometry
-    rather than palette.
+    NFR-24: an icon is sized by the text it labels, not by a figure of its own. `icon-size` is
+    1.15em, so a glyph beside a button label, a nav link and an <h1> each come out the right size
+    without a per-context rule - and NFR-29 is untouched either way, because width and height are
+    geometry rather than palette. The token is named all the same, so the ratio between a glyph and
+    the text beside it is one decision rather than fifteen.
 
     The optical nudge is `vertical-align`, which is also geometry: a 1em box sits on the baseline,
     and a glyph's visual centre is a little above it.
@@ -10,10 +11,10 @@
 
 .dt-icon {
     display: inline-block;
-    width: 1em;
-    height: 1em;
-    vertical-align: -0.125em;
+    width: var(--dt-icon-size);
+    height: var(--dt-icon-size);
+    vertical-align: -0.2em;
     flex: none;
     /* The end margin is the gap in every icon-and-text pair, so the pairs line up across the app. */
-    margin-inline-end: var(--dt-space-2);
+    margin-inline-end: var(--dt-space-1);
 }

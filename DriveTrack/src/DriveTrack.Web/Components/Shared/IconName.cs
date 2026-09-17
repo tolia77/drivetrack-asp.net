@@ -31,13 +31,13 @@ public enum IconName
     /// <summary>Creating an account.</summary>
     Register,
 
-    /// <summary>A create action (AD-28's green).</summary>
+    /// <summary>A create action (AD-28's create colour).</summary>
     Create,
 
-    /// <summary>An edit action (AD-28's blue).</summary>
+    /// <summary>An edit action (AD-28's edit colour).</summary>
     Edit,
 
-    /// <summary>A destructive action (AD-28's red).</summary>
+    /// <summary>A destructive action (AD-28's destructive colour).</summary>
     Delete,
 
     /// <summary>Accepting a prompt.</summary>
@@ -101,4 +101,10 @@ public enum IconName
 
     /// <summary>A driver's stretch of time on duty, and the two destinations that open them (FR-109, FR-113).</summary>
     Shifts,
+
+    /// <summary>The control that reveals the navigation below the phone breakpoint (NFR-22).</summary>
+    Menu,
+
+    /// <summary>A sortable column header, and the direction it can be taken in (FR-82).</summary>
+    Sort,
 }

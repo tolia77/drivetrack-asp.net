@@ -64,9 +64,9 @@ public class FleetScreenTests
         // AD-18 and AD-28: the band is Domain's reading of the number and the class is what that
         // band looks like. 4.5 is favourable; the unrated driver wears neither that class nor any
         // other band's, because the absence of a verdict is not a verdict.
-        Assert.Contains("dt-rating dt-rating-favourable", html, StringComparison.Ordinal);
-        Assert.Contains("dt-rating dt-rating-none", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("dt-rating-unfavourable", html, StringComparison.Ordinal);
+        Assert.Contains("dt-rating dt-rating--favourable", html, StringComparison.Ordinal);
+        Assert.Contains("dt-rating dt-rating--unrated", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-rating--unfavourable", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class FleetScreenTests
 
         // NFR-24: every action carries a glyph beside its text.
         Assert.Contains("<svg", html, StringComparison.Ordinal);
-        Assert.Contains("btn btn-success", html, StringComparison.Ordinal);
+        Assert.Contains("btn btn-primary", html, StringComparison.Ordinal);
     }
 
     [Theory]

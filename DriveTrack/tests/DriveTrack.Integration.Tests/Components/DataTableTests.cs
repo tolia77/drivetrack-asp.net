@@ -105,7 +105,7 @@ public class DataTableTests
         Assert.Contains("position: sticky", css, StringComparison.Ordinal);
         Assert.Contains("top: 0", css, StringComparison.Ordinal);
         Assert.Contains("background-color: var(--dt-surface-card)", css, StringComparison.Ordinal);
-        Assert.Contains("var(--dt-border-subtle)", css, StringComparison.Ordinal);
+        Assert.Contains("var(--dt-border)", css, StringComparison.Ordinal);
 
         // ::deep, because the header cells come from the consumer's template and carry the
         // consumer's scope. Without it the selector compiles to one that matches nothing.
