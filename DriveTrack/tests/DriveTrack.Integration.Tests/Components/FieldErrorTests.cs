@@ -28,9 +28,17 @@ public class FieldErrorTests
         RegexOptions.Compiled | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
-    /// <summary>A field-level control's own field, as a screen writes it out.</summary>
+    /// <summary>
+    /// A field-level control's own field, as a screen writes it out.
+    /// <para>
+    /// <c>DtLocationPicker</c> counts as one of them. It renders a <c>DtFieldError</c> beneath its
+    /// map over the sink its caller hands it, so the field a screen gives it is a field that
+    /// screen's banner still has to subtract - and after FR-104's column was extracted, the two
+    /// delivery screens name <c>Pickup</c> and <c>Dropoff</c> nowhere else.
+    /// </para>
+    /// </summary>
     private static readonly Regex FieldErrorField = new(
-        @"<DtFieldError\s+Field\s*=\s*""(?<value>[^""]*)""",
+        @"<(?:DtFieldError|DtLocationPicker)\b[^>]*?\bField\s*=\s*""(?<value>[^""]*)""",
         RegexOptions.Compiled | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
@@ -231,7 +239,7 @@ public class FieldErrorTests
 
         foreach (var (path, source) in Screens())
         {
-            var rendered = Rendered(source);
+            var rendered = Rendered(path, source);
 
             offenders.AddRange(Claimed(source)
                 .Where(field => !rendered.Contains(field))
@@ -251,7 +259,7 @@ public class FieldErrorTests
 
         foreach (var (path, source) in Screens())
         {
-            var rendered = Rendered(source);
+            var rendered = Rendered(path, source);
 
             if (rendered.Count == 0)
             {
@@ -342,11 +350,28 @@ public class FieldErrorTests
             .Select(path => (path, RazorComment.Replace(File.ReadAllText(path), " ")));
 
     /// <summary>The fields a screen renders a <c>DtFieldError</c> for.</summary>
-    private static HashSet<string> Rendered(string source) =>
+    private static HashSet<string> Rendered(string path, string source) =>
         FieldErrorField
             .Matches(source)
             .Select(match => match.Groups["value"].Value)
+            .Where(field => !IsPassedThrough(path, source, field))
             .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// True for a shared component handing its own <c>Field</c> parameter down to the control it
+    /// renders. That is a pass-through rather than a claim: the name that reaches the page is the
+    /// caller's, and it is claimed in the screen that spells it.
+    /// </summary>
+    /// <remarks>
+    /// Scoped to that one shape rather than to the <c>@</c> sigil, because a screen is free to
+    /// write <c>Field="@SomeMemberOfItsOwn"</c> - and that is a screen naming a field, which has to
+    /// be subtracted by that screen's banner like any literal. Exempting every expression would let
+    /// it out of the check by spelling.
+    /// </remarks>
+    private static bool IsPassedThrough(string path, string source, string field) =>
+        field == "@Field"
+        && path.StartsWith(SharedMarkup.SharedDirectory, StringComparison.Ordinal)
+        && source.Contains("public string? Field", StringComparison.Ordinal);
 
     /// <summary>
     /// Every field the screen's banners claim, across every branch of a computed list.

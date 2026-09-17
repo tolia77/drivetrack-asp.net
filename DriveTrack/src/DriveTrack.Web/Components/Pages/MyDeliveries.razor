@@ -30,11 +30,6 @@
 @inject IDeliveryService Mine
 @inject ICurrentUser Caller
 @inject IStringLocalizer<UiText> Localizer
-@* The dispatch board's address box, reused rather than copied. It is framework-free and takes its
-   search delegate as a parameter precisely so a second screen can drive it, and FR-104's rule about
-   which box fills which point is one rule however many forms ask it. Aliased because `Deliveries`
-   alone reads as two things in this file - the component type and the Application namespace. *@
-@using PlaceSearch = DriveTrack.Web.Components.Pages.Deliveries.PlaceSearch
 @inherits CircuitScopedComponent
 
 <PageTitle>@Localizer["MyDeliveriesTitle"]</PageTitle>
@@ -196,9 +191,9 @@
    The shape is the dispatch board's create dialog and the differences are the story: no driver box,
    no client box and no window bounds, because RequestDeliveryCommand has no field to bind them to.
    The two address blocks sit OUTSIDE <EditForm> for the reason they do there - an <input> inside a
-   form whose default button submits would make Enter in a search box send the request - and the
-   search row is a sibling of <DtMap> rather than a child, because Leaflet owns that container's DOM
-   and anything rendered inside it is wiped on the first pan. *@
+   form whose default button submits would make Enter in a search box send the request. Each block is
+   a DtLocationPicker, the same component the dispatch board renders: FR-104's column is one column
+   however many dialogs ask for it, which is what stops the two drifting apart again. *@
 @if (_offersRequest)
 {
     <DtDialog @ref="_requestDialog" Title="@Localizer["RequestDeliveryTitle"]" OnClosed="ClearFailures" Wide="true">
@@ -214,84 +209,22 @@
                to aim at. Both blocks still sit outside <EditForm>; see the header comment above. *@
             <div class="row g-3 mb-3">
                 <div class="col-lg-6">
-                    <label class="form-label" for="request-pickup-search">@Localizer["AddressSearch"]</label>
-                    <div class="input-group">
-                        <input id="request-pickup-search" class="form-control"
-                               @bind="_request.PickupSearch.Query"
-                               @bind:event="oninput"
-                               @onkeydown="Enter(_request.PickupSearch)" />
-                        <button type="button" class="btn btn-secondary dt-request-pickup-search"
-                                disabled="@_request.PickupSearch.IsBusy"
-                                @onclick="Search(_request.PickupSearch)">
-                            <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
-                        </button>
-                    </div>
-                    <div class="form-text">@Localizer["AddressSearchHint"]</div>
-                    @* The box's own banner, under the box it is about (DW-41). The dialog's banner above
-                       belongs to the request itself, and a search that writes into it is a search that
-                       can erase a refusal nobody has read. *@
-                    <DtFailureBanner Failures="_request.PickupSearch.Failures" />
-                    @if (_request.PickupSearch.FoundNothing)
-                    {
-                        <div class="form-text dt-request-pickup-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
-                    }
-                    @if (_request.PickupSearch.Matches.Count > 0)
-                    {
-                        <ul class="list-group mb-2">
-                            @foreach (var match in _request.PickupSearch.Matches)
-                            {
-                                <li class="list-group-item">
-                                    <button type="button" class="btn btn-link dt-request-pickup-match"
-                                            @onclick="Choose(_request.PickupSearch, match)">@match.Address</button>
-                                </li>
-                            }
-                        </ul>
-                    }
-                    @* No `for` on the map's label: a map is a region rather than a labelable control, and
-                       DtMap carries its own aria-label. The search box above it is an input and has one. *@
-                    <label class="form-label">@Localizer["Pickup"]</label>
-                    <DtMap Value="_request.Pickup" ValueChanged="PickRequestPickup" Picker="true" />
-                    @* Under the map rather than in the dialog's banner: an unpicked point is refused
-                       with COMMON_FIELD_REQUIRED - "Обов’язкове поле" - which says nothing at all about
-                       which control, and the map is half a screen tall. Beneath it, the sentence needs
-                       nothing more. *@
-                    <DtFieldError Field="Pickup" Failures="_failures" />
+                    <DtLocationPicker Prefix="request-pickup"
+                                      Label="@Localizer["Pickup"]"
+                                      Field="Pickup"
+                                      Search="_request.PickupSearch"
+                                      Value="_request.Pickup"
+                                      ValueChanged="PickRequestPickup"
+                                      Failures="_failures" />
                 </div>
                 <div class="col-lg-6">
-                    <label class="form-label" for="request-dropoff-search">@Localizer["AddressSearch"]</label>
-                    <div class="input-group">
-                        <input id="request-dropoff-search" class="form-control"
-                               @bind="_request.DropoffSearch.Query"
-                               @bind:event="oninput"
-                               @onkeydown="Enter(_request.DropoffSearch)" />
-                        <button type="button" class="btn btn-secondary dt-request-dropoff-search"
-                                disabled="@_request.DropoffSearch.IsBusy"
-                                @onclick="Search(_request.DropoffSearch)">
-                            <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
-                        </button>
-                    </div>
-                    <div class="form-text">@Localizer["AddressSearchHint"]</div>
-                    @* See the pickup box above. *@
-                    <DtFailureBanner Failures="_request.DropoffSearch.Failures" />
-                    @if (_request.DropoffSearch.FoundNothing)
-                    {
-                        <div class="form-text dt-request-dropoff-empty" role="status">@Localizer["AddressSearchEmpty"]</div>
-                    }
-                    @if (_request.DropoffSearch.Matches.Count > 0)
-                    {
-                        <ul class="list-group mb-2">
-                            @foreach (var match in _request.DropoffSearch.Matches)
-                            {
-                                <li class="list-group-item">
-                                    <button type="button" class="btn btn-link dt-request-dropoff-match"
-                                            @onclick="Choose(_request.DropoffSearch, match)">@match.Address</button>
-                                </li>
-                            }
-                        </ul>
-                    }
-                    <label class="form-label">@Localizer["Dropoff"]</label>
-                    <DtMap Value="_request.Dropoff" ValueChanged="PickRequestDropoff" Picker="true" />
-                    <DtFieldError Field="Dropoff" Failures="_failures" />
+                    <DtLocationPicker Prefix="request-dropoff"
+                                      Label="@Localizer["Dropoff"]"
+                                      Field="Dropoff"
+                                      Search="_request.DropoffSearch"
+                                      Value="_request.Dropoff"
+                                      ValueChanged="PickRequestDropoff"
+                                      Failures="_failures" />
                 </div>
             </div>
 
@@ -574,49 +507,7 @@
 
     private void PickRequestDropoff(MapLocation picked) => _request.Dropoff = picked;
 
-    /// <summary>
-    /// One box's search action, bound as a delegate so no lambda has to live in markup — a <c>=&gt;</c>
-    /// in an attribute closes the tag as far as NFR-14's markup scan is concerned.
-    /// </summary>
-    /// <remarks>
-    /// The box is a parameter rather than one method per point, so the markup names the same holder
-    /// it rendered the list from and there is no second place the pickup handler could be wired to
-    /// the dropoff box. The three-character floor is the capability's and is deliberately not
-    /// repeated here; the hint under the box is what tells the client about it beforehand.
-    /// <para>
-    /// Nothing is assigned here, and that is DW-41: the box keeps its own failures, so a search that
-    /// succeeds cannot clear a submit refusal the client has not read - nor the other box's.
-    /// </para>
-    /// </remarks>
-    /// <param name="search">The box being searched with.</param>
-    private Func<Task> Search(PlaceSearch search) =>
-        () => search.RunAsync(Mine.SearchPlacesAsync, CircuitToken);
-
-    /// <summary>
-    /// The same action on Enter, which is the gesture a search box invites. Anything else typed
-    /// falls through and is ignored.
-    /// </summary>
-    /// <remarks>
-    /// No <c>preventDefault</c> to go with it, and none is needed: the two boxes are rendered
-    /// outside <c>EditForm</c> precisely so Enter has no form to submit. The busy check is the same
-    /// guard the button carries as <c>disabled</c> — Enter is a key that can be held down, and
-    /// without it a held key is a burst of requests to a public service.
-    /// </remarks>
-    /// <param name="search">The box being searched with.</param>
-    private Func<KeyboardEventArgs, Task> Enter(PlaceSearch search) => async args =>
-    {
-        if (args.Key == "Enter" && !search.IsBusy)
-        {
-            await search.RunAsync(Mine.SearchPlacesAsync, CircuitToken);
-        }
-    };
-
-    /// <summary>A match's selection action, for the reason <see cref="Search" /> takes its box.</summary>
-    /// <param name="search">The box the match came from.</param>
-    /// <param name="match">The match chosen.</param>
-    private static Action Choose(PlaceSearch search, PlaceMatch match) => () => search.Choose(match);
-
-    /// <summary>The location cell's action, bound as a delegate for the same reason.</summary>
+    /// <summary>The location cell's action, bound as a delegate so no lambda has to live in markup.</summary>
     private Func<Task> ShowLocationHandler(LocationView location) =>
         () => ShowLocationAsync(location);
 

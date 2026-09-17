@@ -1,0 +1,209 @@
+@inject IDeliveryService Places
+@inject IStringLocalizer<UiText> Localizer
+@inherits CircuitScopedComponent
+
+@* FR-104's place picker: one address box, its answers, and the map it fills.
+
+   Written four times before this - a pickup and a dropoff on the dispatch board, a pickup and a
+   dropoff on the client's request dialog - which is how the two dialogs drifted apart in the first
+   place, when the side-by-side layout was applied to one pair and not the other. The column is the
+   same column on every screen; only the stem in its ids, the map's label and the point it fills
+   differ, so those are parameters and nothing else is.
+
+   The stem is interpolated rather than spelled out because the hooks the suite pins - `pickup-search`,
+   `dt-pickup-search`, `dt-pickup-empty`, `dt-pickup-match` and their dropoff and request-* twins -
+   are how a test tells one box from another, and four literals per copy is four places to paste the
+   wrong one.
+
+   Every handler is built in C# below rather than written as a lambda in an attribute: a `=>` here
+   would close the tag as far as NFR-14's markup scan is concerned, and everything after it would be
+   read as rendered English.
+
+   The row and the two columns stay on the screens. A picker knows what it renders; how two of them
+   are laid out beside each other is the dialog's question, and a component that answered it would
+   have to be told which half of the row it is. *@
+
+@* No `for` on the map's label below: a map is a region rather than a labelable control, and a `for`
+   pointing at one would be an association a browser ignores. DtMap carries its own aria-label. The
+   search box here is an input and has one. *@
+<label class="form-label" for="@BoxId">@Localizer["AddressSearch"]</label>
+<div class="input-group">
+    <input id="@BoxId" class="form-control"
+           @bind="Search.Query"
+           @bind:event="oninput"
+           @onkeydown="Enter" />
+    <button type="button" class="btn btn-secondary @SearchHook"
+            disabled="@Search.IsBusy"
+            @onclick="Run">
+        <Icon Name="IconName.Search" />@Localizer["AddressSearchAction"]
+    </button>
+</div>
+<div class="form-text">@Localizer["AddressSearchHint"]</div>
+@* The box's own banner, under the box it is about (DW-41). The dialog's banner above belongs to
+   whatever the form submits, and a search that writes into it is a search that can erase a refusal
+   nobody has read. *@
+<DtFailureBanner Failures="Search.Failures" />
+@if (Search.FoundNothing)
+{
+    @* role="status", like the timeline's empty line: "the search found nothing" is the one outcome
+       with no visible change to notice, and a user who cannot see the box is otherwise told nothing
+       at all (NFR-22). *@
+    <div class="form-text @EmptyHook" role="status">@Localizer["AddressSearchEmpty"]</div>
+}
+@if (Search.Matches.Count > 0)
+{
+    <ul class="list-group mb-2">
+        @foreach (var match in Search.Matches)
+        {
+            <li class="list-group-item">
+                <button type="button" class="btn btn-link @MatchHook"
+                        @onclick="Pick(match)">@match.Address</button>
+            </li>
+        }
+    </ul>
+}
+<label class="form-label">@Label</label>
+@* The search row above is a sibling of <DtMap>, never a child of it: Leaflet builds its own DOM
+   inside that container, outside Blazor's diff, so anything rendered inside would be wiped on the
+   first pan. It is the structural rule this file exists to keep - the box and the map are two
+   elements beside each other, and nesting them reads as tidier right up to the first drag. *@
+<DtMap Value="Value" ValueChanged="Picked" Picker="true" />
+@* Under the map rather than in the dialog's banner: an unpicked point is refused with
+   COMMON_FIELD_REQUIRED - "Обов’язкове поле" - which says nothing at all about which control, and
+   the map is half a screen tall. Beneath it, the sentence needs nothing more. *@
+<DtFieldError Field="@Field" Failures="Failures" />
+
+@code {
+    /// <summary>
+    /// The stem every hook on this column is built from — <c>pickup</c>, <c>dropoff</c>,
+    /// <c>request-pickup</c>, <c>request-dropoff</c>. It is the only thing that tells two pickers on
+    /// one screen apart, in the markup and in the suite alike.
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public string Prefix { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The map's label, already localized. The search box above it is labelled from this
+    /// component's own resources, because "address search" is the same words above every map; what
+    /// differs is the point, and only the caller knows whether this one is a pickup or a dropoff.
+    /// <para>
+    /// Required, because its absence says nothing: the map simply loses its caption, and a column
+    /// with no caption still looks like a column.
+    /// </para>
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public string? Label { get; set; }
+
+    /// <summary>
+    /// The CLR property name a validator would put on a refusal about this point — <c>Pickup</c> or
+    /// <c>Dropoff</c> — so <see cref="DtFieldError" /> can claim it from the screen's sink.
+    /// <para>
+    /// Required, and it is the quietest of the four to leave out: the control below the map then
+    /// claims nothing, so an unpicked point is refused with a sentence that appears nowhere at all -
+    /// on a page that otherwise renders exactly as it should.
+    /// </para>
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public string? Field { get; set; }
+
+    /// <summary>
+    /// The box this column renders, owned by the caller's form rather than built here.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately the caller's: a form constructs its pair beside the two fields they fill, which
+    /// is what keeps "the dropoff box sets the dropoff" one readable line - and a static-rendering
+    /// harness can drive that line directly. State built in here would put the one invariant that is
+    /// easy to cross and invisible in a diff somewhere no test can reach.
+    /// </remarks>
+    [Parameter]
+    [EditorRequired]
+    public PlaceSearch Search { get; set; } = new(_ => { });
+
+    /// <summary>The point this picker fills. Bound to the caller's form field.</summary>
+    [Parameter]
+    public MapLocation? Value { get; set; }
+
+    /// <summary>
+    /// Raised whenever the point moves, by a map click or by a chosen match.
+    /// </summary>
+    /// <remarks>
+    /// Raised for a chosen match as well as for a map click, and that is not belt and braces. The
+    /// box's own assignment writes the caller's field, but an event handled inside this component
+    /// re-renders only this component - so without telling the parent, the caller's <c>Value</c>
+    /// would still be the old point on the next pass and the map would sit where it was while the
+    /// address list said otherwise.
+    /// </remarks>
+    [Parameter]
+    public EventCallback<MapLocation> ValueChanged { get; set; }
+
+    /// <summary>
+    /// The screen's own refusal sink, for the message under the map. Not this box's search failures,
+    /// which are its own and are rendered above (DW-41).
+    /// </summary>
+    [Parameter]
+    public IReadOnlyList<ScreenFailure> Failures { get; set; } = [];
+
+    /// <summary>The search input's id, and what its label points at.</summary>
+    private string BoxId => $"{Prefix}-search";
+
+    /// <summary>The hook on the search button.</summary>
+    private string SearchHook => $"dt-{Prefix}-search";
+
+    /// <summary>The hook on the found-nothing line.</summary>
+    private string EmptyHook => $"dt-{Prefix}-empty";
+
+    /// <summary>The hook on every match in the list.</summary>
+    private string MatchHook => $"dt-{Prefix}-match";
+
+    /// <summary>
+    /// The search action.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is assigned here, and that is DW-41: the box keeps its own failures, so a search that
+    /// succeeds cannot clear a save refusal the user has not read - nor the other box's. The
+    /// three-character floor is the capability's, not this column's, and is deliberately not
+    /// repeated: a rule stated twice is a rule that can disagree with itself, and the hint under the
+    /// box is what says so beforehand.
+    /// </remarks>
+    private Task Run() => Search.RunAsync(Places.SearchPlacesAsync, CircuitToken);
+
+    /// <summary>
+    /// The same action on Enter, which is the gesture a search box invites. Anything else typed in
+    /// the box falls through and is ignored.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// No <c>preventDefault</c> to go with it, and none is needed: every caller renders this outside
+    /// its <c>EditForm</c> precisely so Enter has no form to submit.
+    /// </para>
+    /// <para>
+    /// The busy check is the same guard the button carries as <c>disabled</c>. Enter is a key that
+    /// can be held down, and without it an impatient second press during a lookup is a second
+    /// request to a public service whose slower answer then overwrites the faster one's matches.
+    /// </para>
+    /// </remarks>
+    private async Task Enter(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !Search.IsBusy)
+        {
+            await Run();
+        }
+    }
+
+    /// <summary>A match's selection action, bound as a delegate for the reason the others are.</summary>
+    private Func<Task> Pick(PlaceMatch match) => () => ChooseAsync(match);
+
+    /// <summary>Applies a match: the box moves the point, and the caller is told it moved.</summary>
+    private Task ChooseAsync(PlaceMatch match)
+    {
+        Search.Choose(match);
+
+        return ValueChanged.InvokeAsync(match.Point);
+    }
+
+    /// <summary>A point picked on the map itself, passed straight up.</summary>
+    private Task Picked(MapLocation point) => ValueChanged.InvokeAsync(point);
+}

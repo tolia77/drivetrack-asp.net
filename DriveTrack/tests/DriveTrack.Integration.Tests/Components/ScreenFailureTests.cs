@@ -5,7 +5,6 @@ using DriveTrack.Integration.Tests.Support;
 using DriveTrack.Web.Account;
 using DriveTrack.Web.Components.Shared;
 using ValidationException = DriveTrack.Application.Common.ValidationException;
-using PlaceSearch = DriveTrack.Web.Components.Pages.Deliveries.PlaceSearch;
 
 namespace DriveTrack.Integration.Tests.Components;
 
@@ -291,11 +290,21 @@ public class ScreenFailureTests
         // on separate lines the moment the expression is long enough to wrap, which is how the
         // shape this forbids would look if it came back.
         //
-        // The screens are discovered rather than listed, so a third one adopting PlaceSearch
+        // The files are discovered rather than listed, so a third screen adopting the picker
         // inherits the rule by using it - the same reason FieldNameTests discovers its validators.
+        //
+        // Widened from Pages/ to the whole component tree, because the search itself now runs in
+        // DtLocationPicker. The two screens still construct their boxes and still spell
+        // `PlaceSearch` where they do it, so they are found either way - but the file that calls
+        // RunAsync, and so the file where a box's refusal could be routed somewhere else, is under
+        // Shared/, and a scan of Pages/ alone would never open it.
+        //
+        // The second name is the other direction: a screen that renders the picker without holding
+        // a box of its own would answer to neither the old directory nor the old word, and it still
+        // has a submit sink a search must not be written into.
         var screens = Directory
-            .GetFiles(Path.Combine(SharedMarkup.ComponentsDirectory, "Pages"), "*.razor", SearchOption.AllDirectories)
-            .Where(path => File.ReadAllText(path).Contains("PlaceSearch", StringComparison.Ordinal))
+            .GetFiles(SharedMarkup.ComponentsDirectory, "*.razor", SearchOption.AllDirectories)
+            .Where(path => DrivesAPlaceSearch(File.ReadAllText(path)))
             .ToArray();
 
         // Not a count: a third screen adopting the box should widen this, not fail it. Asserted
@@ -320,15 +329,21 @@ public class ScreenFailureTests
         // The binding itself, which nothing else can see. Pointing the dropoff box's banner at the
         // pickup box compiles, renders, and passes every other test here - and shows a dispatcher a
         // refusal about the box they did not touch.
+        // The banner itself lives in DtLocationPicker now and reads the one box it was handed, so
+        // what a screen can still get wrong is which box it hands over - and that is what is counted.
+        var picker = SharedMarkup.ReadShared("DtLocationPicker.razor");
+
+        Assert.Equal(1, SharedMarkup.Occurrences(picker, @"Failures=""Search.Failures"""));
+
         var board = SharedMarkup.ReadComponent("Pages", "Deliveries.razor");
 
-        Assert.Equal(1, SharedMarkup.Occurrences(board, @"Failures=""_form.PickupSearch.Failures"""));
-        Assert.Equal(1, SharedMarkup.Occurrences(board, @"Failures=""_form.DropoffSearch.Failures"""));
+        Assert.Equal(1, SharedMarkup.Occurrences(board, @"Search=""_form.PickupSearch"""));
+        Assert.Equal(1, SharedMarkup.Occurrences(board, @"Search=""_form.DropoffSearch"""));
 
         var mine = SharedMarkup.ReadComponent("Pages", "MyDeliveries.razor");
 
-        Assert.Equal(1, SharedMarkup.Occurrences(mine, @"Failures=""_request.PickupSearch.Failures"""));
-        Assert.Equal(1, SharedMarkup.Occurrences(mine, @"Failures=""_request.DropoffSearch.Failures"""));
+        Assert.Equal(1, SharedMarkup.Occurrences(mine, @"Search=""_request.PickupSearch"""));
+        Assert.Equal(1, SharedMarkup.Occurrences(mine, @"Search=""_request.DropoffSearch"""));
 
         // And the sink the boxes were separated *from* still has somewhere to render. Deleting the
         // dialog's banner would leave a refused Save or Delete saying nothing at all, which is the
@@ -341,11 +356,12 @@ public class ScreenFailureTests
         Assert.Equal(1, BannersOver(mine, "_failures"));
 
         // The bound the substring count used to carry, restored now that the field controls read
-        // the same sink. Every reader of `_failures` on these two screens is either one of those
-        // banners or a DtFieldError beneath a box; a third kind of consumer - a second sink wired
-        // in, a screen resolving the catalogue inline again - is what this notices.
-        Assert.Equal(2 + FieldControls(board), Consumers(board, "_failures"));
-        Assert.Equal(1 + FieldControls(mine), Consumers(mine, "_failures"));
+        // the same sink. Every reader of `_failures` on these two screens is one of those banners, a
+        // DtFieldError beneath a box, or a picker that renders one under its map; a further kind of
+        // consumer - a second sink wired in, a screen resolving the catalogue inline again - is what
+        // this notices.
+        Assert.Equal(2 + FieldControls(board) + Pickers(board), Consumers(board, "_failures"));
+        Assert.Equal(1 + FieldControls(mine) + Pickers(mine), Consumers(mine, "_failures"));
     }
 
     [Fact]
@@ -378,6 +394,14 @@ public class ScreenFailureTests
             offenders);
     }
 
+    /// <summary>
+    /// True for a component that drives an address box: the picker that owns one, or a screen that
+    /// renders the picker and holds the sink a search must not be routed into.
+    /// </summary>
+    private static bool DrivesAPlaceSearch(string source) =>
+        source.Contains("PlaceSearch", StringComparison.Ordinal)
+        || source.Contains("DtLocationPicker", StringComparison.Ordinal);
+
     /// <summary>A component's rendered markup: Razor comments are source, not markup.</summary>
     private static string Markup(string source) =>
         Regex.Replace(source, @"@\*.*?\*@", " ", RegexOptions.Singleline, TimeSpan.FromSeconds(5));
@@ -388,6 +412,9 @@ public class ScreenFailureTests
 
     /// <summary>How many field-level controls a screen renders.</summary>
     private static int FieldControls(string source) => CountOf(source, @"<DtFieldError\b[^>]*>");
+
+    /// <summary>How many place pickers a screen renders, each carrying a field message of its own.</summary>
+    private static int Pickers(string source) => CountOf(source, @"<DtLocationPicker\b[^>]*>");
 
     /// <summary>How many bindings of any kind read a given failure sink.</summary>
     private static int Consumers(string source, string sink) =>

@@ -8,6 +8,8 @@ using DriveTrack.Application.Vehicles;
 using DriveTrack.Domain.Deliveries;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Integration.Tests.Support;
+using DriveTrack.Web.Account;
+using DriveTrack.Web.Components.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using DeliveryColumn = DriveTrack.Web.Components.Pages.Deliveries.DeliveryColumn;
 using DeliveryFilter = DriveTrack.Web.Components.Pages.Deliveries.DeliveryFilter;
@@ -41,6 +43,24 @@ public class DeliveryScreenTests
 
     private static readonly Regex Column = new(
         @"class=""[^""]*\bcol-lg-6\b[^""]*""",
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// Every stem the product gives a picker, and the only four the suite names. A render under one
+    /// of them must show no trace of the other three.
+    /// </summary>
+    private static readonly string[] Stems = ["pickup", "dropoff", "request-pickup", "request-dropoff"];
+
+    /// <summary>
+    /// The caption a picker is given in these cases. Deliberately not one of the two the screens
+    /// use: a component that captioned its map from its own resources would pass on either of those.
+    /// </summary>
+    private const string PickerLabel = "Підпис для перевірки";
+
+    /// <summary>One <c>&lt;DtLocationPicker&gt;</c> call and everything it was handed.</summary>
+    private static readonly Regex Picker = new(
+        @"<DtLocationPicker\b(?<attributes>[^>]*)>",
         RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
@@ -604,41 +624,186 @@ public class DeliveryScreenTests
         Assert.Equal(expected, wired);
     }
 
-    [Fact]
-    public void Each_address_box_is_wired_to_the_point_it_is_labelled_with()
+    [Theory]
+    [InlineData("Deliveries.razor", "_form", "")]
+    [InlineData("MyDeliveries.razor", "_request", "request-")]
+    public void Each_address_box_is_wired_to_the_point_it_is_labelled_with(
+        string fileName,
+        string model,
+        string stem)
     {
-        // The join the PlaceSearch tests below leave open, and the same shape of hole the sort
+        // The join the PlaceSearch cases below leave open, and the same shape of hole the sort
         // headings above have: driving the holders directly proves each one searches its own query
-        // and assigns its own point, but nothing there can tell whether the *dropoff* box's button
-        // is wired to the dropoff holder. Swap one argument and a dispatcher's pickup search fills
-        // the dropoff list and moves the dropoff map, with every test in this file still green.
+        // and assigns its own point, but nothing there can tell whether the picker *labelled*
+        // dropoff was handed the dropoff holder. Swap one attribute and a dispatcher's pickup search
+        // fills the dropoff list and moves the dropoff map, with every test in this file still green.
         //
-        // Read from source, because a statically rendered page carries no trace of an event
-        // handler's target - which is exactly why the wiring needs reading rather than rendering.
-        var page = SharedMarkup.ReadComponent("Pages", "Deliveries.razor");
+        // Read from source, because a statically rendered page carries no trace of what a component
+        // was handed - both pickers render the same column whichever holder they got. And read per
+        // call rather than by counting the page, because what can be crossed now lives inside one
+        // tag: five attributes that have to agree on one point.
+        var calls = Picker.Matches(SharedMarkup.ReadComponent("Pages", fileName));
+
+        Assert.Equal(2, calls.Count);
 
         foreach (var point in new[] { "Pickup", "Dropoff" })
         {
-            var box = point.ToLowerInvariant();
-            var holder = $"_form.{point}Search";
+            var call = Assert.Single(
+                calls,
+                match => AttributeOf(match, "Prefix") == stem + point.ToLowerInvariant());
 
-            // The input, its button, and the button on each match: every control in the box names
-            // the same holder, and that holder is this point's.
-            Assert.Equal(1, SharedMarkup.Occurrences(page, $@"@bind=""{holder}.Query"""));
-            Assert.Equal(1, SharedMarkup.Occurrences(page, $"Enter({holder})"));
-            Assert.Equal(1, SharedMarkup.Occurrences(page, $"Search({holder})"));
-            Assert.Equal(1, SharedMarkup.Occurrences(page, $"Choose({holder}, match)"));
+            Assert.Equal(point, AttributeOf(call, "Field"));
+            Assert.Equal($"{model}.{point}Search", AttributeOf(call, "Search"));
+            Assert.Equal($"{model}.{point}", AttributeOf(call, "Value"));
 
-            // And the hooks that name the point are on the controls that carry them, so a renamed
-            // class cannot quietly separate the two halves of this assertion.
-            Assert.Equal(1, SharedMarkup.Occurrences(page, $@"dt-{box}-search"""));
-            Assert.Equal(1, SharedMarkup.Occurrences(page, $@"dt-{box}-match"""));
-            Assert.Equal(1, SharedMarkup.Occurrences(page, $@"dt-{box}-empty"""));
-
-            // The list the matches are drawn from is this holder's too.
-            Assert.Equal(1, SharedMarkup.Occurrences(page, $"in {holder}.Matches"));
+            // The two the screen still spells for itself: the handler that writes the point back,
+            // and the label above the map. Both name the point, whatever the screen prefixes them
+            // with - `PickPickup` here and `PickRequestPickup` on the client's dialog.
+            Assert.Contains(point, AttributeOf(call, "ValueChanged"), StringComparison.Ordinal);
+            Assert.Contains(
+                $@"Localizer[""{point}""]",
+                call.Groups["attributes"].Value,
+                StringComparison.Ordinal);
         }
     }
+
+    [Theory]
+    [InlineData("request-dropoff")]
+    [InlineData("pickup")]
+    public async Task The_picker_writes_its_caller_s_stem_into_every_hook(string prefix)
+    {
+        // The four positions the suite pins - the search box's id, its button, the found-nothing
+        // line and every match - are what tells one picker from the other, on the page and in every
+        // assertion about it. They are now written once, from one parameter, so a stem interpolated
+        // into three of the four and left literal in the fourth is a hook belonging to the wrong box
+        // on all four pickers at once. Asserted here rather than per screen, which is the whole
+        // point of there being one component.
+        //
+        // Two stems rather than one, because a single stem is satisfied by a component with all four
+        // hooks hard-coded to that very word - stray-stem loop included. The second render is what
+        // makes it a parameter rather than a literal that happened to be right.
+        //
+        // Two renders per stem, because the two conditional hooks are mutually exclusive by
+        // construction: a box that found nothing has no matches to list.
+        var found = new PlaceMatch("Київ, вулиця Хрещатик, 1", new MapLocation(50.4472, 30.5222));
+
+        var empty = await RenderPickerAsync(prefix, Answering([]));
+        var matched = await RenderPickerAsync(prefix, Answering([found]));
+
+        Assert.Contains($@"id=""{prefix}-search""", empty, StringComparison.Ordinal);
+        Assert.Contains($@"for=""{prefix}-search""", empty, StringComparison.Ordinal);
+        Assert.Contains($"dt-{prefix}-search", empty, StringComparison.Ordinal);
+        Assert.Contains($"dt-{prefix}-empty", empty, StringComparison.Ordinal);
+        Assert.DoesNotContain($"dt-{prefix}-match", empty, StringComparison.Ordinal);
+
+        Assert.Contains($"dt-{prefix}-match", matched, StringComparison.Ordinal);
+        Assert.Contains(found.Address, matched, StringComparison.Ordinal);
+        Assert.DoesNotContain($"dt-{prefix}-empty", matched, StringComparison.Ordinal);
+
+        // And no other picker's stem is left behind: a position written as a literal instead of from
+        // the parameter is one of the other three showing through.
+        foreach (var stray in Stems.Where(stem => stem != prefix))
+        {
+            foreach (var html in new[] { empty, matched })
+            {
+                Assert.DoesNotContain($"dt-{stray}-", html, StringComparison.Ordinal);
+                Assert.DoesNotContain($@"id=""{stray}-search""", html, StringComparison.Ordinal);
+            }
+        }
+
+        // The caption the caller gives the map, and the refusal the caller's sink carries about the
+        // point beneath it: the two things this component renders on somebody else's behalf, and the
+        // two whose omission leaves a page that still looks entirely right. The message is placed
+        // rather than merely present - above the map it would read as a sentence about the search
+        // box, which is the box that did not produce it.
+        Assert.Contains(PickerLabel, empty, StringComparison.Ordinal);
+
+        var map = empty.IndexOf(@"class=""dt-map""", StringComparison.Ordinal);
+        var message = empty.IndexOf(@"class=""form-text text-danger""", StringComparison.Ordinal);
+
+        Assert.True(map >= 0, "The picker renders no map.");
+        Assert.True(message > map, "The refusal about the point is not rendered beneath the map.");
+    }
+
+    [Theory]
+    [InlineData("private Task ChooseAsync(PlaceMatch match)")]
+    [InlineData("private Task Picked(MapLocation point)")]
+    public void The_picker_tells_its_caller_the_point_moved_however_it_was_picked(string handler)
+    {
+        // What a static render cannot reach, and what every assertion above survives: replace either
+        // body with Task.CompletedTask and the build is clean and the whole suite green, while a
+        // chosen address leaves the map on the point it was already showing and a map click writes
+        // nothing at all. An event handled inside a component re-renders that component and nothing
+        // above it, so this callback is the only thing that tells the screen its field has moved.
+        //
+        // Read from source for the reason the wiring case above is: a rendered page carries no trace
+        // of what a handler does, and this handler cannot be pressed here.
+        var picker = SharedMarkup.ReadShared("DtLocationPicker.razor");
+
+        Assert.Contains(
+            "ValueChanged.InvokeAsync(",
+            MemberBody(picker, handler),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>One picker, rendered over a box that has already answered.</summary>
+    /// <remarks>
+    /// The box is driven before the render rather than through it: static rendering dispatches no
+    /// events, so the only way to read the found-nothing line and the match list back is to hand the
+    /// component a box that has already run.
+    /// </remarks>
+    private static async Task<string> RenderPickerAsync(
+        string prefix,
+        Func<SearchPlacesQuery, CancellationToken, Task<IReadOnlyList<PlaceMatch>>> search)
+    {
+        var box = new PlaceSearch(_ => { });
+
+        await box.RunAsync(search, TestContext.Current.CancellationToken);
+
+        return await ComponentRenderer.RenderAsync<DtLocationPicker>(
+            new Dictionary<string, object?>
+            {
+                ["Prefix"] = prefix,
+                ["Label"] = PickerLabel,
+                ["Field"] = "Dropoff",
+                ["Search"] = box,
+
+                // The screen's own sink, carrying the refusal an unpicked point earns. Bound so the
+                // control beneath the map has something to claim: empty, it renders nothing, and
+                // "the message is under the map" would be a sentence about an absence.
+                ["Failures"] = (IReadOnlyList<ScreenFailure>)
+                [
+                    new ScreenFailure("Dropoff", nameof(ErrorCode.COMMON_FIELD_REQUIRED)),
+                ],
+            },
+            services => services.AddSingleton<IDeliveryService>(new StubDeliveryService()));
+    }
+
+    /// <summary>
+    /// One member of a component's <c>@code</c> block, from its signature to whatever is documented
+    /// next. Every member in that file carries a doc comment, so the next <c>///</c> at member
+    /// indentation is where this one ends.
+    /// </summary>
+    private static string MemberBody(string source, string signature)
+    {
+        var start = source.IndexOf(signature, StringComparison.Ordinal);
+
+        Assert.True(start >= 0, $"No member declared as '{signature}'.");
+
+        var body = source[(start + signature.Length)..];
+        var next = body.IndexOf("\n    /// ", StringComparison.Ordinal);
+
+        return next < 0 ? body : body[..next];
+    }
+
+    /// <summary>What one attribute of a <c>&lt;DtLocationPicker&gt;</c> call was given.</summary>
+    private static string AttributeOf(Match call, string name) =>
+        Regex.Match(
+            call.Groups["attributes"].Value,
+            $@"\b{name}\s*=\s*""(?<value>[^""]*)""",
+            RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(5))
+            .Groups["value"].Value;
 
     [Fact]
     public async Task The_own_deliveries_screen_names_no_counterparty_and_says_so_when_empty()

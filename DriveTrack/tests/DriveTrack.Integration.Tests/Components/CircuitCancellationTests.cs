@@ -27,9 +27,11 @@ namespace DriveTrack.Integration.Tests.Components;
 public class CircuitCancellationTests
 {
     /// <summary>
-    /// Every screen that is rendered into a circuit <em>and</em> calls a capability taking a
-    /// <see cref="CancellationToken"/>. Both halves are load-bearing, and two kinds of screen sit
-    /// outside the rule for two different reasons:
+    /// Every component that is rendered into a circuit <em>and</em> calls a capability taking a
+    /// <see cref="CancellationToken"/>. Mostly screens, and one shared component: DtLocationPicker
+    /// runs FR-104's address lookup itself, so it has work of its own to scope and is torn down on
+    /// its own schedule - the dialog that holds it can go before the screen does. Both halves are
+    /// load-bearing, and two kinds of screen sit outside the rule for two different reasons:
     /// <list type="bullet">
     /// <item><description>
     /// <c>Components/Pages/Chat.razor</c> is interactive but injects no capability at all — it does
@@ -69,6 +71,7 @@ public class CircuitCancellationTests
         "DriveTrack.Web.Components.Pages.Reviews",
         "DriveTrack.Web.Components.Pages.Shifts",
         "DriveTrack.Web.Components.Pages.Vehicles",
+        "DriveTrack.Web.Components.Shared.DtLocationPicker",
     ];
 
     /// <summary>
