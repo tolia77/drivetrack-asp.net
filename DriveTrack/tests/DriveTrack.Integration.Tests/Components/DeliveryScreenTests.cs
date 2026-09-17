@@ -39,6 +39,11 @@ public class DeliveryScreenTests
         RegexOptions.Singleline | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
+    private static readonly Regex Column = new(
+        @"class=""[^""]*\bcol-lg-6\b[^""]*""",
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
     private static readonly Regex Label = new(
         @"<label\b[^>]*>(?<body>.*?)</label>",
         RegexOptions.Singleline | RegexOptions.CultureInvariant,
@@ -318,6 +323,62 @@ public class DeliveryScreenTests
         Assert.Equal(2, SharedMarkup.Occurrences(html, @"class=""dt-map"""));
         Assert.Contains("dt-delivery-pickup", html, StringComparison.Ordinal);
         Assert.Contains("dt-delivery-dropoff", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Both_delivery_dialogs_lay_their_two_pickers_out_the_same_way()
+    {
+        // The two dialogs are the same dialog for two roles, and their field sets differ only where
+        // FR-89 and FR-90 make them differ. Their *presentation* is not supposed to differ at all -
+        // and it silently did: the wide panel and the two-column picker grid were given to the
+        // dispatch board and not to the request form, so a client aimed at a full-width map with the
+        // second one below the fold while a dispatcher read both side by side.
+        //
+        // Both screens go through the same assertions in one case rather than one case each, because
+        // what regressed was never one screen: it was a change applied to one twin and not the
+        // other, and a case that reads both is what notices that.
+        AssertPickersShareOneRow(await RenderDeliveriesAsync(UserRole.Dispatcher), "delivery-form");
+        AssertPickersShareOneRow(await RenderMyDeliveriesAsync(role: UserRole.Client), "request-form");
+    }
+
+    /// <summary>
+    /// One screen's two place pickers, asserted to be the two columns of one row inside the wide
+    /// dialog that holds the form.
+    /// </summary>
+    /// <remarks>
+    /// Every assertion is scoped to that one panel rather than to the page, because page-wide
+    /// occurrence counts cannot see the structure and this regression is structural. A screen
+    /// renders four or five dialogs, so a page-wide <c>Contains</c> on the wide class would stay
+    /// green with the wide panel on the proof viewer and the form back at 32rem; and two columns in
+    /// two separate rows - the stacked layout this case exists to forbid - still count two. Scoped
+    /// to the panel, what is pinned is the containment the layout actually is: the form's own dialog
+    /// is the wide one, it holds exactly one row, and both columns are inside that row.
+    /// </remarks>
+    private static void AssertPickersShareOneRow(string html, string formId)
+    {
+        var form = html.IndexOf($@"id=""{formId}""", StringComparison.Ordinal);
+
+        Assert.True(form > 0, $"No element carries id=\"{formId}\".");
+
+        // The dialog the form sits in: the last one opened above it. DtDialog renders a flat
+        // <dialog> per instance and never nests them, so the nearest opening tag is the enclosing
+        // one - and slicing there is what keeps the other four dialogs out of every assertion below.
+        var panel = html[html.LastIndexOf("<dialog", form, StringComparison.Ordinal)..form];
+
+        Assert.Contains("dt-dialog-wide", panel, StringComparison.Ordinal);
+
+        var row = panel.IndexOf(@"class=""row g-3 mb-3""", StringComparison.Ordinal);
+
+        Assert.True(row >= 0, "The two pickers are not laid out in a row.");
+        Assert.Equal(1, SharedMarkup.Occurrences(panel, @"class=""row g-3 mb-3"""));
+
+        // `col-lg-6` as a class token rather than as a whole attribute value: a column that gained a
+        // second class would still be a column, and failing on that would report drift where there
+        // is none.
+        var columns = Column.Matches(panel).Select(match => match.Index).ToArray();
+
+        Assert.Equal(2, columns.Length);
+        Assert.All(columns, column => Assert.True(column > row, "A picker column sits outside the row."));
     }
 
     [Fact]
