@@ -4,10 +4,10 @@ namespace DriveTrack.Integration.Tests.Support;
 /// The checked-in deployment files, read as data.
 /// <para>
 /// A harness that stood a Garage node up from constants of its own would assert that
-/// <em>something</em> works, not that <c>compose.yaml</c> works: the image could move, the
+/// <em>something</em> works, not that <c>compose.prod.yaml</c> works: the image could move, the
 /// provisioning script could stop creating the bucket, and the suite would stay green because it
 /// never read either. So the image names, the provisioning script, the node configuration and the
-/// bucket/key/zone/capacity values all come from <c>compose.yaml</c>, <c>garage.toml</c> and
+/// bucket/key/zone/capacity values all come from <c>compose.prod.yaml</c>, <c>garage.toml</c> and
 /// <c>.env.example</c>, and drift in any of them changes what the tests run.
 /// </para>
 /// <para>
@@ -18,7 +18,7 @@ namespace DriveTrack.Integration.Tests.Support;
 /// </summary>
 internal static class ComposeStack
 {
-    private const string ComposeFile = "compose.yaml";
+    private const string ComposeFile = "compose.prod.yaml";
     private const string GarageConfigFile = "garage.toml";
     private const string EnvExampleFile = ".env.example";
 
@@ -46,8 +46,8 @@ internal static class ComposeStack
     /// <para>
     /// Compose's path rather than one of ours: the node takes its region, its ports and its
     /// replication factor from whatever lands there, so a mount deleted or retargeted in
-    /// <c>compose.yaml</c> has to move the file here too. Restated as a literal, it would let a
-    /// <c>docker compose up</c> that starts a node with no configuration at all stay green.
+    /// <c>compose.prod.yaml</c> has to move the file here too. Restated as a literal, it would let
+    /// a <c>docker compose up</c> that starts a node with no configuration at all stay green.
     /// </para>
     /// </summary>
     /// <param name="service">The service name, as it appears under <c>services:</c>.</param>

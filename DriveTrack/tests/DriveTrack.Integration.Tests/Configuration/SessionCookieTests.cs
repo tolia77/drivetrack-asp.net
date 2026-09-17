@@ -232,8 +232,8 @@ public class SessionCookieTests(PostgresFixture postgres)
         Assert.True(
             forwarded.StartsWith(prefix, StringComparison.Ordinal)
                 && forwarded.EndsWith('}'),
-            $"compose.yaml forwards '{EnvironmentPolicyKey}' as '{forwarded}', which supplies no "
-                + $"default. It has to read '{prefix}<value>}}': an .env predating this key leaves "
+            $"compose.prod.yaml forwards '{EnvironmentPolicyKey}' as '{forwarded}', which supplies "
+                + $"no default. It has to read '{prefix}<value>}}': an .env predating this key leaves "
                 + "the variable unset, a bare reference forwards that as the empty string, and a "
                 + "blank value is one the app refuses to start on.");
 

@@ -10,8 +10,8 @@ using DriveTrack.Integration.Tests.Support;
 namespace DriveTrack.Integration.Tests.Configuration;
 
 /// <summary>
-/// A real Garage node, stood up the way <c>compose.yaml</c> stands it up and provisioned by
-/// <c>compose.yaml</c>'s own <c>objects-init</c> script, started once for the whole assembly.
+/// A real Garage node, stood up the way <c>compose.prod.yaml</c> stands it up and provisioned by
+/// <c>compose.prod.yaml</c>'s own <c>objects-init</c> script, started once for the whole assembly.
 /// <para>
 /// <see cref="ObjectStoreAdapterTests"/> asserts what the adapter puts on the wire, which is the
 /// half a loopback socket can answer for. It cannot answer for the other half: a Garage node that
@@ -103,15 +103,16 @@ public sealed class GarageFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Runs <c>compose.yaml</c>'s provisioning script against the node again, and answers what it
-    /// did. The script promises to be idempotent, and this is what lets a test hold it to that.
+    /// Runs <c>compose.prod.yaml</c>'s provisioning script against the node again, and answers
+    /// what it did. The script promises to be idempotent, and this is what lets a test hold it to
+    /// that.
     /// </summary>
     public async Task<ObjectsInitRun> RunObjectsInitAsync(CancellationToken cancellationToken) =>
         await RunInitContainerAsync(Node.Network, ComposeStack.ObjectsInitScript, cancellationToken);
 
     /// <summary>
-    /// Runs an arbitrary script under the entrypoint <c>compose.yaml</c> gives <c>objects-init</c>,
-    /// in the image it names, on the node's network.
+    /// Runs an arbitrary script under the entrypoint <c>compose.prod.yaml</c> gives
+    /// <c>objects-init</c>, in the image it names, on the node's network.
     /// <para>
     /// Reading the entrypoint out of compose pins where the shell flags come from; only running a
     /// script that fails partway pins what they do. Without the <c>-e</c>, a provisioning step that
@@ -223,7 +224,7 @@ public sealed class GarageFixture : IAsyncLifetime
             if (provisioning.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    "compose.yaml's objects-init script failed to provision the Garage node "
+                    "compose.prod.yaml's objects-init script failed to provision the Garage node "
                         + $"(exit code {provisioning.ExitCode}).{Environment.NewLine}{provisioning.Logs}");
             }
 
@@ -243,8 +244,9 @@ public sealed class GarageFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// The environment a compose service declares, with the names taken from <c>compose.yaml</c> and
-    /// the values from <c>.env.example</c> — so a key dropped or renamed in either file throws.
+    /// The environment a compose service declares, with the names taken from
+    /// <c>compose.prod.yaml</c> and the values from <c>.env.example</c> — so a key dropped or
+    /// renamed in either file throws.
     /// </summary>
     private static IReadOnlyDictionary<string, string> EnvironmentOf(string service) =>
         ComposeStack.EnvironmentKeysOf(service)

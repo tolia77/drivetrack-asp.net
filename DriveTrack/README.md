@@ -10,7 +10,7 @@ Docker is the only prerequisite.
 ```bash
 cd DriveTrack
 cp .env.example .env
-docker compose up
+docker compose -f compose.prod.yaml up
 ```
 
 The app is served on <http://localhost:8080>.
@@ -25,13 +25,17 @@ cluster layout, so no bucket and no S3 access key exist yet and
 placeholder values. Creating them arrives with the proof-of-delivery story, which is the
 first code that reads or writes an object. Nothing in the app calls S3 before then.
 
-Stop with `docker compose down`; add `-v` to discard the database and object-store volumes.
+Stop with `docker compose -f compose.prod.yaml down`; add `-v` to discard the database and
+object-store volumes.
+
+There is no `compose.yaml`, so a bare `docker compose up` finds nothing: the `-f` says which
+stack you mean, and the production one is never what you get by forgetting a flag.
 
 ## The first administrator
 
 There is no sign-up for privileged roles, so the first administrator is provisioned from the
 environment. Four variables drive it, all documented in `.env.example` and forwarded by
-`compose.yaml`:
+`compose.prod.yaml`:
 
 | Variable | Meaning |
 |---|---|
@@ -76,7 +80,7 @@ for the full contract).
 
 ### The hot-reload stack
 
-`docker compose up` runs the production image: a Release build published into a runtime-only
+`compose.prod.yaml` runs the production image: a Release build published into a runtime-only
 Alpine layer with no SDK and diagnostics switched off. That is what makes it a deployable
 artifact, and it is also why it cannot hot reload — the code inside was copied in at build time
 and nothing in the image can recompile it. Every edit needs a rebuild.
@@ -85,13 +89,13 @@ For UI work, add the overlay:
 
 ```bash
 cd DriveTrack
-docker compose -f compose.yaml -f compose.dev.yaml up
+docker compose -f compose.prod.yaml -f compose.dev.yaml up
 ```
 
 Same database, same object store, same `.env`. Only `app` changes: it builds from
 `Dockerfile.dev`, keeps the SDK, mounts `src/` from the host and runs `dotnet watch`. The two
 stacks build separate images — `drivetrack-app` and `drivetrack-app-dev` — so neither overwrites
-the other, and a bare `docker compose up` is still the production stack.
+the other.
 
 What reloads, and what does not:
 
@@ -126,8 +130,10 @@ dotnet dotnet-ef migrations add <Name> --project src/DriveTrack.Infrastructure -
 
 ```text
 DriveTrack/
-  compose.yaml        app + PostgreSQL 18 + Garage, one named volume per stateful service
-  Dockerfile          multi-stage build of DriveTrack.Web; no SDK in the runtime image
+  compose.prod.yaml   app + PostgreSQL 18 + Garage, one named volume per stateful service
+  compose.dev.yaml    hot-reload overlay for `app`; layered over compose.prod.yaml
+  Dockerfile.prod     multi-stage build of DriveTrack.Web; no SDK in the runtime image
+  Dockerfile.dev      SDK image running `dotnet watch`; used only by the overlay
   garage.toml         Garage node config; secrets come from the environment
   src/
     DriveTrack.Domain          entities and rules; depends on nothing

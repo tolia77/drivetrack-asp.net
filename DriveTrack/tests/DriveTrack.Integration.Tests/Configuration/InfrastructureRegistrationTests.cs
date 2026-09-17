@@ -346,8 +346,8 @@ public class InfrastructureRegistrationTests
     public void Compose_and_env_example_ship_a_pacing_interval_the_check_accepts()
     {
         // The check above only ever sees values a test wrote. The two lines that actually reach a
-        // container are compose.yaml's and .env.example's, and neither is read by anything else in
-        // this solution - so editing either to a spelling the check refuses would abort every
+        // container are compose.prod.yaml's and .env.example's, and neither is read by anything
+        // else in this solution - so editing either to a spelling the check refuses would abort every
         // `docker compose up` with the whole suite green, which is the exact failure the check was
         // brought forward to startup to prevent.
         const string key = "Geocoder__MinimumRequestIntervalMilliseconds";
@@ -364,8 +364,8 @@ public class InfrastructureRegistrationTests
 
         Assert.True(
             forwarded.StartsWith(prefix, StringComparison.Ordinal) && forwarded.EndsWith('}'),
-            $"compose.yaml forwards '{key}' as '{forwarded}', which supplies no default. It has to "
-                + $"read '{prefix}<value>}}': a bare reference to an unset variable forwards the "
+            $"compose.prod.yaml forwards '{key}' as '{forwarded}', which supplies no default. It "
+                + $"has to read '{prefix}<value>}}': a bare reference to an unset variable forwards the "
                 + "empty string, and a blank value is one the app refuses to start on.");
 
         // Both values a deployment can boot with - compose's default when .env says nothing, and

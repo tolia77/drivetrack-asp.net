@@ -1,20 +1,22 @@
-# The local development stack. Layered over compose.yaml rather than replacing it:
+# The local development stack. Layered over compose.prod.yaml rather than replacing it:
 #
-#   docker compose -f compose.yaml -f compose.dev.yaml up
+#   docker compose -f compose.prod.yaml -f compose.dev.yaml up
 #
 # and the README spells that out. It is an overlay and not a standalone file on purpose — db,
 # objects and objects-init are the same services in both worlds, and a second copy of the Garage
 # bootstrap script is a second thing to keep in step. Only `app` differs, so only `app` is here.
 #
-# Production stays the default. A bare `docker compose up` still brings up the published Release
-# image exactly as before, which is what makes compose.yaml the deliverable.
+# Neither file is named `compose.yaml`, so neither is picked up by a bare `docker compose up`.
+# That is deliberate: which stack you are starting is spelled out in the command, and the
+# published Release image is never what you get by forgetting a flag. compose.prod.yaml on its
+# own is the deliverable.
 
 services:
   app:
     # A tag of its own, and not a detail. Both files name the same service in the same project, so
-    # both builds default to `drivetrack-app` — building dev would quietly overwrite the image a
-    # bare `docker compose up` then runs, and the production stack would come up running
-    # `dotnet watch` against a mount that is not there.
+    # both builds default to `drivetrack-app` — building dev would quietly overwrite the image the
+    # production stack then runs, and that stack would come up running `dotnet watch` against a
+    # mount that is not there.
     image: drivetrack-app-dev
     build:
       context: .

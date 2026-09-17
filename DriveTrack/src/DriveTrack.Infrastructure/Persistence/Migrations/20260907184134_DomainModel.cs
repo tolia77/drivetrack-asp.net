@@ -631,7 +631,7 @@ namespace DriveTrack.Infrastructure.Persistence.Migrations
             //
             // EF model configuration cannot enforce this - that is a code claim wearing schema
             // clothing, which AD-20 forbids - and a REVOKE would be theatre here, because the
-            // application connects as the database owner in compose.yaml and an owner can
+            // application connects as the database owner in compose.prod.yaml and an owner can
             // re-grant to itself. A raising trigger is the guard that actually holds.
             //
             // It tells an edit from a cascade by trigger depth. A statement issued directly

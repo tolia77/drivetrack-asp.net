@@ -1,8 +1,16 @@
 name: drivetrack
 
-# One `docker compose up` brings up the whole system on a machine that has Docker and
-# nothing else. Every setting arrives as an environment variable (AD-19); copy .env.example
-# to .env before the first run.
+# The production stack: one command brings up the whole system on a machine that has Docker
+# and nothing else.
+#
+#   docker compose -f compose.prod.yaml up
+#
+# The `-f` is not optional. The file is deliberately not called `compose.yaml`, so nothing is
+# started by a bare `docker compose up` that did not say which stack it wanted — see
+# compose.dev.yaml for the development overlay that layers on top of this one.
+#
+# Every setting arrives as an environment variable (AD-19); copy .env.example to .env before
+# the first run.
 
 services:
   db:
@@ -193,7 +201,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     depends_on:
       db:
         condition: service_healthy

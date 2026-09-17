@@ -244,7 +244,7 @@ public class LocalizationTests(PostgresFixture postgres)
         // silent breach that starts up cleanly and passes every test here. icu-data-full is the fix,
         // and this scan is the only thing that can notice it being dropped.
         var dockerfile = File.ReadAllLines(
-            Path.Combine(RepositoryLayout.SolutionRoot.FullName, "Dockerfile"));
+            Path.Combine(RepositoryLayout.SolutionRoot.FullName, "Dockerfile.prod"));
 
         // Every apk line, not the first: a later story adding one to the build stage would otherwise
         // hand this assertion an unrelated line and fail it for an unrelated reason, which is the
