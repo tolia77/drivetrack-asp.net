@@ -184,7 +184,11 @@ public class DeliveryScreenTests
         // Nor dispatch's own create action, which the driver's test rules out for a driver and
         // nothing ruled out here: a client asks for a delivery of their own and opens none for
         // anybody else, so the create button belongs on the dispatch board alone.
-        Assert.DoesNotContain("btn btn-primary", mine, StringComparison.Ordinal);
+        //
+        // Named by its hook rather than by its variant. The variant stopped identifying it once
+        // the request submit became a create too - both wear `.btn-primary`, correctly, because
+        // both create something. A colour is what an action means, never which action it is.
+        Assert.DoesNotContain("dt-delivery-create", mine, StringComparison.Ordinal);
         Assert.DoesNotContain("Створити", mine, StringComparison.Ordinal);
 
         // Still not the dispatch board's form, and still not its edit or delete prompts.

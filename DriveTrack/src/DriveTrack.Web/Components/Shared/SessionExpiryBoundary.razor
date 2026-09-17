@@ -21,7 +21,7 @@
         @if (notice == SessionExpiry.ExpiredNoticeKey)
         {
             <div class="alert alert-warning" role="alert">@Localizer["SessionExpired"]</div>
-            <a class="btn btn-secondary" href="/sign-in">@Localizer["SignIn"]</a>
+            <a class="btn btn-primary" href="/sign-in">@Localizer["SignIn"]</a>
         }
         @if (notice == SessionExpiry.UnexpectedNoticeKey)
         {

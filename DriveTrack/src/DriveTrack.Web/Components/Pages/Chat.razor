@@ -109,7 +109,7 @@
                     @* Disabled while a send is in flight: a double-click must not persist two rows,
                        and there is no dedupe anywhere downstream to undo one that did. *@
                     <button type="button"
-                            class="btn btn-secondary dt-chat-send"
+                            class="btn btn-primary dt-chat-send"
                             disabled="@_sending"
                             @onclick="SendAsync">
                         <Icon Name="IconName.Send" />@Localizer["ChatSend"]

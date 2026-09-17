@@ -17,6 +17,10 @@
    rule states about one box moves under that box. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
+<div class="row">
+<div class="col-md-8 col-lg-5">
+<div class="card"><div class="card-body">
+
 <EditForm Model="Form!" FormName="register" OnValidSubmit="SubmitAsync">
     <div class="mb-4">
         <label class="form-label" for="register-first-name">@Localizer["FirstName"]</label>
@@ -50,8 +54,12 @@
                    @bind-Value="Form!.PasswordConfirmation" />
         <DtFieldError Field="PasswordConfirmation" Failures="_failures" />
     </div>
-    <button class="btn btn-secondary" type="submit">@Localizer["Register"]</button>
+    <button class="btn btn-primary" type="submit">@Localizer["Register"]</button>
 </EditForm>
+
+</div></div>
+</div>
+</div>
 
 <p class="mt-4">@Localizer["HaveAccount"] <a href="/sign-in">@Localizer["SignIn"]</a></p>
 

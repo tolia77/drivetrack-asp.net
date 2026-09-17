@@ -111,7 +111,7 @@
        already emptied. Without `_loading` the button comes back enabled the moment the finally
        clears the flag, and a click landing in that window posts the now-null note - bannering a
        refusal over a note that saved. *@
-    <button type="button" class="btn btn-secondary btn-sm dt-timeline-add-note"
+    <button type="button" class="btn btn-primary btn-sm dt-timeline-add-note"
             disabled="@(_addingNote || _loading)" @onclick="AddNoteAsync">
         <Icon Name="IconName.Create" />@Localizer["AddNote"]
     </button>

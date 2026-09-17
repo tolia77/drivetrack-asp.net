@@ -18,6 +18,10 @@
    saying so under one of the two inputs would tell an attacker which one was wrong (FR-4). *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
+<div class="row">
+<div class="col-md-8 col-lg-5">
+<div class="card"><div class="card-body">
+
 <EditForm Model="Form!" FormName="signIn" OnValidSubmit="SubmitAsync">
     <div class="mb-4">
         <label class="form-label" for="sign-in-email">@Localizer["Email"]</label>
@@ -29,8 +33,12 @@
         <InputText id="sign-in-password" type="password" class="form-control" @bind-Value="Form!.Password" />
         <DtFieldError Field="Password" Failures="_failures" />
     </div>
-    <button class="btn btn-secondary" type="submit">@Localizer["SignIn"]</button>
+    <button class="btn btn-primary" type="submit">@Localizer["SignIn"]</button>
 </EditForm>
+
+</div></div>
+</div>
+</div>
 
 <p class="mt-4">@Localizer["NoAccount"] <a href="/register">@Localizer["Register"]</a></p>
 

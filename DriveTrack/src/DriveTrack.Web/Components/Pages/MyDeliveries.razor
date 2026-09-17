@@ -262,7 +262,7 @@
             @* Disabled while a request is in flight: the circuit yields at the await, so a second
                click would ask for a second, identical Pending delivery, and there is no dedupe
                anywhere downstream to undo one that got through. *@
-            <button type="submit" form="request-form" class="btn btn-secondary dt-request-submit"
+            <button type="submit" form="request-form" class="btn btn-primary dt-request-submit"
                     disabled="@_saving">
                 <Icon Name="IconName.Confirm" />@Localizer["RequestDeliverySubmit"]
             </button>
