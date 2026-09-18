@@ -25,96 +25,119 @@
 
 <PageTitle>@Localizer["MyShiftsTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">
-    <Icon Name="IconName.Shifts" />@Localizer["MyShiftsTitle"]
-</h1>
+@* The screen's title, where the driver is right now, and the one transition that reading leaves
+   open - on one line, the shape the two delivery screens already settled. The duty badge is a fact
+   about the whole screen rather than about any row in the log below, and the action is the one act
+   this screen offers, so both belong beside the heading rather than in a row of their own.
+
+   The badge wears the pickers' wording ("на зміні") and not ShiftStateLabel's: this is a claim
+   about the caller, right now, where a row in the log says whether that shift is open or over. The
+   two vocabularies are kept apart on purpose. Two independent @@if blocks with literal keys, for
+   the reason every other block here is written that way. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Shifts" />@Localizer["MyShiftsTitle"]
+    </h1>
+
+    @if (Open is not null)
+    {
+        <DtBadge>@Localizer["ShiftOpen"]</DtBadge>
+    }
+    @if (Open is null)
+    {
+        <DtBadge Class="dt-muted">@Localizer["ShiftClosed"]</DtBadge>
+    }
+
+    @* Exactly one of the two, decided by the same predicate the badge reads. Both are withheld from
+       a driver whose claims carry no driver row id: there is no row to attach a shift to, and
+       IAccessGuard refuses them anyway - the list read above has already said so in the banner. *@
+    @if (_driverId is not null && Open is null)
+    {
+        <button type="button" class="btn btn-primary dt-shift-start" @onclick="StartAsync">
+            <Icon Name="IconName.Confirm" />@Localizer["GoOnDuty"]
+        </button>
+    }
+    @if (_driverId is not null && Open is not null)
+    {
+        <button type="button" class="btn btn-secondary dt-shift-end" @onclick="EndAsync">
+            <Icon Name="IconName.Close" />@Localizer["GoOffDuty"]
+        </button>
+    }
+</div>
 
 @* FR-110's refusals arrive here: already on duty, or not on duty at all. Resolved through the same
    catalogue the REST envelope uses, so the two cannot disagree (NFR-3). Neither names a field, so
    both stay here; FR-111's backwards window names both ends and is said under each box instead. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-<div class="row g-4 align-items-end mb-4">
-    @* The one place on either screen where the subject really is the driver: this is a claim about
-       the caller, right now, rather than a label on a row in a history - so it wears the pickers'
-       wording ("на зміні") and not ShiftStateLabel's, which says whether a shift is open or over.
-       Two independent @@if blocks with literal keys, for the reason every other block here is
-       written that way. *@
-    <div class="col-sm-auto">
-        <span class="form-label d-block">@Localizer["ShiftState"]</span>
-        @if (Open is not null)
-        {
-            <DtBadge>@Localizer["ShiftOpen"]</DtBadge>
-        }
-        @if (Open is null)
-        {
-            <DtBadge Class="dt-muted">@Localizer["ShiftClosed"]</DtBadge>
-        }
-    </div>
-    @* Exactly one of the two, decided by the same predicate the badge above reads. Both are
-       withheld from a driver whose claims carry no driver row id: there is no row to attach a shift
-       to, and IAccessGuard refuses them anyway - the list read above has already said so in the
-       banner. *@
-    @if (_driverId is not null && Open is null)
-    {
-        <div class="col-sm-auto">
-            <button type="button" class="btn btn-primary dt-shift-start" @onclick="StartAsync">
-                <Icon Name="IconName.Confirm" />@Localizer["GoOnDuty"]
-            </button>
-        </div>
-    }
-    @if (_driverId is not null && Open is not null)
-    {
-        <div class="col-sm-auto">
-            <button type="button" class="btn btn-secondary dt-shift-end" @onclick="EndAsync">
-                <Icon Name="IconName.Close" />@Localizer["GoOffDuty"]
-            </button>
-        </div>
-    }
-</div>
-
 @* NFR-27 keeps paging, and this screen asks for the first page - so past a full page the rest of
    the driver's history is not shown. Saying so is the difference between a limit and a screen that
    quietly lies about how long somebody has worked. *@
-<DtDataTable TItem="ShiftSummary"
-             IsTruncated="IsTruncated"
-             Note="@Localizer["ListTruncated"]"
-             Items="_shifts"
-             IsLoading="_loading"
-             EmptyText="@Localizer["ShiftsEmpty"]">
-    <HeaderTemplate>
-        <th scope="col">@Localizer["ShiftStartedAt"]</th>
-        <th scope="col">@Localizer["ShiftEndedAt"]</th>
-        <th scope="col">@Localizer["ShiftState"]</th>
-        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
-    </HeaderTemplate>
-    <RowTemplate Context="shift">
-        <td>@Moment(shift.StartedAt)</td>
-        <td>
-            @if (shift.EndedAt is null)
-            {
-                <span>@Localizer["ShiftStillOpen"]</span>
-            }
-            @if (shift.EndedAt is not null)
-            {
-                <span>@Moment(shift.EndedAt.Value)</span>
-            }
-        </td>
-        <td>
-            <ShiftStateLabel IsOpen="shift.IsOpen" />
-        </td>
-        <td class="dt-row-actions">
-            @* The handlers are built in code rather than written as lambdas here: a `=>` inside an
-               attribute closes the tag as far as a source scan is concerned. *@
-            <button type="button" class="btn btn-secondary btn-sm dt-shift-edit" @onclick="EditHandler(shift)">
-                <Icon Name="IconName.Edit" />@Localizer["Edit"]
-            </button>
-            <button type="button" class="btn btn-danger btn-sm dt-shift-delete" @onclick="DeleteHandler(shift)">
-                <Icon Name="IconName.Delete" />@Localizer["Delete"]
-            </button>
-        </td>
-    </RowTemplate>
-</DtDataTable>
+@* The wrapper is this screen's anchor into the table it does not own: below the phone breakpoint
+   the rows stop being rows and become cards, and the elements that have to change - the table, its
+   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
+   scoped element around it is what gives `::deep` something to hang from. *@
+<div class="dt-my-shifts">
+    <DtDataTable TItem="ShiftSummary"
+                 IsTruncated="IsTruncated"
+                 Note="@Localizer["ListTruncated"]"
+                 Items="_shifts"
+                 IsLoading="_loading"
+                 EmptyText="@Localizer["ShiftsEmpty"]">
+        <HeaderTemplate>
+            <th scope="col">@Localizer["ShiftStartedAt"]</th>
+            <th scope="col">@Localizer["ShiftEndedAt"]</th>
+            <th scope="col">@Localizer["ShiftState"]</th>
+            @* The actions column keeps its name for a screen reader and drops it on screen, as the
+               two delivery screens' does: the buttons under it say what they do, and a column named
+               above them competes with them for the same width. *@
+            <th scope="col" class="dt-table-actions">
+                <span class="dt-visually-hidden">@Localizer["Actions"]</span>
+            </th>
+        </HeaderTemplate>
+        <RowTemplate Context="shift">
+            @* The per-cell name, carried by the cell rather than only by the column heading. Clipped
+               to a pixel either way and dropped from the accessibility tree above the breakpoint,
+               where the `<th>` already names the column and a second name in every cell would be
+               that name read twice a row; below it the head is gone and this is what replaces it. *@
+            <td>
+                <span class="dt-visually-hidden dt-shift-label">@Localizer["ShiftStartedAt"]</span>
+                @Moment(shift.StartedAt)
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-shift-label">@Localizer["ShiftEndedAt"]</span>
+                @if (shift.EndedAt is null)
+                {
+                    <span>@Localizer["ShiftStillOpen"]</span>
+                }
+                @if (shift.EndedAt is not null)
+                {
+                    <span>@Moment(shift.EndedAt.Value)</span>
+                }
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-shift-label">@Localizer["ShiftState"]</span>
+                <ShiftStateLabel IsOpen="shift.IsOpen" />
+            </td>
+            @* `dt-table-actions` rather than `dt-row-actions`, which was a class this screen styled
+               nowhere: the right-aligned, nowrapped actions column is DtDataTable's own rule, and
+               the cell has to wear the class its heading already wears to be reached by it. *@
+            <td class="dt-table-actions">
+                <span class="dt-visually-hidden dt-shift-label">@Localizer["Actions"]</span>
+                @* The handlers are built in code rather than written as lambdas here: a `=>` inside
+                   an attribute closes the tag as far as a source scan is concerned. *@
+                <button type="button" class="btn btn-secondary btn-sm dt-shift-edit"
+                        @onclick="EditHandler(shift)">
+                    <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                </button>
+                <button type="button" class="btn btn-danger btn-sm dt-shift-delete"
+                        @onclick="DeleteHandler(shift)">
+                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                </button>
+            </td>
+        </RowTemplate>
+    </DtDataTable>
+</div>
 
 @* FR-85: the shared dialog. FR-112 gives a driver their own corrections - a shift they started an
    hour late is theirs to fix - and the guard is what keeps it to their own. *@

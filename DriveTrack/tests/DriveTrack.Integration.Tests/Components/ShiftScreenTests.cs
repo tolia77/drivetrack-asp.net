@@ -29,8 +29,53 @@ public class ShiftScreenTests
 {
     private static readonly DateTimeOffset Morning = new(2026, 9, 7, 8, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The heading row: the screen's title and the action the screen is for.</summary>
+    private static readonly Regex PageHead = new(
+        @"<div\b[^>]*class=""[^""]*\bdt-page-head\b[^""]*""[^>]*>(?<body>.*?)</div>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The actions heading, which keeps its name without printing it.</summary>
+    private static readonly Regex ActionsHeader = new(
+        @"<th\b[^>]*class=""[^""]*\bdt-table-actions\b[^""]*""[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// One body row, so a claim can be made about every cell in every row rather than about the
+    /// page as a whole - which a single missing label would satisfy.
+    /// </summary>
+    private static readonly Regex BodyRow = new(
+        @"<tr\b[^>]*class=""[^""]*\bdt-table-row\b[^""]*""[^>]*>(?<body>.*?)</tr>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The per-cell name span both shift screens mark with the one shift label class.</summary>
+    private static readonly Regex LabelSpan = new(
+        @"<span\b[^>]*class=""[^""]*\bdt-shift-label\b[^""]*""[^>]*>(?<body>.*?)</span>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>A column heading, whose text each cell's own name has to match.</summary>
+    private static readonly Regex HeaderCell = new(
+        @"<th\b[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>One cell of a row, so a claim can be made cell by cell rather than row by row.</summary>
+    private static readonly Regex Cell = new(
+        @"<td\b[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The row's actions cell.</summary>
+    private static readonly Regex ActionsCell = new(
+        @"<td\b[^>]*class=""[^""]*\bdt-table-actions\b[^""]*""[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
     /// <summary>One driver on duty and one who went home, so both branches of the badge are drawn.</summary>
-    private static readonly ShiftSummary[] Roster =
+    internal static readonly ShiftSummary[] Roster =
     [
         new(1, new DriverId(1), "Тарас Шевченко", Morning, null, true),
         new(2, new DriverId(2), "Олег Коваль", Morning.AddDays(-1), Morning.AddHours(-16), false),
@@ -197,6 +242,157 @@ public class ShiftScreenTests
     }
 
     [Fact]
+    public async Task The_roster_screens_title_and_create_action_share_one_heading_row()
+    {
+        // The shape the two delivery screens settled. Recording a shift is about the roster the
+        // heading names rather than about any row in it, so it belongs on that line; the search
+        // box narrows that same collection and stays below.
+        var html = await RenderRosterAsync();
+
+        var head = PageHead.Match(html);
+
+        Assert.True(head.Success, "The screen has no heading row.");
+
+        var body = head.Groups["body"].Value;
+
+        Assert.Contains("<h1", body, StringComparison.Ordinal);
+        Assert.Contains("dt-shift-create", body, StringComparison.Ordinal);
+        Assert.Contains("btn-primary", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"type=""search""", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_personal_screens_heading_row_carries_the_duty_badge_and_the_one_transition()
+    {
+        // This screen has exactly one action, and one action belongs where every other screen puts
+        // its primary one. The badge goes up there with it because it is the fact that decides
+        // which of the two transitions is drawn at all - read on a separate row, the claim and its
+        // consequence were two things a reader had to put back together.
+        var onDuty = PageHead.Match(await RenderOwnAsync(Roster));
+
+        Assert.True(onDuty.Success, "The screen has no heading row.");
+
+        var open = onDuty.Groups["body"].Value;
+
+        Assert.Contains("<h1", open, StringComparison.Ordinal);
+
+        // A DtBadge and not a ShiftStateLabel: this is a claim about the caller right now, and the
+        // rows below say whether a shift is open or over. The two vocabularies must not converge.
+        Assert.Contains("dt-badge", open, StringComparison.Ordinal);
+        Assert.Contains("На зміні", open, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-status", open, StringComparison.Ordinal);
+
+        Assert.Contains("dt-shift-end", open, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-shift-start", open, StringComparison.Ordinal);
+
+        var offDuty = PageHead.Match(await RenderOwnAsync([Roster[1]]));
+
+        Assert.True(offDuty.Success, "The screen has no heading row for a driver off duty.");
+
+        var closed = offDuty.Groups["body"].Value;
+
+        Assert.Contains("Не на зміні", closed, StringComparison.Ordinal);
+        Assert.Contains("dt-shift-start", closed, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-shift-end", closed, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Every_row_action_sits_in_the_shared_actions_cell(bool roster)
+    {
+        // DtDataTable right-aligns the trailing cell through `.dt-table-row ::deep
+        // td.dt-table-actions`, so a cell that does not wear the class its own heading wears is a
+        // cell the shared rule cannot reach. Both screens used to mark it `dt-row-actions`, which
+        // is a class each of them styled nowhere.
+        var html = roster ? await RenderRosterAsync() : await RenderOwnAsync(Roster);
+
+        var cells = ActionsCell.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        // Before the count, because `0 == 0` is what a screen that rendered no rows at all would
+        // answer - and the loop below would then assert nothing.
+        Assert.NotEmpty(cells);
+
+        Assert.Equal(SharedMarkup.Occurrences(html, "dt-table-row"), cells.Length);
+
+        foreach (var cell in cells)
+        {
+            Assert.Contains("dt-shift-edit", cell, StringComparison.Ordinal);
+            Assert.Contains("dt-shift-delete", cell, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("dt-row-actions", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Every_cell_carries_its_own_name_for_the_phone_layout(bool roster)
+    {
+        // Below the phone breakpoint the head is dropped rather than hidden: a table laid out as
+        // blocks is no longer a table to a screen reader - the implicit table, row and cell roles
+        // go with the `display` they came from - so a `<thead>` left in place would name columns
+        // that no longer exist to be announced under. The label inside each cell is what replaces
+        // it, and that only works if every cell has one.
+        //
+        // Cell by cell rather than by counting labels against cells across the row: two labels in
+        // one cell and none in the next is the same total and a card with an unnamed line in it.
+        // And the label is checked against the heading of the column it is in, because on this
+        // screen two of the columns are timestamps - a card showing two unnamed instants is worse
+        // than one showing them under the wrong names only in that nobody could tell.
+        var html = roster ? await RenderRosterAsync() : await RenderOwnAsync(Roster);
+
+        var columns = HeaderCell.Matches(html)
+            .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+            .ToArray();
+
+        Assert.NotEmpty(columns);
+
+        var rows = BodyRow.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        Assert.NotEmpty(rows);
+
+        foreach (var row in rows)
+        {
+            var cells = Cell.Matches(row)
+                .Select(match => match.Groups["body"].Value)
+                .ToArray();
+
+            Assert.Equal(columns.Length, cells.Length);
+
+            for (var index = 0; index < cells.Length; index++)
+            {
+                var names = LabelSpan.Matches(cells[index])
+                    .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+                    .ToArray();
+
+                Assert.Equal(new[] { columns[index] }, names);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task The_actions_column_keeps_its_name_without_printing_it(bool roster)
+    {
+        // The buttons under it say what they do, so a column name printed above them competes with
+        // them for the same width - and a column with no name at all leaves a screen reader moving
+        // by cell with one unlabelled column. Hidden, not dropped, as on the two delivery screens.
+        var html = roster ? await RenderRosterAsync() : await RenderOwnAsync(Roster);
+
+        var actions = ActionsHeader.Match(html);
+
+        Assert.True(actions.Success, "The table has no actions heading.");
+        Assert.Contains("dt-visually-hidden", actions.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("Дії", actions.Groups["body"].Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void The_roster_search_reads_the_driver_and_keeps_everything_when_it_is_blank()
     {
         // The one thing on the screen a render cannot reach: static rendering dispatches no events,
@@ -260,7 +456,7 @@ public class ShiftScreenTests
         }
     }
 
-    private static Task<string> RenderRosterAsync() =>
+    internal static Task<string> RenderRosterAsync() =>
         ComponentRenderer.RenderAsync<ShiftsScreen>(
             parameters: null,
             configureServices: services =>
@@ -274,7 +470,7 @@ public class ShiftScreenTests
                 services.AddSingleton(TimeProvider.System);
             });
 
-    private static Task<string> RenderOwnAsync(IReadOnlyList<ShiftSummary> shifts) =>
+    internal static Task<string> RenderOwnAsync(IReadOnlyList<ShiftSummary> shifts) =>
         ComponentRenderer.RenderAsync<MyShiftsScreen>(
             parameters: null,
             configureServices: services =>

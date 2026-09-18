@@ -23,15 +23,28 @@
 
 <PageTitle>@Localizer["DriversTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">
-    <Icon Name="IconName.Drivers" />@Localizer["DriversTitle"]
-</h1>
+@* The screen's title and the one action that opens an empty form, on one line - the shape the two
+   delivery screens already settled. The create action is about the roster rather than about any
+   driver in it, so it belongs beside the heading that names the roster; the search box narrows that
+   same collection, which is why it stays in its own row below rather than on this line. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Drivers" />@Localizer["DriversTitle"]
+    </h1>
+
+    <button type="button" class="btn btn-primary dt-driver-create" @onclick="OpenCreateAsync">
+        <Icon Name="IconName.Create" />@Localizer["Create"]
+    </button>
+</div>
 
 @* NFR-3: the message is the localized string for the code the service threw, resolved through the
    same catalogue the REST envelope uses. Nothing an exception carries reaches this page. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-<div class="row g-4 align-items-end mb-4">
+@* One box, so a plain labelled input rather than the dispatch board's bounded filter panel: ten
+   filters earn a panel with a name and a reset of its own, and one search box does not. The two
+   list vocabularies diverge here on purpose, and that is the reason. *@
+<div class="row g-4 mb-4">
     <div class="col-sm">
         <label class="form-label" for="drivers-search">@Localizer["Search"]</label>
         @* FR-36 runs over the list already fetched - PRD section 8 excludes server-side filtering,
@@ -39,63 +52,94 @@
         <input id="drivers-search" type="search" class="form-control"
                @bind="_search" @bind:event="oninput" />
     </div>
-    <div class="col-sm-auto">
-        <button type="button" class="btn btn-primary" @onclick="OpenCreateAsync">
-            <Icon Name="IconName.Create" />@Localizer["Create"]
-        </button>
-    </div>
 </div>
 
-<DtDataTable TItem="DriverSummary"
-             Items="Visible"
-             IsLoading="_loading"
-             EmptyText="@Localizer["DriversEmpty"]">
-    <HeaderTemplate>
-        <th scope="col">@Localizer["FirstName"]</th>
-        <th scope="col">@Localizer["LastName"]</th>
-        <th scope="col">@Localizer["Email"]</th>
-        <th scope="col">@Localizer["LicenseNumber"]</th>
-        <th scope="col">@Localizer["Vehicle"]</th>
-        <th scope="col">@Localizer["Rating"]</th>
-        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
-    </HeaderTemplate>
-    <RowTemplate Context="driver">
-        <td>@driver.FirstName</td>
-        <td>@driver.LastName</td>
-        <td>@driver.Email</td>
-        <td>@driver.LicenseNumber</td>
-        <td>
-            @if (driver.VehicleId is null)
-            {
-                <span>@Localizer["NoVehicle"]</span>
-            }
-            @if (driver.VehicleId is not null)
-            {
-                <span>@driver.VehicleModel — @driver.VehicleLicensePlate</span>
-            }
-        </td>
-        <td>
-            @* FR-98: the aggregate, derived on demand and never stored. Null and zero are different
-               claims - nobody has said anything, versus everybody said the worst thing - and the
-               shared display is what keeps the two apart: a driver with no reviews gets words and
-               no stars rather than a number, and wears none of the three band colours, because the
-               absence of a verdict is not a verdict. The band is Domain's reading of the number,
-               through ReviewViews; no threshold and no colour is written here (AD-18, AD-28). *@
-            <DtRatingDisplay Rating="driver.Rating" />
-        </td>
-        <td>
-            @* The handler is built in code rather than written as a lambda here: a `=>` inside an
-               attribute closes the tag as far as a source scan is concerned, and everything after
-               it reads as rendered English. *@
-            <button type="button" class="btn btn-secondary btn-sm" @onclick="EditHandler(driver)">
-                <Icon Name="IconName.Edit" />@Localizer["Edit"]
-            </button>
-            <button type="button" class="btn btn-danger btn-sm" @onclick="DeleteHandler(driver)">
-                <Icon Name="IconName.Delete" />@Localizer["Delete"]
-            </button>
-        </td>
-    </RowTemplate>
-</DtDataTable>
+@* The wrapper is this screen's anchor into the table it does not own: below the phone breakpoint
+   the rows stop being rows and become cards, and the elements that have to change - the table, its
+   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
+   scoped element around it is what gives `::deep` something to hang from. *@
+<div class="dt-drivers">
+    <DtDataTable TItem="DriverSummary"
+                 Items="Visible"
+                 IsLoading="_loading"
+                 EmptyText="@Localizer["DriversEmpty"]">
+        <HeaderTemplate>
+            <th scope="col">@Localizer["FirstName"]</th>
+            <th scope="col">@Localizer["LastName"]</th>
+            <th scope="col">@Localizer["Email"]</th>
+            <th scope="col">@Localizer["LicenseNumber"]</th>
+            <th scope="col">@Localizer["Vehicle"]</th>
+            <th scope="col">@Localizer["Rating"]</th>
+            @* The actions column keeps its name for a screen reader and drops it on screen, as the
+               two delivery screens' does: the buttons under it say what they do, and a column named
+               above them competes with them for the same width. *@
+            <th scope="col" class="dt-table-actions">
+                <span class="dt-visually-hidden">@Localizer["Actions"]</span>
+            </th>
+        </HeaderTemplate>
+        <RowTemplate Context="driver">
+            @* The per-cell name, carried by the cell rather than only by the column heading. Clipped
+               to a pixel either way and dropped from the accessibility tree above the breakpoint,
+               where the `<th>` already names the column and a second name in every cell would be
+               that name read twice a row; below it the head is gone and this is what replaces it. *@
+            <td>
+                <span class="dt-visually-hidden dt-driver-label">@Localizer["FirstName"]</span>
+                @driver.FirstName
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-driver-label">@Localizer["LastName"]</span>
+                @driver.LastName
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-driver-label">@Localizer["Email"]</span>
+                @driver.Email
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-driver-label">@Localizer["LicenseNumber"]</span>
+                @driver.LicenseNumber
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-driver-label">@Localizer["Vehicle"]</span>
+                @if (driver.VehicleId is null)
+                {
+                    <span>@Localizer["NoVehicle"]</span>
+                }
+                @if (driver.VehicleId is not null)
+                {
+                    <span>@driver.VehicleModel — @driver.VehicleLicensePlate</span>
+                }
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-driver-label">@Localizer["Rating"]</span>
+                @* FR-98: the aggregate, derived on demand and never stored. Null and zero are
+                   different claims - nobody has said anything, versus everybody said the worst
+                   thing - and the shared display is what keeps the two apart: a driver with no
+                   reviews gets words and no stars rather than a number, and wears none of the three
+                   band colours, because the absence of a verdict is not a verdict. The band is
+                   Domain's reading of the number, through ReviewViews; no threshold and no colour
+                   is written here (AD-18, AD-28). *@
+                <DtRatingDisplay Rating="driver.Rating" />
+            </td>
+            @* `dt-table-actions` rather than a class of this screen's own: the right-aligned,
+               nowrapped actions column is DtDataTable's own rule, and the cell has to wear the
+               class its heading already wears to be reached by it. *@
+            <td class="dt-table-actions">
+                <span class="dt-visually-hidden dt-driver-label">@Localizer["Actions"]</span>
+                @* The handler is built in code rather than written as a lambda here: a `=>` inside
+                   an attribute closes the tag as far as a source scan is concerned, and everything
+                   after it reads as rendered English. *@
+                <button type="button" class="btn btn-secondary btn-sm dt-driver-edit"
+                        @onclick="EditHandler(driver)">
+                    <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                </button>
+                <button type="button" class="btn btn-danger btn-sm dt-driver-delete"
+                        @onclick="DeleteHandler(driver)">
+                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                </button>
+            </td>
+        </RowTemplate>
+    </DtDataTable>
+</div>
 
 @* FR-85: the one dialog every screen opens, rather than a modal of this screen's own. *@
 @* One heading for both create and edit. A title composed at run time would be a key no test can

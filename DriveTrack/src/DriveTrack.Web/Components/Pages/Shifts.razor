@@ -25,9 +25,19 @@
 
 <PageTitle>@Localizer["ShiftsTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">
-    <Icon Name="IconName.Shifts" />@Localizer["ShiftsTitle"]
-</h1>
+@* The screen's title and the one action that opens an empty form, on one line - the shape the two
+   delivery screens already settled. Recording a shift is about the roster rather than about any row
+   in it, so it belongs beside the heading that names the roster; the search box narrows that same
+   collection, which is why it stays in its own row below rather than on this line. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Shifts" />@Localizer["ShiftsTitle"]
+    </h1>
+
+    <button type="button" class="btn btn-primary dt-shift-create" @onclick="OpenCreateAsync">
+        <Icon Name="IconName.Create" />@Localizer["Create"]
+    </button>
+</div>
 
 @* FR-110 and FR-111 arrive here: a driver who is already on duty and a window that runs backwards
    both resolve through the same catalogue the REST envelope uses, so the two cannot disagree
@@ -38,7 +48,10 @@
    backwards names both ends of it and is said under each of the two boxes instead. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-<div class="row g-4 align-items-end mb-4">
+@* One box, so a plain labelled input rather than the dispatch board's bounded filter panel: ten
+   filters earn a panel with a name and a reset of its own, and one search box does not. The two
+   list vocabularies diverge here on purpose, and that is the reason. *@
+<div class="row g-4 mb-4">
     <div class="col-sm">
         <label class="form-label" for="shifts-search">@Localizer["Search"]</label>
         @* Over the list already fetched: PRD section 8 excludes server-side filtering, so typing
@@ -46,59 +59,83 @@
         <input id="shifts-search" type="search" class="form-control"
                @bind="_search" @bind:event="oninput" />
     </div>
-    <div class="col-sm-auto">
-        <button type="button" class="btn btn-primary dt-shift-create" @onclick="OpenCreateAsync">
-            <Icon Name="IconName.Create" />@Localizer["Create"]
-        </button>
-    </div>
 </div>
 
 @* NFR-27 keeps the original's paging, and this screen asks for the first page and searches it in
    the browser - so past a full page the rest is neither shown nor findable. Saying so is the
    difference between a limit and a screen that quietly lies about the roster. *@
-<DtDataTable TItem="ShiftSummary"
-             IsTruncated="IsTruncated"
-             Note="@Localizer["ListTruncated"]"
-             Items="Visible"
-             IsLoading="_loading"
-             EmptyText="@Localizer["ShiftsEmpty"]">
-    <HeaderTemplate>
-        <th scope="col">@Localizer["Driver"]</th>
-        <th scope="col">@Localizer["ShiftStartedAt"]</th>
-        <th scope="col">@Localizer["ShiftEndedAt"]</th>
-        <th scope="col">@Localizer["ShiftState"]</th>
-        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
-    </HeaderTemplate>
-    <RowTemplate Context="shift">
-        <td>@shift.DriverName</td>
-        <td>@Moment(shift.StartedAt)</td>
-        <td>
-            @* An open shift has no end, and says so rather than rendering an empty cell - which
-               reads as a missing value instead of as a shift that is still running. *@
-            @if (shift.EndedAt is null)
-            {
-                <span>@Localizer["ShiftStillOpen"]</span>
-            }
-            @if (shift.EndedAt is not null)
-            {
-                <span>@Moment(shift.EndedAt.Value)</span>
-            }
-        </td>
-        <td>
-            <ShiftStateLabel IsOpen="shift.IsOpen" />
-        </td>
-        <td class="dt-row-actions">
-            @* The handlers are built in code rather than written as lambdas here: a `=>` inside an
-               attribute closes the tag as far as a source scan is concerned. *@
-            <button type="button" class="btn btn-secondary btn-sm dt-shift-edit" @onclick="EditHandler(shift)">
-                <Icon Name="IconName.Edit" />@Localizer["Edit"]
-            </button>
-            <button type="button" class="btn btn-danger btn-sm dt-shift-delete" @onclick="DeleteHandler(shift)">
-                <Icon Name="IconName.Delete" />@Localizer["Delete"]
-            </button>
-        </td>
-    </RowTemplate>
-</DtDataTable>
+@* The wrapper is this screen's anchor into the table it does not own: below the phone breakpoint
+   the rows stop being rows and become cards, and the elements that have to change - the table, its
+   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
+   scoped element around it is what gives `::deep` something to hang from. *@
+<div class="dt-shifts">
+    <DtDataTable TItem="ShiftSummary"
+                 IsTruncated="IsTruncated"
+                 Note="@Localizer["ListTruncated"]"
+                 Items="Visible"
+                 IsLoading="_loading"
+                 EmptyText="@Localizer["ShiftsEmpty"]">
+        <HeaderTemplate>
+            <th scope="col">@Localizer["Driver"]</th>
+            <th scope="col">@Localizer["ShiftStartedAt"]</th>
+            <th scope="col">@Localizer["ShiftEndedAt"]</th>
+            <th scope="col">@Localizer["ShiftState"]</th>
+            @* The actions column keeps its name for a screen reader and drops it on screen, as the
+               two delivery screens' does: the buttons under it say what they do, and a column named
+               above them competes with them for the same width. *@
+            <th scope="col" class="dt-table-actions">
+                <span class="dt-visually-hidden">@Localizer["Actions"]</span>
+            </th>
+        </HeaderTemplate>
+        <RowTemplate Context="shift">
+            @* The per-cell name, carried by the cell rather than only by the column heading. Clipped
+               to a pixel either way and dropped from the accessibility tree above the breakpoint,
+               where the `<th>` already names the column and a second name in every cell would be
+               that name read twice a row; below it the head is gone and this is what replaces it. *@
+            <td>
+                <span class="dt-visually-hidden dt-shift-label">@Localizer["Driver"]</span>
+                @shift.DriverName
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-shift-label">@Localizer["ShiftStartedAt"]</span>
+                @Moment(shift.StartedAt)
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-shift-label">@Localizer["ShiftEndedAt"]</span>
+                @* An open shift has no end, and says so rather than rendering an empty cell - which
+                   reads as a missing value instead of as a shift that is still running. *@
+                @if (shift.EndedAt is null)
+                {
+                    <span>@Localizer["ShiftStillOpen"]</span>
+                }
+                @if (shift.EndedAt is not null)
+                {
+                    <span>@Moment(shift.EndedAt.Value)</span>
+                }
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-shift-label">@Localizer["ShiftState"]</span>
+                <ShiftStateLabel IsOpen="shift.IsOpen" />
+            </td>
+            @* `dt-table-actions` rather than `dt-row-actions`, which was a class this screen styled
+               nowhere: the right-aligned, nowrapped actions column is DtDataTable's own rule, and
+               the cell has to wear the class its heading already wears to be reached by it. *@
+            <td class="dt-table-actions">
+                <span class="dt-visually-hidden dt-shift-label">@Localizer["Actions"]</span>
+                @* The handlers are built in code rather than written as lambdas here: a `=>` inside
+                   an attribute closes the tag as far as a source scan is concerned. *@
+                <button type="button" class="btn btn-secondary btn-sm dt-shift-edit"
+                        @onclick="EditHandler(shift)">
+                    <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                </button>
+                <button type="button" class="btn btn-danger btn-sm dt-shift-delete"
+                        @onclick="DeleteHandler(shift)">
+                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                </button>
+            </td>
+        </RowTemplate>
+    </DtDataTable>
+</div>
 
 @* FR-85: the shared dialog. One heading for both recording and correcting - a title composed at run
    time would be a key no test can see, and the catalogue is closed against the keys components ask

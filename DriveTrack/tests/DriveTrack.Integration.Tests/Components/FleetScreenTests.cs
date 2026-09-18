@@ -36,6 +36,39 @@ public class FleetScreenTests
         RegexOptions.Singleline | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
+    /// <summary>The heading row: the screen's title and the action that opens an empty form.</summary>
+    private static readonly Regex PageHead = new(
+        @"<div\b[^>]*class=""[^""]*\bdt-page-head\b[^""]*""[^>]*>(?<body>.*?)</div>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The actions heading, which keeps its name without printing it.</summary>
+    private static readonly Regex ActionsHeader = new(
+        @"<th\b[^>]*class=""[^""]*\bdt-table-actions\b[^""]*""[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// One body row, so a claim can be made about every cell in every row rather than about the
+    /// page as a whole - which a single missing label would satisfy.
+    /// </summary>
+    private static readonly Regex BodyRow = new(
+        @"<tr\b[^>]*class=""[^""]*\bdt-table-row\b[^""]*""[^>]*>(?<body>.*?)</tr>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>One cell of a row, so a claim can be made cell by cell rather than row by row.</summary>
+    private static readonly Regex Cell = new(
+        @"<td\b[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The row's actions cell.</summary>
+    private static readonly Regex ActionsCell = new(
+        @"<td\b[^>]*class=""[^""]*\bdt-table-actions\b[^""]*""[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
     /// <summary>
     /// An <c>option</c> and its value. The value is optional in the pattern because the renderer
     /// minimizes an empty attribute to a bare <c>value</c> — which is exactly the option FR-38's
@@ -203,9 +236,9 @@ public class FleetScreenTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Each_screen_carries_a_heading_and_a_create_action(bool drivers)
+    [InlineData(true, "dt-driver-create")]
+    [InlineData(false, "dt-vehicle-create")]
+    public async Task Each_screen_carries_a_heading_and_a_create_action(bool drivers, string hook)
     {
         // <h1> rather than <h2>: `FocusOnNavigate Selector="h1"` in Routes.razor looks for one, and
         // on a page without it a keyboard user keeps the focus the previous screen had.
@@ -215,7 +248,131 @@ public class FleetScreenTests
 
         // NFR-24: every action carries a glyph beside its text.
         Assert.Contains("<svg", html, StringComparison.Ordinal);
-        Assert.Contains("btn btn-primary", html, StringComparison.Ordinal);
+
+        // And the create action is beside the heading rather than loose in the row above the table:
+        // it is about the collection the heading names, and the search box - which narrows that
+        // same collection - is not.
+        var head = PageHead.Match(html);
+
+        Assert.True(head.Success, "The screen has no heading row.");
+
+        var body = head.Groups["body"].Value;
+
+        Assert.Contains("<h1", body, StringComparison.Ordinal);
+
+        // Found by its hook and only then asserted about by its colour. `btn btn-primary` is what
+        // a create action looks like rather than what one is, so a test that located the action by
+        // the class would go on passing the day a second primary button lands anywhere on the page
+        // - and would say nothing at all about where this one sits.
+        Assert.Contains(hook, body, StringComparison.Ordinal);
+        Assert.Contains("btn-primary", body, StringComparison.Ordinal);
+
+        Assert.DoesNotContain(@"type=""search""", body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true, "dt-driver-edit", "dt-driver-delete")]
+    [InlineData(false, "dt-vehicle-edit", "dt-vehicle-delete")]
+    public async Task Every_row_action_carries_a_hook_and_sits_in_the_shared_actions_cell(
+        bool drivers,
+        string edit,
+        string delete)
+    {
+        // Two claims that only look like one. DtDataTable right-aligns the trailing cell through
+        // `.dt-table-row ::deep td.dt-table-actions`, so a cell that does not wear the class its
+        // own heading wears is a cell the shared rule cannot reach; and a button with no
+        // `dt-<entity>-<verb>` hook can only be found by its colour, which is what every other
+        // screen in the product stopped doing.
+        var html = drivers ? await RenderDriversAsync() : await RenderVehiclesAsync();
+
+        var cells = ActionsCell.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        Assert.NotEmpty(cells);
+
+        foreach (var cell in cells)
+        {
+            Assert.Contains(edit, cell, StringComparison.Ordinal);
+            Assert.Contains(delete, cell, StringComparison.Ordinal);
+        }
+
+        // One such cell per row. Without this a screen that rendered the pair in a plain <td> and
+        // an empty actions cell beside it would satisfy the loop above.
+        Assert.Equal(SharedMarkup.Occurrences(html, "dt-table-row"), cells.Length);
+    }
+
+    [Theory]
+    [InlineData(true, "dt-driver-label")]
+    [InlineData(false, "dt-vehicle-label")]
+    public async Task Every_cell_carries_its_own_name_for_the_phone_layout(bool drivers, string label)
+    {
+        // Below the phone breakpoint the head is dropped rather than hidden: a table laid out as
+        // blocks is no longer a table to a screen reader - the implicit table, row and cell roles
+        // go with the `display` they came from - so a `<thead>` left in place would name columns
+        // that no longer exist to be announced under. The label inside each cell is what replaces
+        // it, and that only works if every cell has one.
+        //
+        // Cell by cell rather than by counting labels against cells across the row: two labels in
+        // one cell and none in the next is the same total and a card with an unnamed line in it.
+        // And the label is checked against the heading of the column it is in, because a label
+        // that exists and reads wrongly names the value rather than failing to name it.
+        var html = drivers ? await RenderDriversAsync() : await RenderVehiclesAsync();
+
+        var columns = HeaderCell.Matches(html)
+            .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+            .ToArray();
+
+        Assert.NotEmpty(columns);
+
+        var rows = BodyRow.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        Assert.NotEmpty(rows);
+
+        var span = LabelSpan(label);
+
+        foreach (var row in rows)
+        {
+            var cells = Cell.Matches(row)
+                .Select(match => match.Groups["body"].Value)
+                .ToArray();
+
+            Assert.Equal(columns.Length, cells.Length);
+
+            for (var index = 0; index < cells.Length; index++)
+            {
+                var names = span.Matches(cells[index])
+                    .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+                    .ToArray();
+
+                Assert.Equal(new[] { columns[index] }, names);
+            }
+        }
+    }
+
+    /// <summary>The per-cell name span, matched by the class the screen marks it with.</summary>
+    private static Regex LabelSpan(string label) => new(
+        $@"<span\b[^>]*class=""[^""]*\b{Regex.Escape(label)}\b[^""]*""[^>]*>(?<body>.*?)</span>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task The_actions_column_keeps_its_name_without_printing_it(bool drivers)
+    {
+        // The buttons under it say what they do, so a column name printed above them competes with
+        // them for the same width - and a column with no name at all leaves a screen reader moving
+        // by cell with one unlabelled column. Hidden, not dropped, as on the two delivery screens.
+        var html = drivers ? await RenderDriversAsync() : await RenderVehiclesAsync();
+
+        var actions = ActionsHeader.Match(html);
+
+        Assert.True(actions.Success, "The table has no actions heading.");
+        Assert.Contains("dt-visually-hidden", actions.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("Дії", actions.Groups["body"].Value, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -337,12 +494,12 @@ public class FleetScreenTests
     // Rendering
     // -------------------------------------------------------------------------------------
 
-    private static Task<string> RenderDriversAsync() =>
+    internal static Task<string> RenderDriversAsync() =>
         ComponentRenderer.RenderAsync<Web.Components.Pages.Drivers>(
             parameters: null,
             configureServices: Register);
 
-    private static Task<string> RenderVehiclesAsync() =>
+    internal static Task<string> RenderVehiclesAsync() =>
         ComponentRenderer.RenderAsync<Web.Components.Pages.Vehicles>(
             parameters: null,
             configureServices: Register);
