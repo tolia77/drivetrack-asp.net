@@ -11,15 +11,41 @@
 
 <PageTitle>@Localizer["ErrorPageTitle"]</PageTitle>
 
-<h1 class="text-danger dt-type-h1">@Localizer["ErrorHeading"]</h1>
-<h2 class="text-danger dt-type-h2">@Localizer["ErrorMessage"]</h2>
+@* The heading row its two siblings carry, and one heading inside it - the scaffold's second
+   heading was never a section, only the sentence below the title written large.
+
+   No glyph. AccessDenied and NotFound each carry one because the glyph *is* the status they
+   report; there is no drawing of "something failed" in the set - `Warning` means caution, which
+   is a different thing to say - and an approximate glyph on a failure page is worse than none.
+
+   `dt-error-heading` rather than `text-danger`: the utility is token-backed, but the token behind
+   it is `action-destructive`, the colour the palette reserves for the button that deletes a
+   record. The feedback family is what a failure *reports* in, and `danger-text` is its readable
+   member. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1 dt-error-heading">@Localizer["ErrorHeading"]</h1>
+</div>
+
+@* A paragraph, like both siblings' explanations. *@
+<p>@Localizer["ErrorMessage"]</p>
 
 @if (ShowRequestId)
 {
+    @* The identifier a caller reads out to support, in the face every other identifier in the
+       product wears - plates, licence numbers, ids - because it is a string compared character by
+       character. *@
     <p>
-        <strong>@Localizer["ErrorRequestId"]</strong> <code>@RequestId</code>
+        <strong>@Localizer["ErrorRequestId"]</strong> <code class="dt-type-code">@RequestId</code>
     </p>
 }
+
+@* The way out. Its siblings both have one and both say so in as many words: a dead end with no
+   route back is the failure these pages exist to remove, and this page is the one that still had
+   it. `/` rather than LandingRoute - this page renders for a caller whose request already threw,
+   and reading a role off the principal is one more thing that can fail here. *@
+<a class="btn btn-link" href="/">
+    <Icon Name="IconName.Back" />@Localizer["BackToHome"]
+</a>
 
 @code{
     [CascadingParameter]

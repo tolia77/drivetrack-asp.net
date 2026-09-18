@@ -15,9 +15,15 @@
 
 <PageTitle>@Localizer["NotFoundTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">
-    <Icon Name="IconName.NotFound" />@Localizer["NotFoundTitle"]
-</h1>
+@* The shared heading row, the same one AccessDenied and every signed-in screen carry. The glyph
+   belongs inside it here for the same reason: it reports the status, and "nothing here" is the
+   whole of what this page has to say. `mb-4` owns the gap under the row, because
+   `.dt-page-head h1` zeroes the heading's own margin. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.NotFound" />@Localizer["NotFoundTitle"]
+    </h1>
+</div>
 
 <p>@Localizer["NotFoundMessage"]</p>
 

@@ -1,0 +1,28 @@
+/*
+    One rule, for the one thing the markup cannot say in a shared class: the failure heading's
+    colour.
+
+    `danger-text` rather than `danger`, and rather than Bootstrap's `.text-danger`, for the reason
+    DtFieldError gives about its own sentence. The bridge maps `$danger` to `action-destructive`,
+    so `.text-danger` paints this heading in the colour the palette reserves for the button that
+    deletes a record - an action colour on a thing that is not an action.
+
+    `_tokens.scss:218` publishes `danger-text` as "failure text on danger-subtle and
+    surface-card", and this heading sits on neither: the page has no card and no tinted band, so
+    what is behind it is `surface-page`. The token is still the right one, and not by luck. It is
+    the feedback family's only member meant to be read as text at all - `danger` is documented as
+    a mark, for an icon or an input's edge - and `surface-page` falls between the two surfaces the
+    token was chosen against: it is lighter than `danger-subtle` and darker than `surface-card`,
+    so the contrast is bracketed by the pair the token already carries rather than being a new
+    question. The documented pair's real claim is "text, not fill", which is exactly this case.
+
+    Scoped rather than app-level, and without `::deep`: the <h1> is this component's own element,
+    and there is one failure page. A shared `.dt-*` class for a single consumer would be a name
+    the next reader has to go looking for the second user of.
+
+    NFR-29 sees `color` and nothing else here; there is no geometry to tokenise.
+*/
+
+.dt-error-heading {
+    color: var(--dt-danger-text);
+}

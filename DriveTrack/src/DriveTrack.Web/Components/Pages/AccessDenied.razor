@@ -19,9 +19,15 @@
 
 <PageTitle>@Localizer["AccessDeniedTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">
-    <Icon Name="IconName.Forbidden" />@Localizer["AccessDeniedTitle"]
-</h1>
+@* The heading row every other screen carries, around the one heading this page has. The glyph
+   stays inside it: on a status page the glyph IS the status, and it says "refused" before a word
+   is read. `mb-4` is what decides the gap under the row - `.dt-page-head h1` zeroes the heading's
+   own margin and `.dt-type-h1` declares none. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Forbidden" />@Localizer["AccessDeniedTitle"]
+    </h1>
+</div>
 
 <p>@Localizer["AccessDeniedMessage"]</p>
 
