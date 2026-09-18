@@ -1,0 +1,25 @@
+/*
+    The one thing this screen asks about its own shape: how wide the sign-in panel is allowed to get.
+
+    `dialog-narrow` rather than a figure of its own. The token is published as the max width of a
+    form dialog, and this is the same kind of object - a short stack of boxes and one action, read
+    in one go - so it takes the same bound rather than introducing a second answer to "how wide is a
+    form". Written as the token reference and not as its value, because NFR-29's dimension scan
+    reads every scoped stylesheet for the figures the palette has already named.
+
+    `max-width` rather than `width`: below the bound the panel is whatever the viewport leaves it.
+    That much the columns this replaces already did - `.row > *` is full width below the `md` edge,
+    so `col-md-8 col-lg-5` did nothing at all on a phone. What they got wrong is everything above
+    it: the form was two thirds of the main column at `md` and five twelfths at `lg`, so its
+    measure jumped at each breakpoint and was a fraction of the shell rather than a width anybody
+    had chosen for a column of inputs. One bound replaces both fractions.
+
+    No `::deep`. The wrapper is this screen's own element and carries this file's scope attribute;
+    the card inside it is DtCard's and carries DtCard's, so a rule aimed at `.dt-card` from here
+    would compile to a selector that matches nothing. The bound belongs on the wrapper in any case -
+    how wide a panel is, is the screen's decision, and how a card is padded is the card's.
+*/
+
+.dt-sign-in-panel {
+    max-width: var(--dt-dialog-narrow);
+}

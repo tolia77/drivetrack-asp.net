@@ -90,14 +90,22 @@ public class PhoneLayoutTests
     /// to the first one: the table it holds renders several <c>&lt;div&gt;</c>s of its own, so a
     /// non-greedy match would stop inside the very thing being looked for.
     /// <para>
-    /// Internal because <c>ReviewScreenTests</c> asks the same question of the one wrapper with
-    /// two possible occupants, and a second copy of a tag walker is a second set of bugs.
+    /// Internal because <c>ReviewScreenTests</c> and <c>AnonymousScreenTests</c> ask the same
+    /// question, and a second copy of a tag walker is a second set of bugs.
+    /// </para>
+    /// <para>
+    /// The wrapper is matched as one class among whatever else the element carries, rather than as
+    /// the whole attribute: a screen that adds a spacing utility beside its own hook has not moved
+    /// the wrapper, and an assertion that failed on it would be reporting a change that preserved
+    /// what it guards. Bounded on both sides by <c>[\w-]</c> rather than by <c>\b</c>, because a
+    /// word boundary sits happily in the middle of <c>dt-reviews-empty</c> and would let a
+    /// differently-named element stand in for the one being looked for.
     /// </para>
     /// </summary>
     internal static string BodyOf(string html, string wrapper)
     {
         var opening = new Regex(
-            $@"<div\b[^>]*class=""{Regex.Escape(wrapper)}""[^>]*>",
+            $@"<div\b[^>]*\bclass=""[^""]*(?<![\w-]){Regex.Escape(wrapper)}(?![\w-])[^""]*""[^>]*>",
             RegexOptions.Singleline | RegexOptions.CultureInvariant,
             TimeSpan.FromSeconds(5));
 

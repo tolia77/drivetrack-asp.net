@@ -1,0 +1,23 @@
+/*
+    The registration panel's width, on the same token the sign-in panel takes and for the same
+    reason: both are a form dialog's worth of boxes standing on a page rather than inside one, and
+    `dialog-narrow` is what this palette already calls that width.
+
+    Six boxes rather than two, and the bound does not change with the count - a column of inputs
+    reads at one width, and a longer column read at a wider one is the same form asking to be
+    scanned twice.
+
+    `max-width`, so the panel is whatever a narrow viewport leaves it. The phone end is not what
+    changed: `.row > *` is already full width below the `md` edge, so `col-md-8 col-lg-5` did
+    nothing there. It is the middle and the wide end that did - two thirds of the main column at
+    `md`, five twelfths at `lg` - which made this form's measure a fraction of the shell that moved
+    at each breakpoint instead of one width chosen for it.
+
+    Its own file rather than a shared rule: scoped CSS is stamped per component, so the two screens
+    cannot share one stylesheet even though they share the decision. The decision itself is shared
+    where it can be - in the token both of them name.
+*/
+
+.dt-register-panel {
+    max-width: var(--dt-dialog-narrow);
+}

@@ -12,35 +12,67 @@
 
 <PageTitle>@Localizer["SignInTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">@Localizer["SignInTitle"]</h1>
+@* The screen's title, in the heading row every other screen carries. The wrapper is written here
+   for the same reason it is written on a screen with nothing beside its title: the product has one
+   heading shape, and `.dt-page-head h1` zeroes the heading's own margin so `mb-4` decides the gap
+   under it rather than the browser.
 
-@* The banner keeps what no box below claims - AUTH_INVALID_CREDENTIALS names no field, and
-   saying so under one of the two inputs would tell an attacker which one was wrong (FR-4). *@
-<DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
-
-<div class="row">
-<div class="col-md-8 col-lg-5">
-<div class="card"><div class="card-body">
-
-<EditForm Model="Form!" FormName="signIn" OnValidSubmit="SubmitAsync">
-    <div class="mb-4">
-        <label class="form-label" for="sign-in-email">@Localizer["Email"]</label>
-        <InputText id="sign-in-email" class="form-control" @bind-Value="Form!.Email" />
-        <DtFieldError Field="Email" Failures="_failures" />
-    </div>
-    <div class="mb-4">
-        <label class="form-label" for="sign-in-password">@Localizer["Password"]</label>
-        <InputText id="sign-in-password" type="password" class="form-control" @bind-Value="Form!.Password" />
-        <DtFieldError Field="Password" Failures="_failures" />
-    </div>
-    <button class="btn btn-primary" type="submit">@Localizer["SignIn"]</button>
-</EditForm>
-
-</div></div>
-</div>
+   The heading is bare, and deliberately so. This screen is a form: the heading names the work, and
+   a glyph on it would be decoration beside the boxes that are the actual content. The two status
+   pages do carry one in their <h1> - AccessDenied and NotFound - and that is not an inconsistency:
+   there the glyph IS the status, the whole of what the page has to report, and it says "refused" or
+   "nothing here" before a word is read. A form has no status to report until it is submitted. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">@Localizer["SignInTitle"]</h1>
 </div>
 
-<p class="mt-4">@Localizer["NoAccount"] <a href="/register">@Localizer["Register"]</a></p>
+@* The panel, and the whole of what this screen asks about its own width. The wrapper is this
+   screen's element and DtCard's <div> is DtCard's, so the bound is written out here where a scoped
+   rule can reach it - a `max-width` aimed at `.dt-card` from this file would carry this component's
+   scope attribute onto an element another component rendered and match nothing at all.
+
+   The card itself is titleless. A title would put "sign in" on the page twice, and DtCard's head is
+   an <h2> by design - it cannot stand in for the <h1> `FocusOnNavigate` looks for. *@
+<div class="dt-sign-in-panel">
+    @* Inside the panel, on the same measure as the form it refuses. A banner spanning the whole
+       main column above a 30rem card is a sentence whose left edge belongs to one thing and whose
+       right edge belongs to another, and the reader has to find the box it is about anyway.
+
+       It keeps what no box below claims - AUTH_INVALID_CREDENTIALS names no field, and saying so
+       under one of the two inputs would tell an attacker which one was wrong (FR-4). *@
+    <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
+
+    <DtCard>
+        <EditForm Model="Form!" FormName="signIn" OnValidSubmit="SubmitAsync">
+            <div class="mb-4">
+                <label class="form-label" for="sign-in-email">@Localizer["Email"]</label>
+                @* The tokens a password manager fills these two boxes by. `username` rather than
+                   `email` on the identifier: this is the credential half of a sign-in pair, and
+                   that is the name the browser stores it under alongside the password. *@
+                <InputText id="sign-in-email" class="form-control" autocomplete="username"
+                           @bind-Value="Form!.Email" />
+                <DtFieldError Field="Email" Failures="_failures" />
+            </div>
+            <div class="mb-4">
+                <label class="form-label" for="sign-in-password">@Localizer["Password"]</label>
+                <InputText id="sign-in-password" type="password" class="form-control"
+                           autocomplete="current-password" @bind-Value="Form!.Password" />
+                <DtFieldError Field="Password" Failures="_failures" />
+            </div>
+
+            @* NFR-24: the glyph the navigation gives this destination, beside the word. No
+               `disabled` binding, and there is nowhere for one to come from - the page renders
+               once per request with no circuit behind it to flip an attribute, and the browser's
+               own navigation is what ends the submission. `SubmitGuardTests` records exactly that
+               exemption, keyed on `[ExcludeFromInteractiveRouting]` above. *@
+            <button class="btn btn-primary dt-sign-in-submit" type="submit">
+                <Icon Name="IconName.SignIn" />@Localizer["SignIn"]
+            </button>
+        </EditForm>
+    </DtCard>
+
+    <p class="mt-4">@Localizer["NoAccount"] <a href="/register">@Localizer["Register"]</a></p>
+</div>
 
 @code {
     /// <summary>
