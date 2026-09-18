@@ -48,6 +48,42 @@ internal static class ShellCaller
             culture);
 
     /// <summary>
+    /// Renders a shell component at one path, navigates to another, and reads the markup back.
+    /// <para>
+    /// Rendering twice at two paths would prove only that the component reads the path it is given.
+    /// This is the claim the shell actually makes: that it notices a navigation and follows it,
+    /// which is what its <c>LocationChanged</c> subscription is for and what nothing else here can
+    /// see.
+    /// </para>
+    /// </summary>
+    /// <typeparam name="TComponent">The component to render.</typeparam>
+    /// <param name="role">The caller's role, or null for an anonymous visitor.</param>
+    /// <param name="from">The path the caller starts on.</param>
+    /// <param name="to">The path they navigate to.</param>
+    public static Task<string> RenderAfterNavigatingAsync<TComponent>(
+        UserRole? role,
+        string from,
+        string to)
+        where TComponent : IComponent
+    {
+        var navigation = new StubNavigationManager(from);
+
+        return ComponentRenderer.RenderThenAsync<TComponent>(
+            services =>
+            {
+                services.AddSingleton<ICurrentUser>(new StubCurrentUser(role));
+                services.AddSingleton<NavigationManager>(navigation);
+                services.AddSingleton<AntiforgeryStateProvider, StubAntiforgeryStateProvider>();
+            },
+            _ =>
+            {
+                navigation.Go(to);
+
+                return Task.CompletedTask;
+            });
+    }
+
+    /// <summary>
     /// A caller with a role and nothing else. <see cref="UserId"/> throws exactly as the real
     /// adapter does, so a component that reads it outside the authenticated branch fails here too.
     /// </summary>
@@ -72,6 +108,14 @@ internal static class ShellCaller
     {
         public StubNavigationManager(string? path) =>
             Initialize("http://localhost/", "http://localhost/" + (path ?? string.Empty).TrimStart('/'));
+
+        /// <summary>Moves to another path and tells whoever subscribed, as a real navigation does.</summary>
+        public void Go(string path)
+        {
+            Uri = "http://localhost/" + path.TrimStart('/');
+
+            NotifyLocationChanged(isInterceptedLink: false);
+        }
     }
 
     /// <summary>

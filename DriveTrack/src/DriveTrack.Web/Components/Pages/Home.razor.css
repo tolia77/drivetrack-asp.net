@@ -1,0 +1,116 @@
+/*
+    The landing page's own layout, and nothing else. Everything it is built from - the card, the
+    badge, the status labels, the display type ramp and the muted utility - is the shared
+    vocabulary, so what is left here is how the two sections are arranged and how the illustration's
+    table is ruled.
+
+    NFR-29: every palette value is a `--dt-*` reference. What is literal is geometry the palette
+    does not name - the column counts and the phone breakpoint, which a media query cannot read from
+    a custom property at all.
+
+    The design writes the hero as `padding: 64px 72px`, `gap: 56px` and a 44px headline. None of
+    those figures exists in the palette, and inventing tokens for one screen is how a scale stops
+    being a scale, so each is taken to the nearest published step: the page padding is the shell's
+    (`.dt-main`), the gaps are the six-step spacing scale, and the headline wears `dt-type-display`,
+    which is the ramp the palette publishes for exactly one thing - a landing page's headline.
+*/
+
+.dt-landing {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-6);
+}
+
+/*
+    Two columns, collapsing to one below the breakpoint: the pitch is what the page is for, so it
+    comes first and the illustration follows it rather than pushing it below the fold.
+
+    Stated desktop-first, with the phone as the exception, because that is the direction `_theme.scss`
+    states the shell in - and the two have to switch on the same edge. The theme derives `640.98px`
+    from `$dt-breakpoint-phone`; this file is not Sass and has to write it out, so the figure is
+    repeated here rather than approximated as `min-width: 641px`, which would leave a sliver of
+    widths where the shell is a sidebar and the hero is still stacked.
+*/
+.dt-landing-hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--dt-space-6);
+    align-items: center;
+}
+
+.dt-landing-pitch {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-4);
+}
+
+/* A badge is an inline pill; without this it would stretch across the whole column. */
+.dt-landing-eyebrow {
+    align-self: start;
+}
+
+.dt-landing-title,
+.dt-landing-lead,
+.dt-landing-note,
+.dt-landing-role-body {
+    margin: 0;
+}
+
+/* One step above body text: the lead is read before the reader has decided to read anything. */
+.dt-landing-lead {
+    font-size: var(--dt-h2-font-size);
+    line-height: var(--dt-h2-line-height);
+}
+
+.dt-landing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dt-space-2);
+}
+
+/*
+    The illustration's table. Ruled rather than striped, and the heading rule is the control edge
+    while the row rules are hairlines - the same two weights DataTable uses, so the picture and the
+    screen it is a picture of are drawn the same way.
+*/
+.dt-landing-board {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.dt-landing-board th {
+    padding: var(--dt-space-2);
+    border-bottom: var(--dt-border-width) solid var(--dt-border-control);
+    color: var(--dt-ink-muted);
+    font-weight: var(--dt-label-font-weight);
+    text-align: start;
+    white-space: nowrap;
+}
+
+.dt-landing-board td {
+    padding: var(--dt-space-2);
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
+    vertical-align: top;
+}
+
+/* The card's own edge closes the table; a second rule under the last row would double it. */
+.dt-landing-board tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.dt-landing-roles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--dt-space-5);
+}
+
+@media (max-width: 640.98px) {
+    .dt-landing-hero {
+        grid-template-columns: 1fr;
+        gap: var(--dt-space-5);
+    }
+
+    .dt-landing-roles {
+        grid-template-columns: 1fr;
+    }
+}

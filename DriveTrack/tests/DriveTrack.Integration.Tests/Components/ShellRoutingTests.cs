@@ -125,8 +125,18 @@ public class ShellRoutingTests
         Assert.Contains("LandingRoute.For(Caller.Role)", home, StringComparison.Ordinal);
         Assert.DoesNotContain(@"href=""profile""", home, StringComparison.Ordinal);
 
-        // NFR-24: all three calls to action carry an icon beside their text.
-        Assert.Equal(3, SharedMarkup.Occurrences(home, "<Icon Name="));
+        // NFR-24: every glyph on the page is a named one from the shared set, and there are seven.
+        // Three are the calls to action - the signed-in way in, and the visitor's register and sign
+        // in - and the other four belong to the design the page was rebuilt on: the hero's eyebrow
+        // badge and one per role card. The illustration of the dispatch board carries none of its
+        // own: the create action the design draws in its head was dropped, because painted in the
+        // real create colour it was indistinguishable from the button that makes a delivery and sat,
+        // on a phone, directly under the page's own call to action.
+        //
+        // Stated as a count for the reason the navigation's is: an action drawn without a glyph is
+        // markup with nothing behind it, so a new one has to be a deliberate edit here rather than
+        // an empty box nobody notices.
+        Assert.Equal(7, SharedMarkup.Occurrences(home, "<Icon Name="));
     }
 
     private static string Between(string source, string opening, string closing)

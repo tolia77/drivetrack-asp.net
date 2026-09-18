@@ -368,7 +368,10 @@ public class CultureSwitchTests(PostgresFixture postgres)
 
         var html = await ShellCaller.RenderAsync<NavMenu>(role, path: path);
 
-        var form = SharedMarkup.ElementWithClass(html, "nav", "flex-column");
+        // The menu's own root, which is the <nav> the switcher sits inside. `dt-nav` rather than
+        // Bootstrap's `flex-column`: the shell wears the design system's frame now, and the class
+        // that used to hold the column together is one the framework happened to provide.
+        var form = SharedMarkup.ElementWithClass(html, "nav", "dt-nav");
 
         Assert.Contains($"action=\"{SetCulture}\"", html, StringComparison.Ordinal);
         Assert.Contains("method=\"post\"", form, StringComparison.Ordinal);

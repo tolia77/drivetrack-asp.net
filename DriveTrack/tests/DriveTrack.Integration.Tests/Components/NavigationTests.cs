@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using DriveTrack.Domain.Identity;
+using DriveTrack.Integration.Tests.Support;
 using DriveTrack.Web.Account;
 using DriveTrack.Web.Components.Layout;
 using DriveTrack.Web.Components.Pages;
@@ -223,12 +224,17 @@ public class NavigationTests
         // Every link and action carries an icon beside its text (NFR-24): the brand mark, home,
         // profile, the two fleet screens (4.1), the dispatch board and the own-deliveries screen
         // (5.1), the two administration rosters (7.1), story 5.2's notification log, sign-out,
-        // sign-in and register, story 8.1's chat destination, story 7.2's reviews and story 4.2's
-        // two shift screens - seventeen in all. The count moves with the destination table on
-        // purpose: a destination rendered without a glyph is markup with nothing behind it, which is
-        // the defect this whole test guards, so adding a link has to be a deliberate edit to this
-        // line rather than an empty box nobody notices.
-        Assert.Equal(17, SharedMarkup.Occurrences(menu, "<Icon Name="));
+        // sign-in and register, story 8.1's chat destination, story 7.2's reviews, story 4.2's two
+        // shift screens - and the phone toggle, which is the eighteenth. The toggle is the one this
+        // count moved for: it used to draw its bars as three CSS gradients in the component's own
+        // stylesheet, duplicating a glyph `IconName.Menu` already held, and a hamburger nobody can
+        // find in the icon set is a hamburger that drifts away from every other glyph in the shell.
+        //
+        // The count moves with the destination table on purpose: a destination rendered without a
+        // glyph is markup with nothing behind it, which is the defect this whole test guards, so
+        // adding a link has to be a deliberate edit to this line rather than an empty box nobody
+        // notices.
+        Assert.Equal(18, SharedMarkup.Occurrences(menu, "<Icon Name="));
     }
 
     [Fact]
@@ -239,7 +245,10 @@ public class NavigationTests
         var menu = SharedMarkup.ReadComponent("Layout", "NavMenu.razor");
         var layout = SharedMarkup.ReadComponent("Layout", "MainLayout.razor");
 
-        var brand = SharedMarkup.ElementWithClass(menu, "a", "navbar-brand");
+        // `dt-nav__brand` rather than Bootstrap's `navbar-brand`: the shell is drawn on the design
+        // system's own frame now, and the brand is one of its parts rather than a class the
+        // framework happens to style.
+        var brand = SharedMarkup.ElementWithClass(menu, "a", "dt-nav__brand");
 
         Assert.Contains("<Icon Name=", brand, StringComparison.Ordinal);
         Assert.Contains("DriveTrack", brand, StringComparison.Ordinal);
@@ -380,10 +389,137 @@ public class NavigationTests
     public async Task The_brand_is_rendered_for_every_caller(UserRole? role)
     {
         var html = await ShellCaller.RenderAsync<NavMenu>(role);
-        var brand = SharedMarkup.ElementWithClass(html, "a", "navbar-brand");
+        var brand = SharedMarkup.ElementWithClass(html, "a", "dt-nav__brand");
 
         Assert.Contains("<svg", brand, StringComparison.Ordinal);
         Assert.Contains("DriveTrack", brand, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(UserRole.Driver)]
+    public async Task The_phone_menu_renders_closed_and_says_so(UserRole? role)
+    {
+        // The state every fresh render starts in, which is the one a caller actually meets. Pressing
+        // the control is the browser's own business - `<details>` toggles itself, which is the whole
+        // point of the element being used here - so what this can see is the served markup, and what
+        // the served markup must not say is `open`: a menu that arrived open would cover the screen
+        // on a phone before anyone had asked for it.
+        //
+        // There is deliberately no `aria-expanded` to look for. A `<summary>` is a disclosure button
+        // natively and reports its own state, so an attribute written beside it would be a second
+        // answer that can disagree with the first.
+        var html = await ShellCaller.RenderAsync<NavMenu>(role);
+
+        var disclosure = Regex.Match(
+            html,
+            @"<details\b[^>]*\bdt-nav__disclosure\b[^>]*>",
+            RegexOptions.None,
+            TimeSpan.FromSeconds(5));
+
+        Assert.True(disclosure.Success, $"The menu rendered no disclosure:{Environment.NewLine}{html}");
+        Assert.DoesNotContain("open", disclosure.Value, StringComparison.Ordinal);
+        Assert.Contains(@"<summary class=""dt-nav__toggle""", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-nav--open", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Admin, null, "")]
+    [InlineData(UserRole.Admin, "deliveries", "deliveries")]
+    [InlineData(UserRole.Admin, "notifications", "notifications")]
+    [InlineData(UserRole.Admin, "deliveries?status=pending", "deliveries")]
+    // Routing in ASP.NET is case-insensitive and a trailing slash routes, so both of these serve the
+    // dispatch board. A comparison that is neither marks nothing at all, and a menu with no
+    // destination marked looks exactly like a menu on a screen that is not a destination.
+    [InlineData(UserRole.Admin, "Deliveries", "deliveries")]
+    [InlineData(UserRole.Admin, "deliveries/", "deliveries")]
+    [InlineData(UserRole.Driver, "my-deliveries", "my-deliveries")]
+    [InlineData(UserRole.Client, "reviews", "reviews")]
+    public async Task One_destination_and_only_one_is_marked_as_the_one_the_caller_is_on(
+        UserRole role,
+        string? path,
+        string expected)
+    {
+        // The menu answers this itself rather than letting NavLink write an `active` class, because
+        // the design paints the current destination off `aria-current` - so the state a screen
+        // reader is told about and the fill a sighted reader sees have to be the same fact. That
+        // answer is a path comparison this component owns, and nothing else in the suite renders it.
+        //
+        // Four things can go wrong with it and three of them are silent. Every link could match, as
+        // happened to the sortable headers when SortState wrote "none" instead of omitting the
+        // attribute. None could, if the base-relative path kept a leading slash the hrefs do not
+        // have. The home link is the empty path, so a naive "starts with" would mark it on every
+        // screen in the product. And a query string would take the dispatch board off its own
+        // destination the moment a filter was applied - which is the last case below.
+        var html = await ShellCaller.RenderAsync<NavMenu>(role, path: path);
+
+        // Only the destinations use "page"; the language switcher states its own with "true", so
+        // this counts links and never the pair of submit buttons beside them.
+        var marked = Regex.Matches(
+            html,
+            @"<a\b(?<attributes>[^>]*aria-current=""page""[^>]*)>",
+            RegexOptions.None,
+            TimeSpan.FromSeconds(5));
+
+        var only = Assert.Single(marked);
+
+        var href = Regex.Match(
+            only.Groups["attributes"].Value,
+            @"href=""(?<href>[^""]*)""",
+            RegexOptions.None,
+            TimeSpan.FromSeconds(5));
+
+        // Asserted before the comparison, and it is the home row that needs it: a failed match hands
+        // back an empty group, which is exactly what the home link's own href is. Without this the
+        // first row passes whether the marked link carries `href=""`, a bare minimized `href` with no
+        // value, or no href at all - which is the hazard the `Landing` constant in NavMenu exists to
+        // prevent and would therefore be the one row unable to notice it coming back.
+        Assert.True(
+            href.Success,
+            $"The marked destination carries no href at all: {only.Value}");
+
+        Assert.Equal(expected, href.Groups["href"].Value);
+    }
+
+    [Fact]
+    public async Task The_menu_follows_the_caller_to_the_screen_they_navigate_to()
+    {
+        // The shell subscribes to LocationChanged, and until now nothing said why. Rendering twice at
+        // two paths - which every other case here does - proves only that the menu reads the path it
+        // is handed. This raises the navigation under a menu that has already rendered, which is the
+        // claim the subscription actually makes, and two things have to follow it: the mark on the
+        // current destination, and the address the language switcher comes back to. Without the
+        // subscription both keep answering for the screen the menu first rendered on, so a caller
+        // three screens deep who switched language would be sent back to the first one.
+        var html = await ShellCaller.RenderAfterNavigatingAsync<NavMenu>(
+            UserRole.Admin,
+            from: "/deliveries",
+            to: "/notifications");
+
+        var marked = Regex.Match(
+            html,
+            @"<a\b[^>]*aria-current=""page""[^>]*>",
+            RegexOptions.None,
+            TimeSpan.FromSeconds(5));
+
+        Assert.True(marked.Success, $"No destination is marked after the navigation:{Environment.NewLine}{html}");
+        Assert.Contains(@"href=""notifications""", marked.Value, StringComparison.Ordinal);
+
+        Assert.Contains(
+            @"name=""returnUrl"" value=""/notifications""",
+            html,
+            StringComparison.Ordinal);
+
+        // What this cannot see, stated so the gap is deliberate rather than forgotten: whether the
+        // phone disclosure closed. Its open state is the browser's, written onto the DOM by the user
+        // agent when the summary is pressed, so it exists in no render this harness produces. The
+        // component's whole contribution to closing it is the key below - a keyed element whose key
+        // changes is one Blazor replaces rather than patches, and a replaced `<details>` is a closed
+        // one. On a statically rendered page enhanced navigation syncs the attribute away instead.
+        Assert.Contains(
+            @"<details class=""dt-nav__disclosure"" @key=""here"">",
+            SharedMarkup.ReadComponent("Layout", "NavMenu.razor"),
+            StringComparison.Ordinal);
     }
 
     [Theory]
@@ -438,27 +574,138 @@ public class NavigationTests
     ];
 
     [Fact]
-    public void The_navigation_still_collapses_behind_its_toggler_on_a_narrow_viewport()
+    public void The_navigation_collapses_behind_a_disclosure_that_needs_no_circuit()
     {
-        // NFR-22 for the shell: the checkbox reveals the menu, and the toggler has to carry a glyph
-        // or there is nothing on the bar to press.
+        // NFR-22 for the shell: below the breakpoint the links and the foot are behind one control,
+        // and that control has to carry a glyph and a word or there is nothing on the bar to press.
         //
-        // That glyph used to be a hamburger data URI whose stroke was a percent-encoded rgba() -
-        // NFR-29's one recorded literal-colour exemption. It is three `currentColor` gradient bars
-        // now, so the exemption is gone and the drawing is asserted by what paints it rather than
-        // by the path data that used to. The absence is asserted too: a data URI reappearing here
-        // is the exemption coming back.
+        // The claim has not moved and the mechanism has, twice. It was a bare `<input
+        // type="checkbox">` revealing a sibling through `:checked ~`, which announced itself to a
+        // screen reader as a checkbox and drew its bars as three CSS gradients - the replacement for
+        // a hamburger data URI whose stroke was a percent-encoded rgba(), NFR-29's one recorded
+        // literal-colour exemption. Then it was a `<button>` with `@onclick`, which is the mechanism
+        // this test now exists to keep out: five components render inside MainLayout carrying
+        // `[ExcludeFromInteractiveRouting]`, App.razor hands those a null render mode, and a handler
+        // on a page with no circuit is never wired. The menu on the sign-in page could not open, and
+        // the sign-in page is where the language switcher has to be reachable.
+        //
+        // So it is a `<details>` disclosure: no circuit, no script, and the same behaviour on every
+        // page in the product. The absences below are the assertion - a handler or a checkbox
+        // reappearing here is that failure coming back.
+        var menu = SharedMarkup.ReadComponent("Layout", "NavMenu.razor");
         var stylesheet = SharedMarkup.ReadComponent("Layout", "NavMenu.razor.css");
 
-        Assert.Contains(".navbar-toggler:checked ~ .nav-scrollable", stylesheet, StringComparison.Ordinal);
+        // The absences below are read with the Razor comments taken out. The file explains at
+        // length why a handler on this control cannot work, and prose naming a mechanism is not the
+        // mechanism - without this the explanation is what fails the test.
+        var markup = Regex.Replace(
+            menu,
+            @"@\*.*?\*@",
+            " ",
+            RegexOptions.Singleline,
+            TimeSpan.FromSeconds(5));
 
+        Assert.Contains(@"<details class=""dt-nav__disclosure""", menu, StringComparison.Ordinal);
+        Assert.Contains(@"<summary class=""dt-nav__toggle"">", menu, StringComparison.Ordinal);
+        Assert.Contains(@"<Icon Name=""IconName.Menu"" />", menu, StringComparison.Ordinal);
+        Assert.Contains(@"@Localizer[""Menu""]", menu, StringComparison.Ordinal);
+
+        Assert.DoesNotContain(@"type=""checkbox""", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("@onclick", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-nav--open", markup, StringComparison.Ordinal);
+
+        // The hamburger stays drawn by the icon set. A gradient stack or a data URI reappearing
+        // here is the exemption coming back.
         var bars = Regex.Matches(
             stylesheet,
             @"linear-gradient\(currentColor, currentColor\)",
             RegexOptions.None,
             TimeSpan.FromSeconds(5));
 
-        Assert.Equal(3, bars.Count);
+        Assert.Empty(bars);
+        Assert.DoesNotContain("url(", stylesheet, StringComparison.Ordinal);
         Assert.DoesNotContain("M4 7h22M4 15h22M4 23h22", stylesheet, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_shell_is_a_grid_and_its_phone_rules_are_inside_the_phone_media_query()
+    {
+        // Where a rule sits is as load-bearing as what it says, and it is the half no screenshot and
+        // no render test can see. Every rule that collapses the frame for a phone - the single
+        // column, the hidden links and foot, the `[open]` reveal - is only correct below the
+        // breakpoint. Lift any of them out of the media query and the desktop sidebar disappears:
+        // the links are hidden, nothing has an `[open]` to reveal them, and the suite stays green
+        // because every other assertion here reads markup rather than layout.
+        //
+        // The two frame rules are pinned for the same reason. `dt-shell`'s columns are the only
+        // statement anywhere that the navigation and the screen sit side by side, and `dt-main`'s
+        // `min-width: 0` is NFR-22's wide-table rule - without it a delivery table wider than the
+        // screen stretches the whole shell instead of scrolling inside its own box, which looks like
+        // a table bug and is a grid one.
+        var theme = File.ReadAllText(Path.Combine(
+            RepositoryLayout.ProjectDirectory("DriveTrack.Web"), "Styles", "_theme.scss"));
+
+        var phone = PhoneRules(theme);
+        var everywhere = theme.Replace(phone, string.Empty, StringComparison.Ordinal);
+
+        // Below the breakpoint: one column, the bar keeping its own height, and the menu behind the
+        // disclosure until the browser opens it.
+        Assert.Contains("grid-template-columns: 1fr;", phone, StringComparison.Ordinal);
+        Assert.Contains("grid-template-rows: auto 1fr;", phone, StringComparison.Ordinal);
+        Assert.Contains(".dt-nav__disclosure[open] ~ .dt-nav__links", phone, StringComparison.Ordinal);
+        Assert.Contains(".dt-nav__disclosure[open] ~ .dt-nav__foot", phone, StringComparison.Ordinal);
+
+        // And none of those three is stated outside it, where they would take the sidebar with them.
+        Assert.DoesNotContain("grid-template-columns: 1fr;", everywhere, StringComparison.Ordinal);
+        Assert.DoesNotContain(".dt-nav__disclosure[open]", everywhere, StringComparison.Ordinal);
+        Assert.DoesNotContain(".dt-nav__links,\n    .dt-nav__foot,\n    .dt-nav__spacer", everywhere, StringComparison.Ordinal);
+
+        // Above it the disclosure is not rendered at all, which is what keeps the user agent's own
+        // closed-`<details>` machinery out of the desktop layout and the Menu control off a screen
+        // with a sidebar on it.
+        Assert.Contains(".dt-nav__disclosure {\n    display: none;\n}", everywhere, StringComparison.Ordinal);
+
+        // The frame itself.
+        Assert.Contains(
+            "grid-template-columns: var(--dt-nav-width) 1fr;",
+            everywhere,
+            StringComparison.Ordinal);
+        Assert.Contains("min-width: 0;", everywhere, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The body of the theme's phone media query, braces balanced.
+    /// </summary>
+    /// <remarks>
+    /// Matched on the Sass expression rather than on a figure: the breakpoint is derived from
+    /// <c>$dt-breakpoint-phone</c> so the palette stays the only place it is written down, and a
+    /// test looking for <c>640.98px</c> would go green the day somebody inlined it.
+    /// </remarks>
+    private static string PhoneRules(string theme)
+    {
+        const string Query = "@media (max-width: $dt-breakpoint-phone-max)";
+
+        var start = theme.IndexOf(Query, StringComparison.Ordinal);
+
+        Assert.True(start >= 0, $"_theme.scss has no '{Query}' block.");
+
+        var open = theme.IndexOf('{', start);
+        var depth = 0;
+
+        for (var index = open; index < theme.Length; index++)
+        {
+            if (theme[index] == '{')
+            {
+                depth++;
+            }
+            else if (theme[index] == '}' && --depth == 0)
+            {
+                return theme[start..(index + 1)];
+            }
+        }
+
+        Assert.Fail($"The '{Query}' block is never closed.");
+
+        return string.Empty;
     }
 }

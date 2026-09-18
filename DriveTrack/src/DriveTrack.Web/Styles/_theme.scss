@@ -55,10 +55,6 @@ body {
     color: var(--dt-ink);
 }
 
-.content {
-    padding-top: var(--dt-space-4);
-}
-
 // A heading focused programmatically after navigation should not draw a ring.
 h1:focus {
     outline: none;
@@ -77,13 +73,13 @@ h1:focus {
 // the two would otherwise both be drawn. It is turned off here rather than in the
 // bridge because `$focus-ring-color` still feeds the `.focus-ring` utility.
 //
-// The selector set is wider than Bootstrap's `:focus-visible` styling on purpose:
-// dropping the scaffold's list would lose the ring on `.btn-link.nav-link`.
+// The selector set is wider than Bootstrap's `:focus-visible` styling on purpose: a `.btn` that
+// takes focus from a click is styled by the framework only on `:focus-visible`, and the ring is
+// the one piece of chrome that must not depend on how the control was reached.
 // -----------------------------------------------------------------------------
 .btn:focus,
 .btn:focus-visible,
 .btn:active:focus,
-.btn-link.nav-link:focus,
 .form-control:focus,
 .form-select:focus,
 .form-check-input:focus {
@@ -99,18 +95,301 @@ h1:focus {
 // focusable controls (the destination links, the two language buttons and the toggler) take
 // `focus-ring-on-dark`, which the palette declares for exactly this and which holds at 7:1.
 //
-// `.sidebar` is the anchor because it is the element that paints `nav-bg`, so the rule is scoped
-// to the ground rather than to the controls: anything focusable a later story puts on that
-// surface inherits the right ring without being named here. The whole outline is restated rather
-// than only its colour, because the language buttons also match `.btn-link.nav-link:focus` above
-// and an `outline-color` alone would lose the specificity contest to it.
-.sidebar .nav-link:focus,
-.sidebar .nav-link:focus-visible,
-.sidebar .btn-link.nav-link:focus,
-.sidebar .navbar-toggler:focus,
-.sidebar .navbar-toggler:focus-visible {
+// The navigation itself is the anchor, because it is the element that paints `nav-bg`: the rule is
+// scoped to the ground rather than to the controls, so anything focusable a later story puts on
+// that surface inherits the right ring without being named here. The descendant form is what makes
+// that true - `:focus-visible` on any child - and the three named controls follow it for browsers
+// that give a clicked control `:focus` and never `:focus-visible`.
+.dt-nav :focus-visible,
+.dt-nav .dt-nav__link:focus,
+.dt-nav .dt-nav__toggle:focus,
+.dt-nav .dt-lang button:focus {
     outline: var(--dt-border-width-focus) solid var(--dt-focus-ring-on-dark);
     outline-offset: var(--dt-border-width-focus);
+}
+
+
+// -----------------------------------------------------------------------------
+// The shell (NFR-22, NFR-25)
+//
+// NavigationShell's frame, published here rather than in the two components that
+// draw it. Blazor stamps a scoped stylesheet's rules with the scope attribute of
+// the component that owns the FILE, so a rule `MainLayout.razor.css` wrote for the
+// navigation would match nothing at all: NavMenu renders those elements and they
+// carry NavMenu's attribute, not the layout's. The shell is one frame drawn by two
+// components, so its vocabulary is app-level for the same reason the status labels
+// are - and for the stronger one that a scoped copy apiece is two answers to how
+// wide the navigation is.
+//
+// Desktop first, mirroring the design's own stylesheet: the sidebar is the base
+// case and the phone bar is the exception, because the exception is the shorter of
+// the two to state. The breakpoint is derived from the token rather than written
+// out - a media query cannot read a custom property, but Sass can subtract, so the
+// figure the palette publishes stays the only copy of it.
+// -----------------------------------------------------------------------------
+
+$dt-breakpoint-phone-max: $dt-breakpoint-phone - 0.02px;
+
+.dt-shell {
+    display: grid;
+    grid-template-columns: var(--dt-nav-width) 1fr;
+    min-height: 100vh;
+    // The viewport a phone actually shows, with the browser's own chrome taken off. Declared after
+    // the `vh` line rather than instead of it, so a browser that does not know the unit keeps the
+    // older answer instead of no answer.
+    min-height: 100dvh;
+}
+
+.dt-main {
+    // Without this a wide table inside a screen widens the shell instead of
+    // scrolling inside it (NFR-22).
+    min-width: 0;
+    padding: var(--dt-space-6);
+    background-color: var(--dt-surface-page);
+}
+
+// The dark navigation surface, flat rather than the scaffold's purple gradient. It
+// scrolls inside itself rather than with the page: an administrator has ten
+// destinations and a foot below them, and a sticky column that cannot scroll is a
+// column whose last link is unreachable on a short screen.
+.dt-nav {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-y: auto;
+    z-index: var(--dt-z-nav);
+    padding: var(--dt-space-3);
+    background-color: var(--dt-nav-bg);
+    color: var(--dt-nav-ink);
+}
+
+// NFR-25: the mark and the wordmark are one lock-up, so the brand is a flex row
+// rather than a glyph that happens to sit before some text - a baseline-aligned
+// glyph drifts as the wordmark's size changes, and that size is a token a later
+// story is free to move.
+.dt-nav__brand {
+    display: flex;
+    align-items: center;
+    padding: var(--dt-space-2);
+    margin-bottom: var(--dt-space-2);
+    color: var(--dt-ink-inverse);
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-h2-font-size);
+    line-height: var(--dt-h2-line-height);
+    font-weight: var(--dt-display-font-weight);
+    text-decoration: none;
+}
+
+// The mark is a tinted tile rather than a box with a size: the glyph inside it is
+// `icon-size`, which is stated relative to the text beside it, so padding is the
+// only figure the tile needs and the whole lock-up scales with the wordmark.
+.dt-nav__mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--dt-space-1);
+    margin-inline-end: var(--dt-space-2);
+    border-radius: var(--dt-radius-sm);
+    background-color: var(--dt-brand);
+    color: var(--dt-ink-inverse);
+}
+
+// Every glyph in the product carries an end margin, because that margin is the gap
+// in an icon-and-text pair. Inside the mark there is no text for it to be beside.
+.dt-nav__mark .dt-icon {
+    margin-inline-end: 0;
+}
+
+.dt-nav__links,
+.dt-nav__foot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-1);
+}
+
+// What pins the foot to the bottom (NFR-25). A client has four destinations and an
+// administrator ten, and without this the account actions would sit under the last
+// link and land somewhere different on every role's screen.
+.dt-nav__spacer {
+    flex: 1;
+}
+
+.dt-nav__foot {
+    border-top: var(--dt-border-width) solid var(--dt-nav-divider);
+    padding-top: var(--dt-space-3);
+}
+
+// The caller's own account, which is what the design puts at the top of the foot.
+.dt-nav__user {
+    display: flex;
+    flex-direction: column;
+}
+
+// The sign-out control is a form post rather than a handler - a Blazor Server
+// component cannot end a cookie session - so the form is a layout element here and
+// has to let its button fill the row the way every other foot item does.
+.dt-nav__foot form {
+    display: flex;
+}
+
+// One row shape for every destination and every account action, whether it is
+// rendered as an anchor or as the submit button of a posting form.
+.dt-nav__link {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    // `touch-target` rather than a figure of its own: below the breakpoint these
+    // links are the whole of the menu, and the floor the design puts under a target
+    // on a phone is the same floor here.
+    min-height: var(--dt-touch-target);
+    padding: var(--dt-space-2);
+    border: 0;
+    border-radius: var(--dt-radius-sm);
+    background: none;
+    color: var(--dt-nav-ink);
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-body-font-size);
+    line-height: var(--dt-body-line-height);
+    font-weight: var(--dt-body-font-weight);
+    text-align: start;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.dt-nav__link:hover {
+    background-color: var(--dt-nav-hover-bg);
+    color: var(--dt-ink-inverse);
+}
+
+// The current destination, painted off the attribute a screen reader is told about
+// rather than off a class beside it: the ARIA state and the fill are then one fact
+// rather than two that can disagree.
+.dt-nav__link[aria-current] {
+    background-color: var(--dt-nav-active-bg);
+    color: var(--dt-ink-inverse);
+    font-weight: var(--dt-label-font-weight);
+}
+
+// The control that reveals the menu below the breakpoint, and the `<details>` it is
+// the `<summary>` of. The whole disclosure is absent above the breakpoint, where the
+// sidebar is always open and there is nothing to reveal - which is also what keeps
+// the user agent's own closed-`<details>` machinery out of the desktop layout
+// entirely. The links and the foot are the disclosure's siblings, not its children,
+// for exactly that reason.
+.dt-nav__disclosure {
+    display: none;
+}
+
+.dt-nav__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--dt-touch-target);
+    min-height: var(--dt-touch-target);
+    padding: var(--dt-space-2) var(--dt-space-3);
+    border: var(--dt-border-width) solid var(--dt-nav-control-border);
+    border-radius: var(--dt-radius-sm);
+    background-color: var(--dt-nav-hover-bg);
+    color: var(--dt-ink-inverse);
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-label-font-size);
+    line-height: var(--dt-label-line-height);
+    font-weight: var(--dt-label-font-weight);
+    cursor: pointer;
+    // A summary is a list item by default and draws a disclosure triangle beside its
+    // content. The glyph is `IconName.Menu`, from the one icon set, so the marker is
+    // taken off in both of the ways browsers offer.
+    list-style: none;
+}
+
+.dt-nav__toggle::-webkit-details-marker {
+    display: none;
+}
+
+// The language switcher: ONE control with two settings rather than two
+// destinations, which is what the pill track says. The highlight is driven by the
+// `aria-current` the buttons already carried - the design draws it off
+// `aria-checked`, and this product has no radio group to carry one, because these
+// are submit buttons that navigate the moment they are pressed.
+.dt-lang {
+    display: flex;
+    gap: var(--dt-space-1);
+    padding: var(--dt-space-1);
+    border: var(--dt-border-width) solid var(--dt-nav-control-border);
+    border-radius: var(--dt-radius-pill);
+    background-color: var(--dt-nav-hover-bg);
+}
+
+.dt-lang button {
+    flex: 1 1 0;
+    min-height: var(--dt-control-height);
+    padding: 0 var(--dt-space-3);
+    border: 0;
+    border-radius: var(--dt-radius-pill);
+    background: none;
+    color: var(--dt-nav-ink);
+    font-family: var(--dt-font-sans);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
+    font-weight: var(--dt-label-font-weight);
+    cursor: pointer;
+}
+
+.dt-lang button[aria-current] {
+    background-color: var(--dt-surface-card);
+    color: var(--dt-ink);
+}
+
+// Below the breakpoint the frame is one column and the navigation is a bar across
+// the top of it: the brand, and a button that reveals the rest.
+@media (max-width: $dt-breakpoint-phone-max) {
+    .dt-shell {
+        grid-template-columns: 1fr;
+        // The bar takes the height it needs and the screen takes the rest. Without the
+        // second row stated, the grid's two implicit rows share a short viewport between
+        // them and the dark navigation absorbs half of it.
+        grid-template-rows: auto 1fr;
+    }
+
+    .dt-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        position: static;
+        max-height: none;
+        overflow-y: visible;
+    }
+
+    .dt-nav__brand {
+        flex: 1;
+        margin-bottom: 0;
+    }
+
+    .dt-nav__disclosure {
+        display: block;
+    }
+
+    .dt-nav__links,
+    .dt-nav__foot,
+    .dt-nav__spacer {
+        display: none;
+    }
+
+    // The reveal. `[open]` is the browser's own state, written by the user agent when
+    // the summary is pressed, so this needs neither a circuit nor a script and reads
+    // the same on a statically rendered page as on an interactive one.
+    .dt-nav__disclosure[open] ~ .dt-nav__links,
+    .dt-nav__disclosure[open] ~ .dt-nav__foot {
+        display: flex;
+        flex-basis: 100%;
+    }
+
+    .dt-main {
+        padding: var(--dt-space-4);
+    }
 }
 
 

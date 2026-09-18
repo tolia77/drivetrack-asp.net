@@ -682,7 +682,11 @@ public class DesignTokenTests
         // looks identical to a ring in a screenshot and in any scan that only counts `outline`.
         var theme = File.ReadAllText(Path.Combine(StylesDirectory, "_theme.scss"));
 
-        var onDark = RuleBody(theme, @"\.sidebar");
+        // The navigation is the anchor because it is the element that paints `nav-bg`. It was
+        // `.sidebar` - the layout's wrapper around the menu - until the shell was rebuilt on the
+        // design system's frame, which has no wrapper: NavMenu's own <nav class="dt-nav"> is the
+        // column, so the surface and the rule that rings what sits on it now name the same element.
+        var onDark = RuleBody(theme, @"\.dt-nav :focus-visible");
         var onPage = RuleBody(theme, @"\.form-control:focus");
 
         Assert.Contains("var(--dt-focus-ring-on-dark)", onDark, StringComparison.Ordinal);

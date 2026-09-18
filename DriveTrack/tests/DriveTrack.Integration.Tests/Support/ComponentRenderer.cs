@@ -75,11 +75,42 @@ internal static class ComponentRenderer
         where TComponent : IComponent =>
         RenderAsync<TComponent>(parameters, configureServices, waitForQuiescence: false, culture);
 
+    /// <summary>
+    /// Renders a component, does something to the world it is watching, and reads the markup back.
+    /// <para>
+    /// The one thing <see cref="RenderAsync{TComponent}"/> cannot show: a component that re-renders
+    /// because something outside it moved. A navigation is the case that matters here - the shell
+    /// subscribes to <c>LocationChanged</c>, and rendering twice at two paths proves only that the
+    /// component reads the path it was handed, not that it notices the path changing under it.
+    /// </para>
+    /// <para>
+    /// <paramref name="act"/> runs on the renderer's own dispatcher, between the first render and
+    /// the read, so a notification raised inside it is dispatched exactly as the framework would
+    /// dispatch it and the re-render it provokes has finished by the time the markup is written.
+    /// </para>
+    /// </summary>
+    /// <typeparam name="TComponent">The component to render.</typeparam>
+    /// <param name="configureServices">The registrations the component needs.</param>
+    /// <param name="act">What to do to the world between the first render and the read.</param>
+    /// <param name="culture">The culture to render under; null is <c>uk-UA</c>.</param>
+    public static Task<string> RenderThenAsync<TComponent>(
+        Action<IServiceCollection> configureServices,
+        Func<IServiceProvider, Task> act,
+        CultureInfo? culture = null)
+        where TComponent : IComponent =>
+        RenderAsync<TComponent>(
+            parameters: null,
+            configureServices,
+            waitForQuiescence: true,
+            culture,
+            act);
+
     private static async Task<string> RenderAsync<TComponent>(
         IDictionary<string, object?>? parameters,
         Action<IServiceCollection>? configureServices,
         bool waitForQuiescence,
-        CultureInfo? culture = null)
+        CultureInfo? culture = null,
+        Func<IServiceProvider, Task>? act = null)
         where TComponent : IComponent
     {
         // The render is done under the culture the application actually runs in rather than the
@@ -114,6 +145,11 @@ internal static class ComponentRenderer
                 }
 
                 var output = await renderer.RenderComponentAsync<TComponent>(view);
+
+                if (act is not null)
+                {
+                    await act(services);
+                }
 
                 return output.ToHtmlString();
             });

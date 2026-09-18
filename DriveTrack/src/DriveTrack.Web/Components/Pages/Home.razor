@@ -5,37 +5,141 @@
 
 <PageTitle>DriveTrack</PageTitle>
 
-<h1 class="dt-type-display">DriveTrack</h1>
+@* FR-99: one landing page, two audiences.
 
-<p class="lead">@Localizer["HomeStatus"]</p>
-
-<ul>
-    <li>@Localizer["HomeFeatureTracking"]</li>
-    <li>@Localizer["HomeFeatureFleet"]</li>
-    <li>@Localizer["HomeFeatureProof"]</li>
-</ul>
-
-@* FR-99: one landing page, two audiences. An anonymous visitor is offered the two anonymous
-   entry points; anyone already signed in is offered the way into the application - and where that
-   is belongs to LandingRoute, which is the one place that knows where a role lands.
+   The hero states what the product is and offers the way in; the three cards below say what each
+   role actually does with it, which is the question a visitor arrives with. The design draws only
+   the anonymous state, and the signed-in one survives beside it: anyone with a session is offered
+   the way into the application instead of the two entry points, and where that is belongs to
+   LandingRoute, which is the one place that knows where a role lands.
 
    NFR-24: every action carries an icon AND its text. An icon on its own is a guess.
 
    Independent @if blocks rather than if/else, and ICurrentUser rather than <AuthorizeView>, so the
    signed-in branch can read the role it needs without a second notion of who the caller is. *@
-@if (Caller.IsAuthenticated)
-{
-    <a class="btn btn-secondary" href="@LandingRoute.For(Caller.Role)">
-        <Icon Name="IconName.Home" />@Localizer["GoToApp"]
-    </a>
-}
 
-@if (!Caller.IsAuthenticated)
-{
-    <a class="btn btn-secondary me-2" href="sign-in">
-        <Icon Name="IconName.SignIn" />@Localizer["SignIn"]
-    </a>
-    <a class="btn btn-outline-primary" href="register">
-        <Icon Name="IconName.Register" />@Localizer["Register"]
-    </a>
-}
+<div class="dt-landing">
+    <section class="dt-landing-hero">
+        <div class="dt-landing-pitch">
+            <div class="dt-landing-eyebrow">
+                <DtBadge Variant="DtBadgeVariant.Role">
+                    <Icon Name="IconName.Vehicles" />@Localizer["HomeHeroBadge"]
+                </DtBadge>
+            </div>
+
+            <h1 class="dt-type-display dt-landing-title">@Localizer["HomeHeroTitle"]</h1>
+
+            <p class="dt-landing-lead dt-muted">@Localizer["HomeStatus"]</p>
+
+            @if (Caller.IsAuthenticated)
+            {
+                <div class="dt-landing-actions">
+                    <a class="btn btn-primary" href="@LandingRoute.For(Caller.Role)">
+                        <Icon Name="IconName.Home" />@Localizer["GoToApp"]
+                    </a>
+                </div>
+            }
+
+            @if (!Caller.IsAuthenticated)
+            {
+                <div class="dt-landing-actions">
+                    <a class="btn btn-primary" href="register">
+                        <Icon Name="IconName.Register" />@Localizer["Register"]
+                    </a>
+                    <a class="btn btn-outline-secondary" href="sign-in">
+                        <Icon Name="IconName.SignIn" />@Localizer["SignIn"]
+                    </a>
+                </div>
+            }
+
+            <p class="dt-landing-note dt-type-small dt-muted">@Localizer["HomeHeroNote"]</p>
+        </div>
+
+        @* An illustration of the product rather than a piece of it: three invented deliveries, drawn
+           in the real vocabulary - the status labels a dispatcher reads, the overdue badge, the
+           column headings the dispatch board uses - so what a visitor is shown is what they will
+           later see. Hidden from assistive technology for the same reason: a screen reader has
+           nothing to do with a picture of a table whose rows do not exist, and the sentence beside
+           it already says what the product does.
+
+           The rows are written as literals rather than as resource keys. The addresses and the time
+           windows are decorative filler, and a key apiece would put invented data in the
+           translation catalogue, where a translator would have to render three Kyiv street names
+           into English - which is not a thing that should happen to a street name. *@
+        <div class="dt-landing-preview" aria-hidden="true">
+            @* The card head carries its title and nothing else. The design draws a create action
+               beside it, and this is the one part of the illustration that could not be borrowed:
+               painted in the real create colour it is pixel-identical to the button that makes a
+               delivery, and `aria-hidden` keeps it from assistive technology but not from a thumb -
+               on a phone it lands directly under the page's own call to action, where a tap that
+               does nothing is the likeliest tap on the screen. A board with its rows is still
+               recognisably the board. *@
+            <DtCard Title="@Localizer["DeliveriesTitle"]">
+                <ChildContent>
+                    <table class="dt-landing-board dt-type-table">
+                        <thead>
+                            <tr>
+                                <th>@Localizer["DeliveryWindow"]</th>
+                                <th>@Localizer["Dropoff"]</th>
+                                <th>@Localizer["Status"]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    09:00–11:00
+                                    <DtBadge Variant="DtBadgeVariant.Overdue">@Localizer["Overdue"]</DtBadge>
+                                </td>
+                                <td>вул. Хрещатик, 22</td>
+                                <td><DeliveryStatusLabel Status="DeliveryStatus.InTransit" /></td>
+                            </tr>
+                            <tr>
+                                <td>11:00–13:00</td>
+                                <td>просп. Перемоги, 5</td>
+                                <td><DeliveryStatusLabel Status="DeliveryStatus.Pending" /></td>
+                            </tr>
+                            <tr>
+                                <td>13:00–15:00</td>
+                                <td>вул. Саксаганського, 40</td>
+                                <td><DeliveryStatusLabel Status="DeliveryStatus.Delivered" /></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </ChildContent>
+            </DtCard>
+        </div>
+    </section>
+
+    @* One card per role that uses the product, in the order the work runs: dispatch plans it, a
+       driver carries it, a client receives it. The glyph in each head is the one the navigation
+       uses for that role's own screens, so the card and the destination it describes are recognisably
+       the same thing. *@
+    <section class="dt-landing-roles">
+        <DtCard Title="@Localizer["HomeForDispatchers"]">
+            <Actions>
+                <Icon Name="IconName.Dispatchers" />
+            </Actions>
+            <ChildContent>
+                <p class="dt-landing-role-body dt-muted">@Localizer["HomeForDispatchersBody"]</p>
+            </ChildContent>
+        </DtCard>
+
+        <DtCard Title="@Localizer["HomeForDrivers"]">
+            <Actions>
+                <Icon Name="IconName.Drivers" />
+            </Actions>
+            <ChildContent>
+                <p class="dt-landing-role-body dt-muted">@Localizer["HomeForDriversBody"]</p>
+            </ChildContent>
+        </DtCard>
+
+        <DtCard Title="@Localizer["HomeForClients"]">
+            <Actions>
+                <Icon Name="IconName.Clients" />
+            </Actions>
+            <ChildContent>
+                <p class="dt-landing-role-body dt-muted">@Localizer["HomeForClientsBody"]</p>
+            </ChildContent>
+        </DtCard>
+    </section>
+</div>

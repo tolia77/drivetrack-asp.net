@@ -83,6 +83,9 @@
   <data name="ErrorRequestId" xml:space="preserve">
     <value>Ідентифікатор запиту:</value>
   </data>
+  <data name="Menu" xml:space="preserve">
+    <value>Меню</value>
+  </data>
   <data name="NavigationMenu" xml:space="preserve">
     <value>Меню навігації</value>
   </data>
@@ -124,14 +127,32 @@
   <data name="Resume" xml:space="preserve">
     <value>Відновити</value>
   </data>
-  <data name="HomeFeatureTracking" xml:space="preserve">
-    <value>Відстеження стану доставки від заявки до вручення.</value>
+  <data name="HomeHeroBadge" xml:space="preserve">
+    <value>Керування доставками</value>
   </data>
-  <data name="HomeFeatureFleet" xml:space="preserve">
-    <value>Облік водіїв, змін та автомобілів парку.</value>
+  <data name="HomeHeroTitle" xml:space="preserve">
+    <value>Кожна доставка вашого кур’єрського парку в одному місці</value>
   </data>
-  <data name="HomeFeatureProof" xml:space="preserve">
-    <value>Підтвердження вручення з фото та підписом отримувача.</value>
+  <data name="HomeHeroNote" xml:space="preserve">
+    <value>Диспетчери та водії отримують облікові записи від адміністратора.</value>
+  </data>
+  <data name="HomeForDispatchers" xml:space="preserve">
+    <value>Для диспетчерів</value>
+  </data>
+  <data name="HomeForDispatchersBody" xml:space="preserve">
+    <value>Плануйте кожну доставку на одній дошці: призначайте водія, позначайте місця забирання та доставляння на карті й стежте за кожною зміною стану.</value>
+  </data>
+  <data name="HomeForDrivers" xml:space="preserve">
+    <value>Для водіїв</value>
+  </data>
+  <data name="HomeForDriversBody" xml:space="preserve">
+    <value>Починайте зміну, дивіться свої доставки за часовими вікнами, змінюйте стан у дорозі та фіксуйте підтвердження вручення на порозі.</value>
+  </data>
+  <data name="HomeForClients" xml:space="preserve">
+    <value>Для клієнтів</value>
+  </data>
+  <data name="HomeForClientsBody" xml:space="preserve">
+    <value>Замовляйте доставку, стежте за її станом і залишайте відгук, коли її виконано.</value>
   </data>
   <data name="GoToApp" xml:space="preserve">
     <value>Перейти до застосунку</value>
@@ -425,6 +446,9 @@
   </data>
   <data name="Pickup" xml:space="preserve">
     <value>Місце забирання</value>
+  </data>
+  <data name="DeliveryWindow" xml:space="preserve">
+    <value>Часове вікно</value>
   </data>
   <data name="Dropoff" xml:space="preserve">
     <value>Місце доставляння</value>

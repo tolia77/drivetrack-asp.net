@@ -34,7 +34,7 @@ public class NotFoundDeliveryTests(PostgresFixture postgres)
         // Inside the shell, not instead of it: the navigation, the brand and the layout are still
         // there, so a caller who mistyped a URL has somewhere to go from where they landed.
         Assert.Contains("<html", body, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("navbar-brand", body, StringComparison.Ordinal);
+        Assert.Contains("dt-nav__brand", body, StringComparison.Ordinal);
 
         // The heading FocusOnNavigate looks for, and the way back.
         Assert.Contains("<h1", body, StringComparison.OrdinalIgnoreCase);

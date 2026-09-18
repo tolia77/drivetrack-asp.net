@@ -7,22 +7,23 @@
    screen to say it. The account actions it was built to hold live in the navigation's own pinned
    foot instead, where the design puts them.
 
-   The connection dock sits outside the page rather than inside it: it is fixed to the viewport and
+   The grid is `dt-shell` and the screen's surface is `dt-main`, both published in `_theme.scss`
+   rather than in this component's own stylesheet. That is not a filing preference: NavMenu renders
+   the column on the left of this grid, so a scoped rule written here would be stamped with this
+   component's scope attribute and match nothing at all.
+
+   The connection dock sits outside the shell rather than inside it: it is fixed to the viewport and
    belongs to the circuit rather than to any screen, and a circuit failure has to be able to show
    itself over whatever the layout happens to be rendering. *@
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<div class="dt-shell">
+    <NavMenu />
 
     <main class="dt-main">
-        <article class="content px-5">
-            @* FR-13: every screen's failures pass through the one boundary. *@
-            <SessionExpiryBoundary>
-                @Body
-            </SessionExpiryBoundary>
-        </article>
+        @* FR-13: every screen's failures pass through the one boundary. *@
+        <SessionExpiryBoundary>
+            @Body
+        </SessionExpiryBoundary>
     </main>
 </div>
 

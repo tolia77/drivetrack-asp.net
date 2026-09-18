@@ -15,180 +15,183 @@
 
    FR-12 again, because it is the part worth repeating: hiding a link is a convenience. Whether a
    caller may perform an operation is settled by IAccessGuard inside the service, which runs
-   whether or not the link was ever rendered. *@
+   whether or not the link was ever rendered.
+
+   The frame is NavigationShell's - brand, links, spacer, foot - and every rule that paints it lives
+   in `_theme.scss` rather than beside this file. A scoped stylesheet is stamped with the scope
+   attribute of the component that owns it, and the shell is drawn by two components, so the class
+   layer has to be global for the layout's half of the grid and this half to be one system. *@
 
 @{
     // Read once per render: ICurrentUser answers from claims, and asking it per block would make
     // the menu's shape depend on how many times it was asked.
     var isSignedIn = Caller.IsAuthenticated;
     var destinations = isSignedIn ? NavDestinations.For(Caller.Role) : NavDestinations.Anonymous;
+
+    // Where the caller is, in the shape the hrefs below are written in. This is what marks the
+    // current destination, and it is deliberately the menu's own answer rather than NavLink's
+    // `active` class - the design paints the current link off `aria-current`, and a state a screen
+    // reader is told about through one mechanism and a sighted reader sees through another is two
+    // facts that can disagree.
+    //
+    // Three things are normalised away, and each of them is a URL the router serves happily while a
+    // naive comparison marks nothing at all: the query string, because the dispatch board is still
+    // the dispatch board with a filter on it; a trailing slash, because `/deliveries/` routes;
+    // and case, because ASP.NET routing is case-insensitive and `/Deliveries` is the same screen.
+    // Lowercased once rather than compared case-insensitively thirteen times - every href below is
+    // a lowercase literal, so the two meet in one spelling.
+    var here = Navigation.ToBaseRelativePath(Navigation.Uri)
+        .Split('?')[0]
+        .Split('#')[0]
+        .Trim('/')
+        .ToLowerInvariant();
 }
 
-<div class="top-row ps-4 navbar navbar-dark">
-    <div class="container-fluid">
-        @* NFR-25: the mark and the wordmark travel together, on every screen. *@
-        <a class="navbar-brand" href="">
-            <Icon Name="IconName.Location" />DriveTrack
-        </a>
-    </div>
-</div>
+<nav class="dt-nav" aria-label="@Localizer["NavigationMenu"]">
+    @* NFR-25: the mark and the wordmark travel together, on every screen. *@
+    <a class="dt-nav__brand" href="@Landing">
+        <span class="dt-nav__mark"><Icon Name="IconName.Location" /></span>DriveTrack
+    </a>
 
-<input type="checkbox" title="@Localizer["NavigationMenu"]" class="navbar-toggler" />
+    @* NFR-22: below the phone breakpoint the links and the foot are behind this control.
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column nav-shell">
-        <div class="nav-destinations">
+       A disclosure rather than a button with a handler, and that is not a style choice. Five
+       components render inside MainLayout with no circuit behind them - SignIn, Register, NotFound,
+       AccessDenied and Error all carry [ExcludeFromInteractiveRouting], for which App.razor hands
+       back a null render mode - so an @@onclick on this control would never be wired on any of them.
+       The sign-in page is the worst of the five to lose: below the breakpoint the language switcher
+       is behind this control, and somebody who cannot read the page cannot sign in to change it.
+
+       `<details>` needs neither a circuit nor a script and behaves the same on every page, and
+       `<summary>` is a disclosure button natively - it exposes the expanded state itself, so there
+       is no `aria-expanded` here to fall out of step with what is actually shown.
+
+       The links and the foot are the disclosure's SIBLINGS rather than its children, revealed by
+       `[open] ~` in the theme. Two reasons, and the second is the one that decides it. The design's
+       phone bar puts the brand and this control on one row with the menu below, which a box
+       containing both cannot do. And above the breakpoint the sidebar must always be open: a closed
+       `<details>` hides its own content through a box no author rule can reach except
+       `::details-content`, which is younger than the browsers this has to work in, and a desktop
+       sidebar that renders empty is a worse failure than the one this control is replacing. With
+       the content outside, the whole disclosure is simply `display: none` above the breakpoint and
+       the links are ordinary elements again.
+
+       Keyed to the current path so a navigation closes it. The open state is the browser's, not
+       this component's, so nothing here can set it back - but a keyed element whose key changes is
+       one Blazor replaces rather than patches, and a fresh `<details>` is a closed one. A statically
+       rendered page needs no such thing: enhanced navigation syncs the attribute away on its own. *@
+    <details class="dt-nav__disclosure" @key="here">
+        <summary class="dt-nav__toggle">
+            <Icon Name="IconName.Menu" />@Localizer["Menu"]
+        </summary>
+    </details>
+
+    <div class="dt-nav__links">
         @if (destinations.Contains(NavDestination.Home))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                    <Icon Name="IconName.Home" />@Localizer["NavHome"]
-                </NavLink>
-            </div>
-        }
-
-        @if (destinations.Contains(NavDestination.Profile))
-        {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="profile">
-                    <Icon Name="IconName.Profile" />@Localizer["Profile"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="@Landing" aria-current="@(here == Landing ? "page" : null)">
+                <Icon Name="IconName.Home" />@Localizer["NavHome"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.Drivers))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="drivers">
-                    <Icon Name="IconName.Drivers" />@Localizer["NavDrivers"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="drivers" aria-current="@(here == "drivers" ? "page" : null)">
+                <Icon Name="IconName.Drivers" />@Localizer["NavDrivers"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.Vehicles))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="vehicles">
-                    <Icon Name="IconName.Vehicles" />@Localizer["NavVehicles"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="vehicles" aria-current="@(here == "vehicles" ? "page" : null)">
+                <Icon Name="IconName.Vehicles" />@Localizer["NavVehicles"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.Deliveries))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="deliveries">
-                    <Icon Name="IconName.Deliveries" />@Localizer["NavDeliveries"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="deliveries" aria-current="@(here == "deliveries" ? "page" : null)">
+                <Icon Name="IconName.Deliveries" />@Localizer["NavDeliveries"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.MyDeliveries))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="my-deliveries">
-                    <Icon Name="IconName.Deliveries" />@Localizer["NavMyDeliveries"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="my-deliveries" aria-current="@(here == "my-deliveries" ? "page" : null)">
+                <Icon Name="IconName.Deliveries" />@Localizer["NavMyDeliveries"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.Shifts))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="shifts">
-                    <Icon Name="IconName.Shifts" />@Localizer["NavShifts"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="shifts" aria-current="@(here == "shifts" ? "page" : null)">
+                <Icon Name="IconName.Shifts" />@Localizer["NavShifts"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.MyShifts))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="my-shifts">
-                    <Icon Name="IconName.Shifts" />@Localizer["NavMyShifts"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="my-shifts" aria-current="@(here == "my-shifts" ? "page" : null)">
+                <Icon Name="IconName.Shifts" />@Localizer["NavMyShifts"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.Clients))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="clients">
-                    <Icon Name="IconName.Clients" />@Localizer["NavClients"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="clients" aria-current="@(here == "clients" ? "page" : null)">
+                <Icon Name="IconName.Clients" />@Localizer["NavClients"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.Dispatchers))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="dispatchers">
-                    <Icon Name="IconName.Dispatchers" />@Localizer["NavDispatchers"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="dispatchers" aria-current="@(here == "dispatchers" ? "page" : null)">
+                <Icon Name="IconName.Dispatchers" />@Localizer["NavDispatchers"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.Chat))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="chat">
-                    <Icon Name="IconName.Chat" />@Localizer["NavChat"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="chat" aria-current="@(here == "chat" ? "page" : null)">
+                <Icon Name="IconName.Chat" />@Localizer["NavChat"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.Reviews))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="reviews">
-                    <Icon Name="IconName.Reviews" />@Localizer["NavReviews"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="reviews" aria-current="@(here == "reviews" ? "page" : null)">
+                <Icon Name="IconName.Reviews" />@Localizer["NavReviews"]
+            </a>
         }
 
         @if (destinations.Contains(NavDestination.Notifications))
         {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="notifications">
-                    <Icon Name="IconName.Notifications" />@Localizer["NavNotifications"]
-                </NavLink>
-            </div>
+            <a class="dt-nav__link" href="notifications" aria-current="@(here == "notifications" ? "page" : null)">
+                <Icon Name="IconName.Notifications" />@Localizer["NavNotifications"]
+            </a>
         }
+    </div>
 
-        </div>
+    @* What pins the foot to the bottom of the frame. Every role has a different number of
+       destinations - a client four, an administrator ten - and without this the account actions
+       would sit directly under the last link and land somewhere different on every screen. *@
+    <div class="dt-nav__spacer"></div>
 
-        @* The pinned foot. Every role has a different number of destinations - a client four, an
-           administrator ten - and without this the account actions would sit directly under the
-           last link and land somewhere different on every screen. `margin-top: auto` in the
-           stylesheet puts them at the bottom of the frame instead, so a short list and a long list
-           share one shape.
-
-           The account actions are not destinations: they change who the caller is rather than where
-           they are, so they sit outside the destination table. *@
-        <div class="nav-foot">
-        @if (isSignedIn)
+    @* The pinned foot. The account actions are not destinations: they change who the caller is
+       rather than where they are, so they sit outside the destination table. *@
+    <div class="dt-nav__foot">
+        @* NavigationShell's user block. The design fills it with the caller's name and role, and
+           this product's shell knows neither: ICurrentUser answers a role that may be read exactly
+           once per render - it is what the destination table is built from - and there is no
+           display name anywhere in the claim set. What the block can honestly hold is the caller's
+           own record, so the profile destination is rendered here rather than among the places to
+           go: it is the one link in the menu that is about who you are rather than where. *@
+        @if (destinations.Contains(NavDestination.Profile))
         {
-            <div class="nav-item px-4">
-                <form method="post" action="/sign-out">
-                    <AntiforgeryToken />
-                    <button class="nav-link btn btn-link" type="submit">
-                        <Icon Name="IconName.SignOut" />@Localizer["SignOut"]
-                    </button>
-                </form>
-            </div>
-        }
-
-        @if (!isSignedIn)
-        {
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="sign-in">
-                    <Icon Name="IconName.SignIn" />@Localizer["SignIn"]
-                </NavLink>
-            </div>
-            <div class="nav-item px-4">
-                <NavLink class="nav-link" href="register">
-                    <Icon Name="IconName.Register" />@Localizer["Register"]
-                </NavLink>
+            <div class="dt-nav__user">
+                <a class="dt-nav__link" href="profile" aria-current="@(here == "profile" ? "page" : null)">
+                    <Icon Name="IconName.Profile" />@Localizer["Profile"]
+                </a>
             </div>
         }
 
@@ -203,32 +206,58 @@
            an antiforgery token, and a full-page navigation that comes back in the other language.
 
            Each language names itself in the catalogue's own words, so the two buttons read
-           "Українська / Англійська" on a Ukrainian page and "Ukrainian / English" on an English
-           one. aria-current marks the one already in force; it is not disabled, because a control
-           that vanishes from the tab order is a control a keyboard user cannot find again.
+           "Українська / English" whichever page they are read on. aria-current marks the one
+           already in force; it is not disabled, because a control that vanishes from the tab order
+           is a control a keyboard user cannot find again.
 
-           No radio semantics. These are submit buttons that navigate the moment they are pressed,
-           which is not what a radio group is: that pattern promises arrow-key selection between
-           options and a separate moment where the choice is committed, and neither exists here.
-           Claiming it would override the buttons' own role, suppress the form, and state the
-           current setting twice. aria-current is the single statement of which language is in
-           force, and it is the one this product can keep. *@
-        <div class="nav-item px-4">
-            <form class="nav-language" method="post" action="/set-culture"
-                  aria-label="@Localizer["Language"]">
+           The design draws this as `role="radiogroup"` with two `role="radio"` settings, and the
+           pill track below is that visual. The roles themselves are deliberately not adopted: these
+           are submit buttons that navigate the moment they are pressed, which is not a radio
+           group's promise - that pattern offers arrow-key selection between options and a separate
+           moment where the choice is committed, and neither exists here. Claiming it would override
+           the buttons' own role, suppress the form, and state the current setting twice.
+           aria-current is the single statement of which language is in force, and `.dt-lang` paints
+           the highlight off that same attribute. *@
+        <form class="dt-lang" method="post" action="/set-culture" aria-label="@Localizer["Language"]">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+            <button type="submit" name="culture" value="uk-UA"
+                    aria-current="@(IsUkrainian ? "true" : null)">@Localizer["LanguageUkrainian"]</button>
+            <button type="submit" name="culture" value="en-US"
+                    aria-current="@(IsUkrainian ? null : "true")">@Localizer["LanguageEnglish"]</button>
+        </form>
+
+        @if (isSignedIn)
+        {
+            <form method="post" action="/sign-out">
                 <AntiforgeryToken />
-                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
-                <button class="nav-link btn btn-link" type="submit" name="culture" value="uk-UA"
-                        aria-current="@(IsUkrainian ? "true" : null)">@Localizer["LanguageUkrainian"]</button>
-                <button class="nav-link btn btn-link" type="submit" name="culture" value="en-US"
-                        aria-current="@(IsUkrainian ? null : "true")">@Localizer["LanguageEnglish"]</button>
+                <button class="dt-nav__link" type="submit">
+                    <Icon Name="IconName.SignOut" />@Localizer["SignOut"]
+                </button>
             </form>
-        </div>
-        </div>
-    </nav>
-</div>
+        }
+
+        @if (!isSignedIn)
+        {
+            <a class="dt-nav__link" href="sign-in">
+                <Icon Name="IconName.SignIn" />@Localizer["SignIn"]
+            </a>
+            <a class="dt-nav__link" href="register">
+                <Icon Name="IconName.Register" />@Localizer["Register"]
+            </a>
+        }
+    </div>
+</nav>
 
 @code {
+    // The landing page's address: the empty base-relative path, which `<base href="/">` resolves to
+    // the root. Named rather than written as a literal `href=""`, and for a Razor reason rather than
+    // a product one: the compiler turns an empty literal attribute on an ELEMENT into a minimized
+    // one, which renders as a bare `href` with no value at all. That is a valid anchor and it goes
+    // to the right place, but it is not what a reader of this file would predict and it is not an
+    // address anything reading the rendered page can see. An expression renders `href=""`.
+    private const string Landing = "";
+
     // Where the switch comes back to. Read per render rather than captured once, and the
     // subscription below is what makes "per render" mean "per navigation": nothing else in this
     // component changes when the route does, so without it a caller who navigated three screens
