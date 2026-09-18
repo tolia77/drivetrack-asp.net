@@ -1,0 +1,63 @@
+@inject IStringLocalizer<UiText> Localizer
+
+@* FR-71: the rule between two days of one conversation.
+
+   Chat keeps its whole history, so a conversation is read as a run of days rather than as one list.
+   Without this a line from March is read as one from this morning - the bubble's own meta carries
+   the date, but a reader scanning a column of messages is not reading meta lines.
+
+   Its own component rather than a block inside the screen's loop, and for the same reason ChatLine
+   is one: the conversation arrives over a live hub connection, so a statically rendered screen never
+   reaches a state with two days in it and nothing in this solution could read a separator back.
+   Given an instant and the present, this renders on its own (DW-17, DW-18).
+
+   `role="presentation"`, because this <li> is a heading over the conversation and not a line of it.
+   The list around it is the message list, and an unqualified <li> would be counted as one - a screen
+   reader announcing "list, nine items" over a conversation of six messages and three days. The role
+   drops this element's own listitem semantics and keeps its contents in the tree, so the day is
+   still read out where it stands.
+
+   Both instants are parameters rather than readings of a clock here. `Now` is read once per render
+   by the screen and handed down: read per branch, a midnight ticking between two of the three
+   questions below renders a separator carrying two labels or none at all.
+
+   Independent @if blocks and one literal localizer key per string, for the reason the screens
+   state: an `else` at markup level reads to NFR-14's scan as a rendered English word. *@
+
+<li class="dt-chat-day" role="presentation">
+    @if (ChatViews.NamesTheDayAsToday(SentAt, Now))
+    {
+        <span class="dt-chat-day__label">@Localizer["ChatToday"]</span>
+    }
+    @if (ChatViews.NamesTheDayAsYesterday(SentAt, Now))
+    {
+        <span class="dt-chat-day__label">@Localizer["ChatYesterday"]</span>
+    }
+    @* Everything older than yesterday says which day it was. *@
+    @if (ChatViews.NamesTheDayByDate(SentAt, Now))
+    {
+        <span class="dt-chat-day__label">@Date</span>
+    }
+</li>
+
+@code {
+    /// <summary>When the first line under this separator was sent.</summary>
+    [Parameter]
+    [EditorRequired]
+    public DateTimeOffset SentAt { get; set; }
+
+    /// <summary>
+    /// The present the day is named against, read once per render by the screen that owns the clock.
+    /// </summary>
+    [Parameter]
+    [EditorRequired]
+    public DateTimeOffset Now { get; set; }
+
+    /// <summary>
+    /// The date this separator carries, in the culture the application runs in (NFR-15). Date only:
+    /// the clock reading is on every bubble below it, and a separator repeating one of them would be
+    /// a heading naming a single line rather than the day it opens.
+    /// </summary>
+    private string Date =>
+        SentAt.ToLocalTime().ToString("d", System.Globalization.CultureInfo.CurrentCulture);
+}

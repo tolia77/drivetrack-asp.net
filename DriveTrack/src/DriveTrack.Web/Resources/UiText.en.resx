@@ -688,6 +688,24 @@
   <data name="ChatNotParticipant" xml:space="preserve">
     <value>Conversations are held by dispatchers and drivers. Your role has no access to them.</value>
   </data>
+  <data name="ChatFindDriver" xml:space="preserve">
+    <value>Find a driver</value>
+  </data>
+  <data name="ChatToday" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="ChatYesterday" xml:space="preserve">
+    <value>Yesterday</value>
+  </data>
+  <data name="ChatDisconnected" xml:space="preserve">
+    <value>The conversation has lost its connection. Reconnecting…</value>
+  </data>
+  <data name="ChatConnectionLost" xml:space="preserve">
+    <value>The conversation has lost its connection. Reload the page.</value>
+  </data>
+  <data name="ChatNoDriverFound" xml:space="preserve">
+    <value>No driver was found.</value>
+  </data>
   <data name="NavReviews" xml:space="preserve">
     <value>Reviews</value>
   </data>

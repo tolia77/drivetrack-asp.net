@@ -1,0 +1,81 @@
+@inject IStringLocalizer<UiText> Localizer
+
+@* FR-68: one conversation in the dispatch desk's roster.
+
+   Its own component rather than a block inside the screen's @foreach, and the reason is testable
+   rendering: the roster arrives over a live hub connection, so a statically rendered screen never
+   holds a row and nothing in this solution could read one back. Given its summary as a parameter,
+   this renders on its own (DW-17, DW-18) - which is what makes the name, the vehicle, the plate,
+   the duty badge and `aria-current` assertable at all.
+
+   A bare <button> rather than a `.btn`: this is not an action on a record, it is a row of a list
+   that happens to be operable, and every framework button treatment fights the three stacked facts
+   inside it.
+
+   Independent @if blocks and one literal localizer key per string, for the reason the screens
+   state: an `else` at markup level reads to NFR-14's scan as a rendered English word. *@
+
+<li>
+    @* aria-current on the open one, decided in ChatViews rather than here. It is the only thing
+       that tells a screen-reader user which of twelve conversations is the one on the right of the
+       card - the fill and the edge bar that say so to everyone else are invisible to them. *@
+    <button type="button"
+            class="dt-chat-thread"
+            aria-current="@(ChatViews.OpenThreadMark(Summary!.DriverId, OpenDriverId))"
+            @onclick="OnOpen">
+        <span class="dt-chat-thread__name">@Summary.DriverName</span>
+
+        @* What the chat service had already loaded and was throwing away. Two drivers can share a
+           display name; the van and the plate are what tell them apart, and the duty badge is what
+           says whether the person being written to is at the wheel at all. Absent means absent - a
+           driver with no vehicle gets no blank line where one would be. *@
+        @if (Summary.VehicleModel is not null)
+        {
+            <span class="dt-chat-thread__vehicle">@Summary.VehicleModel</span>
+        }
+        @if (Summary.VehicleLicensePlate is not null)
+        {
+            <span class="dt-chat-thread__plate">@Summary.VehicleLicensePlate</span>
+        }
+        @if (Summary.OnDuty)
+        {
+            <DtBadge Class="dt-chat-thread__duty">@Localizer["ShiftOpen"]</DtBadge>
+        }
+        @* The off state wears the muted class rather than a colour of its own, which is how the
+           design draws the absence of something. *@
+        @if (!Summary.OnDuty)
+        {
+            <DtBadge Class="dt-chat-thread__duty dt-muted">@Localizer["ShiftClosed"]</DtBadge>
+        }
+    </button>
+</li>
+
+@code {
+    /// <summary>The roster row this renders.</summary>
+    [Parameter]
+    [EditorRequired]
+    public ChatThreadSummaryView? Summary { get; set; }
+
+    /// <summary>
+    /// The conversation currently on screen, or null when none is open. A plain number because that
+    /// is what crosses the interop boundary; nothing authorizes on it.
+    /// </summary>
+    [Parameter]
+    public int? OpenDriverId { get; set; }
+
+    /// <summary>
+    /// What opening this conversation does. A <see cref="Func{TResult}"/> rather than an
+    /// <c>EventCallback</c> so the screen can hand over the handler it already builds in C# — a
+    /// <c>=&gt;</c> written in an attribute closes the tag as far as NFR-14's markup scan is
+    /// concerned, and everything after it is read as rendered English.
+    /// </summary>
+    /// <remarks>
+    /// Non-null with a default that does nothing, because <c>@@onclick</c> hands this straight to
+    /// <c>EventCallback.Factory</c> and a null delegate there is a warning the build treats as an
+    /// error. A row that was given no handler is a row that does nothing when pressed, which is the
+    /// honest reading of not being given one.
+    /// </remarks>
+    [Parameter]
+    [EditorRequired]
+    public Func<Task> OnOpen { get; set; } = () => Task.CompletedTask;
+}

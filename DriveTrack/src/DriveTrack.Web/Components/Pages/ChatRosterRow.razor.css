@@ -1,0 +1,103 @@
+/*
+    The roster row (FR-68). Scoped to the component that writes the <button> rather than to the
+    screen around it: a `.razor.css` is compiled against its own component's markup, so a row rule
+    left in `Chat.razor.css` would carry the screen's scope attribute and match nothing at all -
+    the mistake that once left the bubble rules matching nothing.
+
+    Every palette value is a `--dt-*` token. What stays literal is geometry NFR-29's scan does not
+    read - the grid's two tracks, `width`, `justify-self` - and the breakpoint, which a media query
+    cannot read from a custom property. It is written as `640.98px` for the reason the other
+    stylesheets write it that way: `_theme.scss` states the shell's edge as
+    `$dt-breakpoint-phone-max`, and plain CSS cannot see a Sass variable.
+*/
+
+/*
+    Full width and leading-aligned, so twelve names form a column rather than twelve centred labels.
+
+    The leading border is declared here, transparent, and only recoloured when the row is the open
+    one. Added on selection instead, it would widen the row's box by two pixels and shunt every name
+    sideways as a dispatcher clicked down the list.
+*/
+.dt-chat-thread {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: var(--dt-space-1) var(--dt-space-2);
+    width: 100%;
+    padding: var(--dt-space-3);
+    border: 0;
+    border-inline-start: var(--dt-border-width-focus) solid transparent;
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
+    background-color: var(--dt-surface-card);
+    color: var(--dt-ink);
+    text-align: start;
+    cursor: pointer;
+}
+
+.dt-chat-thread:hover {
+    background-color: var(--dt-surface-hover);
+}
+
+/*
+    The ring drawn inside the row rather than outside it: the roster is a scroll box, and an outline
+    offset outwards is an outline that box clips away on the first and last rows.
+*/
+.dt-chat-thread:focus-visible {
+    outline: var(--dt-border-width-focus) solid var(--dt-focus-ring);
+    outline-offset: calc(var(--dt-border-width-focus) * -1);
+}
+
+/*
+    The open conversation. Marked by the tinted fill and by the bar on its leading edge, never by the
+    fill alone - the fill is a shade of the same surface and disappears for a reader who cannot
+    separate the two. The `aria-current` the markup writes is the third signal, and the only one a
+    screen reader has.
+*/
+.dt-chat-thread[aria-current] {
+    border-inline-start-color: var(--dt-brand);
+    background-color: var(--dt-surface-hover);
+}
+
+.dt-chat-thread__name {
+    grid-column: 1;
+    font-weight: var(--dt-label-font-weight);
+}
+
+/*
+    The vehicle and its plate, on the line under the name and in the muted ink a secondary fact
+    takes. The plate is the one value in this product that is always set in the mono face - a plate
+    is an identifier, and reading one letter by letter is what a reader does with it.
+*/
+.dt-chat-thread__vehicle,
+.dt-chat-thread__plate {
+    grid-column: 1;
+    color: var(--dt-ink-muted);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
+}
+
+.dt-chat-thread__plate {
+    font-family: var(--dt-font-mono);
+    font-size: var(--dt-code-font-size);
+    line-height: var(--dt-code-line-height);
+}
+
+/*
+    The duty badge holds the trailing column across both of the row's lines.
+
+    `::deep`, because the badge is DtBadge's own element: a scoped stylesheet reaches only the markup
+    its component writes, so the class handed to that component is on a <span> carrying its scope
+    rather than this one's. The row is the anchor, and it is written here.
+*/
+.dt-chat-thread ::deep .dt-chat-thread__duty {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    justify-self: end;
+}
+
+/* A row is something a thumb has to land on, like every other control on a phone screen. */
+@media (max-width: 640.98px) {
+    .dt-chat-thread {
+        min-height: var(--dt-touch-target);
+    }
+}

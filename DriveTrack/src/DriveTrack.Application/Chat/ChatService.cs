@@ -60,9 +60,16 @@ public sealed class ChatService(
         return
         [
             .. roster
+                // Everything the row carries comes out of the summary the driver capability already
+                // returned. The vehicle, its plate and the duty flag were being read and dropped on
+                // the floor; the roster shows them, which costs no query and no round trip and is
+                // what lets a dispatcher tell two drivers of the same name apart.
                 .Select(driver => new ChatThreadSummary(
                     driver.Id,
-                    DisplayName(driver.FirstName, driver.LastName)))
+                    DisplayName(driver.FirstName, driver.LastName),
+                    driver.VehicleModel,
+                    driver.VehicleLicensePlate,
+                    driver.OnDuty))
                 // FR-68 names the roster by person, so it is ordered by person. The driver
                 // capability orders its own list by row id, which is the order they were taken on -
                 // useful for a fleet roster and meaningless in a list somebody scans for a name.

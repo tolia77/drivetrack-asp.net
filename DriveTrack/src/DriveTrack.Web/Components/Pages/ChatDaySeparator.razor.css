@@ -1,0 +1,29 @@
+/*
+    The day separator (FR-71), scoped to the component that writes the <li> rather than to the screen
+    around it: a `.razor.css` is compiled against its own component's markup, so a rule left in
+    `Chat.razor.css` would carry the screen's scope attribute and match nothing at all.
+
+    Every palette value is a `--dt-*` token; `display` and `justify-content` are geometry, which
+    NFR-29's scan deliberately does not read.
+*/
+
+/*
+    Centred, so it reads as a rule across the conversation rather than as a message from either side.
+    Full width with centred content rather than `align-self: center`, because this <li> is a flex
+    item of the message column and a shrink-wrapped one would take the leading edge.
+*/
+.dt-chat-day {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--dt-space-2);
+}
+
+.dt-chat-day__label {
+    padding: var(--dt-space-1) var(--dt-space-3);
+    border-radius: var(--dt-radius-pill);
+    background-color: var(--dt-surface-sunken);
+    color: var(--dt-ink-muted);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
+    font-weight: var(--dt-label-font-weight);
+}

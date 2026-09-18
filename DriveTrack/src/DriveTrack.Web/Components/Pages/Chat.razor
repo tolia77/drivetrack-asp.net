@@ -2,6 +2,11 @@
 @attribute [Authorize]
 @inject ICurrentUser Caller
 @inject IJSRuntime JS
+@* AD-13's clock rather than the ambient one, for the day separators: "today" is a claim about the
+   present, and a screen that read DateTimeOffset.Now would be the one place in the product that
+   answered it from a clock no test can set. The zone it is reckoned in is the host's - this is a
+   Blazor Server circuit, so nothing here can see the browser's offset without asking for it. *@
+@inject TimeProvider Clock
 @inject IStringLocalizer<UiText> Localizer
 @implements IAsyncDisposable
 
@@ -30,95 +35,213 @@
 
 <PageTitle>@Localizer["ChatTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">
-    <Icon Name="IconName.Chat" />@Localizer["ChatTitle"]
-</h1>
+@* One reading of the clock for the whole render, handed to every day separator below. Read per
+   branch instead, a midnight ticking between two of the three questions a separator asks renders
+   that separator carrying two labels or none at all.
 
-<DtFailureBanner Failures="_failures" />
+   At the top of the markup rather than beside the list it serves, and that is forced: a bare
+   statement inside a `@@if` block is markup as far as NFR-14's scan is concerned, and it reads
+   `var now = Now;` as three rendered English words. A `@@{ }` block is code the scan removes, and
+   Razor only accepts one where it is not already inside a code block. *@
+@{ var now = Now; }
 
-@if (!_isParticipant)
-{
-    <p class="dt-chat-empty" role="status">
-        <Icon Name="IconName.Forbidden" />@Localizer["ChatNotParticipant"]
-    </p>
-}
+@* The screen is a column that fills what the shell gives it, and the card takes whatever is left
+   after the heading and the banner. That is what the column is for: the card used to be a fixed
+   `100dvh` less a figure tuned to the heading alone, so the first refusal - which this screen
+   deliberately renders above the card - pushed the composer off the bottom of the viewport, which
+   is the exact failure a bounded card exists to prevent. *@
+<div class="dt-chat-screen">
+    <div class="dt-page-head mb-4">
+        <h1 class="dt-type-h1">
+            <Icon Name="IconName.Chat" />@Localizer["ChatTitle"]
+        </h1>
+    </div>
 
-@if (_isParticipant)
-{
-    <div class="dt-chat">
-        @if (_showsRoster)
+    @* Above the card rather than inside it. Every refusal the hub can answer with arrives here -
+       including CHAT_MESSAGE_TOO_LONG, which is about the line still sitting in the composer - and a
+       banner inside a panel that scrolls is a banner that can be scrolled out of sight. *@
+    <DtFailureBanner Failures="_failures" />
+
+    @if (!_isParticipant)
+    {
+        <p class="dt-chat-empty" role="status">
+            <Icon Name="IconName.Forbidden" />@Localizer["ChatNotParticipant"]
+        </p>
+    }
+
+    @if (_isParticipant)
+    {
+        @* The hub is down, and this is the only thing that can say so. The module reconnects in the
+           background and says nothing while it does, so a driver at a doorstep goes on typing into a
+           connection that is gone and finds out when Send fails.
+
+           Outside the conversation rather than inside it, and that is the whole point of where it
+           sits: a dispatcher who has not picked anyone yet has no conversation on screen, and a dock
+           nested in one would leave the roster looking perfectly live while nothing it opened could
+           ever load.
+
+           A different failure from the circuit's, which MainLayout's own dock speaks for: the page is
+           alive, the conversation is not. Nothing here is a copy of that dock - they are two
+           failures, and a caller shown one of them learns nothing about the other. *@
+        @if (_hubDown)
         {
-            <nav class="dt-chat-roster" aria-label="@Localizer["ChatThreads"]">
-                @foreach (var summary in _threads)
+            <p class="dt-chat-dock" role="alert">
+                <span class="dt-chat-dock__dot" aria-hidden="true"></span>
+                @* Still retrying, and saying so. *@
+                @if (!_hubGaveUp)
                 {
-                    <button type="button" class="btn btn-outline-secondary dt-chat-thread" @onclick="Open(summary)">
-                        <Icon Name="IconName.Chat" />@summary.DriverName
-                    </button>
+                    <span class="dt-chat-dock__text">@Localizer["ChatDisconnected"]</span>
                 }
-            </nav>
+                @* The retries have stopped, so the sentence stops promising a reconnection that is
+                   not coming and offers the one way out there is. Without this the screen sits under
+                   "reconnecting…" for the rest of the session. *@
+                @if (_hubGaveUp)
+                {
+                    <span class="dt-chat-dock__text">@Localizer["ChatConnectionLost"]</span>
+                    <a href="." class="dt-chat-dock__action">@Localizer["Reload"]</a>
+                }
+            </p>
         }
 
-        <section class="dt-chat-thread-panel">
-            @* The header names who the caller is talking to, which is a different person on each
-               side of the same conversation. *@
-            <h2 class="dt-chat-header dt-type-h2">
-                @if (ChatViews.NamesTheDispatchDesk(_role))
-                {
-                    <span>@Localizer["ChatDispatchDesk"]</span>
-                }
-                @if (ChatViews.NamesTheSelectedDriver(_role, _thread is not null))
-                {
-                    <span>@SelectedDriverName</span>
-                }
+        <div class="dt-chat">
+            @if (_showsRoster)
+            {
+                <nav class="dt-chat-roster" aria-label="@Localizer["ChatThreads"]">
+                    @* The search stays put while the roster scrolls under it. A fleet is longer than the
+                       panel, and a box that scrolled away with the rows would be a box a dispatcher has
+                       to scroll back up to reach every time they narrow the list. No visible label: the
+                       panel is already named "Водії" by the nav around it, and a second heading directly
+                       under the first names the same list twice. *@
+                    <div class="dt-chat-search">
+                        <Icon Name="IconName.Search" />
+                        <input id="chat-roster-search"
+                               type="search"
+                               class="form-control dt-chat-search__box"
+                               @bind="_search"
+                               @bind:event="oninput"
+                               placeholder="@Localizer["ChatFindDriver"]"
+                               aria-label="@Localizer["ChatFindDriver"]" />
+                    </div>
+
+                    @* A list, because it is one: a screen reader is told how many conversations there
+                       are before it starts reading names, which a run of loose buttons cannot say.
+
+                       Keyed on the driver, because the membership of this list changes on every
+                       keystroke in the box above: diffed by position, Blazor would hand row three's
+                       component the state of whatever used to be third and a dispatcher would watch
+                       names swap under the cursor as they typed. *@
+                    <ul class="dt-chat-threads">
+                        @foreach (var summary in VisibleThreads)
+                        {
+                            <ChatRosterRow @key="summary.DriverId"
+                                           Summary="summary"
+                                           OpenDriverId="_thread?.DriverId"
+                                           OnOpen="Open(summary)" />
+                        }
+                    </ul>
+
+                    @* A filter that matched nobody says so. A blank column under a box somebody has
+                       just typed into reads as a roster that failed to load, and the only way to tell
+                       the two apart is to clear the box and see whether anything comes back. *@
+                    @if (FilterFoundNothing)
+                    {
+                        <p class="dt-chat-empty" role="status">@Localizer["ChatNoDriverFound"]</p>
+                    }
+                </nav>
+            }
+
+            <section class="dt-chat-thread-panel">
+                @* The header names who the caller is talking to, which is a different person on each
+                   side of the same conversation. *@
+                <h2 class="dt-chat-header dt-type-h2">
+                    @if (ChatViews.NamesTheDispatchDesk(_role))
+                    {
+                        <span>@Localizer["ChatDispatchDesk"]</span>
+                    }
+                    @if (ChatViews.NamesTheSelectedDriver(_role, _thread is not null))
+                    {
+                        <span>@SelectedDriverName</span>
+                    }
+                    @if (ChatViews.AsksForAThread(_role, _thread is not null))
+                    {
+                        <span>@Localizer["ChatThreads"]</span>
+                    }
+                </h2>
+
                 @if (ChatViews.AsksForAThread(_role, _thread is not null))
                 {
-                    <span>@Localizer["ChatThreads"]</span>
+                    <p class="dt-chat-empty" role="status">@Localizer["ChatSelectThread"]</p>
                 }
-            </h2>
 
-            @if (ChatViews.AsksForAThread(_role, _thread is not null))
-            {
-                <p class="dt-chat-empty" role="status">@Localizer["ChatSelectThread"]</p>
-            }
-
-            @if (_thread is not null)
-            {
-                @* aria-live, because a message that arrives while the caller is reading something
-                   else is announced rather than silently appended. *@
-                <ol id="@_listId"
-                    class="dt-chat-messages"
-                    aria-live="polite"
-                    aria-label="@Localizer["ChatConversation"]">
-                    @foreach (var message in _thread.Messages)
-                    {
-                        <ChatLine Message="message" ViewerUserId="_callerUserId" />
-                    }
-                </ol>
-
-                @if (_thread.Messages.Count == 0)
+                @if (_thread is not null)
                 {
-                    <p class="dt-chat-empty" role="status">@Localizer["ChatNoMessages"]</p>
-                }
+                    @* aria-live, because a message that arrives while the caller is reading something
+                       else is announced rather than silently appended. *@
+                    <ol id="@_listId"
+                        class="dt-chat-messages"
+                        aria-live="polite"
+                        aria-label="@Localizer["ChatConversation"]">
+                        @* Over positions rather than over the lines themselves, because the grouping
+                           decision needs the line before this one and an element alone cannot name it.
+                           The three helpers below are one line each: what the markup can name here is a
+                           position, and turning that position into the instants the decision takes is
+                           the whole of their job.
 
-                <div class="dt-chat-composer">
-                    <input class="form-control dt-chat-input"
-                           @bind="_draft"
-                           @bind:event="oninput"
-                           placeholder="@Localizer["ChatMessagePlaceholder"]"
-                           aria-label="@Localizer["ChatMessagePlaceholder"]" />
-                    @* Disabled while a send is in flight: a double-click must not persist two rows,
-                       and there is no dedupe anywhere downstream to undo one that did. *@
-                    <button type="button"
-                            class="btn btn-primary dt-chat-send"
-                            disabled="@_sending"
-                            @onclick="SendAsync">
-                        <Icon Name="IconName.Send" />@Localizer["ChatSend"]
-                    </button>
-                </div>
-            }
-        </section>
-    </div>
-}
+                           A range rather than a `for` header, and the reason is NFR-14's scan: a `<` in
+                           markup-level C# opens a tag as far as that scan is concerned, and everything
+                           in front of it is then read as rendered English.
+
+                           Both children are keyed, because this list interleaves two component types
+                           and grows from the top as history is rejoined: diffed by position, Blazor
+                           would hand a bubble the state of the separator that used to sit at its index.
+                           The keys cannot collide - a message id is an int and a separator's is the
+                           day it opens. *@
+                        @foreach (var index in Enumerable.Range(0, _thread.Messages.Count))
+                        {
+                            @if (StartsADay(index))
+                            {
+                                <ChatDaySeparator @key="DayOf(index)" SentAt="SentAt(index)" Now="now" />
+                            }
+
+                            <ChatLine @key="Line(index).Id" Message="Line(index)" ViewerUserId="_callerUserId" />
+                        }
+                    </ol>
+
+                    @if (_thread.Messages.Count == 0)
+                    {
+                        <p class="dt-chat-empty" role="status">@Localizer["ChatNoMessages"]</p>
+                    }
+
+                    @* A form rather than a div, so Enter sends. The default submission is prevented
+                       because nothing is posted: the message goes over the hub, and a GET to this same
+                       address would take the conversation off the screen. *@
+                    <form class="dt-chat-composer" @onsubmit="SendAsync" @onsubmit:preventDefault>
+                        <input class="form-control dt-chat-input"
+                               @bind="_draft"
+                               @bind:event="oninput"
+                               placeholder="@Localizer["ChatMessagePlaceholder"]"
+                               aria-label="@Localizer["ChatMessagePlaceholder"]" />
+                        @* The hub-down hold is a fieldset around the control rather than a second flag
+                           in its own `disabled` binding, and the two are deliberately separate: one is
+                           "this send is already running", the other is "there is nothing to send into".
+                           A composite binding would have merged two failures into one word, and the box
+                           above stays live either way - what was typed while the hub was down is still
+                           there to send when it comes back. *@
+                        <fieldset class="dt-chat-hold" disabled="@_hubDown">
+                            @* Disabled while a send is in flight: a double-click must not persist two
+                               rows, and there is no dedupe anywhere downstream to undo one that did. *@
+                            <button type="submit"
+                                    class="btn btn-primary dt-chat-send"
+                                    disabled="@_sending">
+                                <Icon Name="IconName.Send" />@Localizer["ChatSend"]
+                            </button>
+                        </fieldset>
+                    </form>
+                }
+            </section>
+        </div>
+    }
+</div>
 
 @code {
     /// <summary>
@@ -142,7 +265,33 @@
     private ChatThreadView? _thread;
     private IReadOnlyList<ScreenFailure> _failures = [];
     private string? _draft;
+    private string _search = string.Empty;
     private bool _sending;
+
+    /// <summary>
+    /// True while the hub is unreachable — between a drop and the reconnect that answers it, or for
+    /// good once the retries have given up.
+    /// <para>
+    /// Its own flag rather than a reading of the connection, because there is nothing on this side
+    /// to read: the module owns the socket and the screen learns what happened to it only when it
+    /// is told (<see cref="ConnectionChangedAsync"/>). Nothing clears it but that callback, so a
+    /// dock that is showing is a hub that has not come back.
+    /// </para>
+    /// </summary>
+    private bool _hubDown;
+
+    /// <summary>
+    /// True once the connection has stopped trying — the retries exhausted, or a first connect that
+    /// never opened at all.
+    /// <para>
+    /// Separate from <see cref="_hubDown"/> because the two states need two different sentences. A
+    /// drop the client is still working on is a wait; a drop it has given up on is not, and a screen
+    /// that goes on saying "reconnecting…" for the rest of the session is a screen lying to someone
+    /// who has no way out of it. This is what puts a Reload in the dock, exactly as
+    /// <c>DtConnectionDock</c> carries one for the circuit's own version of this.
+    /// </para>
+    /// </summary>
+    private bool _hubGaveUp;
 
     private UserRole _role;
     private bool _isParticipant;
@@ -155,6 +304,137 @@
     /// scan parses, so everything after it reads to that scan as rendered English.
     /// </summary>
     private string SelectedDriverName => _thread?.DriverName ?? string.Empty;
+
+    /// <summary>
+    /// The present the day separators are named against, read fresh on every render rather than once
+    /// at initialization. A circuit outlives a day: a screen left open overnight would otherwise go
+    /// on labelling yesterday's separator "today" until it was reloaded.
+    /// <para>
+    /// Read once per render and handed down to every separator, because reading it per branch lets a
+    /// midnight between two of the three questions render a separator with two labels or with none.
+    /// </para>
+    /// </summary>
+    private DateTimeOffset Now => Clock.GetUtcNow();
+
+    /// <summary>
+    /// The roster rows the search leaves standing. Over the list the hub already answered with —
+    /// typing here is never a query, exactly as the fleet screen's own search is not.
+    /// </summary>
+    private IReadOnlyCollection<ChatThreadSummaryView> VisibleThreads =>
+        [.. _threads.Where(IsVisible)];
+
+    /// <summary>
+    /// Whether a row is on the roster: the open conversation always, and anything the search matches.
+    /// <para>
+    /// The open one is exempt on purpose. Filtered out, the panel on the right would be showing a
+    /// conversation with no row anywhere to the left of it and no <c>aria-current</c> on the page at
+    /// all — a reader moving by list would be told nothing is open while they are reading it.
+    /// </para>
+    /// </summary>
+    private bool IsVisible(ChatThreadSummaryView summary) =>
+        summary.DriverId == _thread?.DriverId || Matches(summary, _search);
+
+    /// <summary>
+    /// Whether the search excluded every row there was. Distinguished from a roster that is empty
+    /// because the fleet is: only the first is something the reader did, and only the first has an
+    /// answer they can act on.
+    /// </summary>
+    private bool FilterFoundNothing => _threads.Count > 0 && VisibleThreads.Count == 0;
+
+    /// <summary>
+    /// Whether a roster row survives what a dispatcher typed: the driver's name, the vehicle they
+    /// drive, or its plate.
+    /// </summary>
+    /// <param name="summary">The row being judged.</param>
+    /// <param name="search">What was typed, or null and empty for "everything".</param>
+    /// <remarks>
+    /// Internal and static so a test can reach it. The screen's own roster arrives over a live hub
+    /// connection, so a static render never holds a row to filter and the rule would otherwise be
+    /// unreachable — the same reason every decision in <c>ChatViews</c> was lifted out.
+    /// </remarks>
+    internal static bool Matches(ChatThreadSummaryView summary, string? search)
+    {
+        ArgumentNullException.ThrowIfNull(summary);
+
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        var needle = search.Trim();
+
+        return Contains(summary.DriverName, needle)
+            || Contains(summary.VehicleModel, needle)
+            || Contains(summary.VehicleLicensePlate, needle);
+    }
+
+    /// <summary>
+    /// Whether a roster field holds what was typed, with the two scripts' lookalike letters read as
+    /// the same letter.
+    /// <para>
+    /// A Ukrainian licence plate is written in the twelve Cyrillic letters that have a Latin twin —
+    /// АА1234ВС is Cyrillic А, А, В, С — and a dispatcher at a Latin keyboard types AA1234BC. The
+    /// two strings are different code points, so no culture comparison equates them and the
+    /// commonest search on this screen would match nothing at all.
+    /// </para>
+    /// </summary>
+    private static bool Contains(string? haystack, string needle) =>
+        haystack is not null
+        && Latinized(haystack).Contains(Latinized(needle), StringComparison.CurrentCultureIgnoreCase);
+
+    /// <summary>
+    /// The Cyrillic letters that are drawn the same as a Latin one, and the Latin letters they are
+    /// read as. Upper case only: <see cref="Latinized"/> folds the case first, so one row covers
+    /// both.
+    /// </summary>
+    private const string Lookalikes = "АВЕІКМНОРСТХ";
+
+    /// <inheritdoc cref="Lookalikes" />
+    private const string LatinTwins = "ABEIKMHOPCTX";
+
+    /// <summary>
+    /// A string with its lookalike Cyrillic letters rewritten as their Latin twins, upper-cased.
+    /// Applied to both sides of every comparison, so the fold is a way of reading rather than a
+    /// change to what is stored or shown.
+    /// </summary>
+    private static string Latinized(string value)
+    {
+        var folded = value.ToUpperInvariant();
+        var builder = new System.Text.StringBuilder(folded.Length);
+
+        foreach (var character in folded)
+        {
+            var twin = Lookalikes.IndexOf(character, StringComparison.Ordinal);
+
+            builder.Append(twin < 0 ? character : LatinTwins[twin]);
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>The line at a position in the open conversation.</summary>
+    private ChatMessageView Line(int index) => _thread!.Messages[index];
+
+    /// <summary>
+    /// When the line before this one was sent, or null when this is the first. The null is what
+    /// makes the oldest day of a conversation a named day like every other.
+    /// </summary>
+    private DateTimeOffset? SentBefore(int index) =>
+        index > 0 ? _thread!.Messages[index - 1].SentAt : null;
+
+    /// <summary>When the line at a position was sent.</summary>
+    private DateTimeOffset SentAt(int index) => Line(index).SentAt;
+
+    /// <summary>Whether a separator is drawn above this line, through the decision that decides it.</summary>
+    private bool StartsADay(int index) =>
+        ChatViews.StartsADay(SentBefore(index), SentAt(index));
+
+    /// <summary>
+    /// The day a separator opens, which is also the key it is diffed by: unique among the separators
+    /// in one conversation by construction, and of a type a message id can never equal.
+    /// </summary>
+    private DateOnly DayOf(int index) =>
+        DateOnly.FromDateTime(SentAt(index).ToLocalTime().Date);
 
     /// <inheritdoc />
     protected override void OnInitialized()
@@ -212,6 +492,14 @@
         }
         catch (JSException failure)
         {
+            // A connect that never answered is a hub that is down, and down for good: there is no
+            // connection to retry, so nothing will ever call back to clear this. Only when the
+            // handle is still null, because the same catch covers a roster or a join that the
+            // service refused over a connection that opened perfectly well - a refusal is not an
+            // outage, and holding the composer shut for one would be the wrong answer to it.
+            _hubDown = _handle is null;
+            _hubGaveUp = _hubDown;
+
             _failures = [new ScreenFailure(null, KeyOf(failure))];
         }
 
@@ -239,11 +527,61 @@
             return;
         }
 
+        // Asked before the line is appended, because the question is where the reader already was.
+        // A dispatcher scrolled up into last week is reading; pulling them to the newest line
+        // because somebody typed takes the page away mid-sentence. A reader already at the bottom is
+        // following the conversation, and for them the newest line is the whole point (FR-74).
+        var following = await IsAtBottomAsync();
+
+        // Read again, because the await above yielded the circuit: a dispatcher who picked another
+        // driver or left the screen while the browser was answering leaves `_thread` null or holding
+        // a different conversation, and appending here would either take the circuit down inside a
+        // [JSInvokable] or file the line under somebody else's name.
+        if (_thread is null || _thread.DriverId != driverId)
+        {
+            return;
+        }
+
         _thread = _thread with { Messages = [.. _thread.Messages, message] };
 
         StateHasChanged();
 
+        if (!following)
+        {
+            return;
+        }
+
         await ScrollAsync();
+    }
+
+    /// <summary>
+    /// Called by the module when the hub connection drops, gives up, or comes back (FR-75).
+    /// <para>
+    /// The one thing that can say the conversation is dead. <c>withAutomaticReconnect()</c> retries
+    /// in the background and announces nothing, so without this a driver at a doorstep goes on
+    /// typing into a socket that is gone and finds out when Send fails — by which time the message
+    /// they meant to send is a refusal banner instead of a line in the conversation.
+    /// </para>
+    /// <para>
+    /// The draft is deliberately untouched in both directions. What was typed while the hub was down
+    /// is what the sender still means to say when it comes back.
+    /// </para>
+    /// </summary>
+    /// <param name="connected">True when the hub is reachable again, false when it is not.</param>
+    /// <param name="recoverable">
+    /// Whether the client is still working on it. False is the retries having stopped, which is a
+    /// different sentence and the one that has to offer a way out.
+    /// </param>
+    [JSInvokable]
+    public Task ConnectionChangedAsync(bool connected, bool recoverable)
+    {
+        _hubDown = !connected;
+        _hubGaveUp = !connected && !recoverable;
+
+        // Invoked from the module rather than from a UI event, so nothing re-renders on its own.
+        StateHasChanged();
+
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -324,7 +662,21 @@
 
     private async Task SendAsync()
     {
-        if (_module is null || _handle is null || _thread is null || _sending)
+        // Enter in an empty box is not a send. Without this the hub refuses it, and the screen turns
+        // a keystroke that posted nothing into a red banner about a required field.
+        //
+        // Its own statement rather than a clause in the guard below, because that guard is read by a
+        // source scan that stops at the first closing parenthesis - a call with arguments inside it
+        // would hide the re-entry check from the rule that exists to prove it is there.
+        if (string.IsNullOrWhiteSpace(_draft))
+        {
+            return;
+        }
+
+        // `_hubDown` beside the in-flight flag rather than trusting the disabled control: the
+        // attribute is a hint to the browser, and a keyboard activation or an Enter in the box
+        // already dispatched reaches this handler whatever the button looked like.
+        if (_module is null || _handle is null || _thread is null || _sending || _hubDown)
         {
             return;
         }
@@ -357,6 +709,36 @@
         // the line itself appears when the broadcast arrives, so what is on screen is what is in
         // the database.
         _draft = null;
+    }
+
+    /// <summary>
+    /// Whether the reader is at the newest line, which is what decides if an arriving message
+    /// scrolls the list. True when there is no module to ask — a conversation that has not been
+    /// rendered yet is one nobody has scrolled away from.
+    /// </summary>
+    private async Task<bool> IsAtBottomAsync()
+    {
+        if (_module is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            return await _module.InvokeAsync<bool>("isAtBottom", _listId);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The browser is gone, so there is no reader whose place could be kept.
+            return true;
+        }
+        catch (JSException)
+        {
+            // Anything else the browser answered with. This is awaited inside a [JSInvokable], so an
+            // exception escaping here is an unhandled one on the circuit's own dispatcher and takes
+            // the whole screen down - over a question about a scroll position.
+            return true;
+        }
     }
 
     private async Task ScrollAsync()

@@ -54,13 +54,22 @@ public class SeverabilityTests
         "ChatThreadView",
         "ChatThreadSummaryView",
         "ChatLine",
+
+        // The screen's two other pieces, split out of it for the same reason ChatLine was: a roster
+        // row and a day separator only ever exist behind a live hub connection, so as blocks inside
+        // the screen's own loops there was no state any test in this solution could render them in.
+        // They are chat code wherever they live, and they are watched here so they cannot quietly
+        // become something a delivery screen renders.
+        "ChatRosterRow",
+        "ChatDaySeparator",
     ];
 
     /// <summary>
     /// The chat module, plus the seams AD-16 licenses. Every entry is a path relative to
     /// <c>src/</c>, and every one of them is a place the module has to be visible from:
     /// <list type="bullet">
-    /// <item>the module itself — the entity, the capability, the hub, the screen;</item>
+    /// <item>the module itself — the entity, the capability, the hub, the screen and the three
+    /// components it is built from;</item>
     /// <item>its persistence — the repository port, the two EF types that implement and map it, the
     /// context that must declare a set for the table to exist at all, and the per-operation scope on
     /// both sides of its own port, which offers that repository beside every other;</item>
@@ -89,6 +98,8 @@ public class SeverabilityTests
         Path.Combine("DriveTrack.Web", "Account", "HubCaller.cs"),
         Path.Combine("DriveTrack.Web", "Components", "Pages", "Chat.razor"),
         Path.Combine("DriveTrack.Web", "Components", "Pages", "ChatLine.razor"),
+        Path.Combine("DriveTrack.Web", "Components", "Pages", "ChatRosterRow.razor"),
+        Path.Combine("DriveTrack.Web", "Components", "Pages", "ChatDaySeparator.razor"),
         Path.Combine("DriveTrack.Web", "Components", "Pages", "ChatViews.cs"),
         Path.Combine("DriveTrack.Web", "Hubs", "ChatHub.cs"),
         Path.Combine("DriveTrack.Web", "Program.cs"),

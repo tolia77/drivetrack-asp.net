@@ -15,25 +15,29 @@
 
     @* Under the text rather than above it, which is the shape a conversation is read in: the
        message is what a reader is scanning for, and who said it and when is what they check
-       afterwards. *@
+       afterwards.
+
+       One span rather than two boxes with a gap between them. Who said it and when are one caption,
+       and the design draws them as one line separated by a dot; as two flex children they were two
+       values a reader's eye had to join back together on every bubble. *@
     <span class="dt-bubble__meta">
         @* Own lines say "you" rather than the reader's own name. A conversation with two
            participants has one name worth printing, and printing both makes the reader look for the
            difference between them on every line. *@
         @if (IsOwn)
         {
-            <span class="dt-bubble__who">@Localizer["ChatYou"]</span>
+            @Localizer["ChatYou"]
         }
         @* AD-20: the account is gone and the line is not. *@
         @if (!IsOwn && Message.SenderUserId is null)
         {
-            <span class="dt-bubble__who">@Localizer["ChatUnknownSender"]</span>
+            @Localizer["ChatUnknownSender"]
         }
         @if (!IsOwn && Message.SenderUserId is not null)
         {
-            <span class="dt-bubble__who">@Message.SenderName</span>
+            @Message.SenderName
         }
-        <span class="dt-bubble__when">@Time(Message.SentAt)</span>
+        · @Time(Message.SentAt)
     </span>
 </li>
 

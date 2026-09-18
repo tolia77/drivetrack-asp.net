@@ -171,6 +171,51 @@ public class ChatHubTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task A_roster_row_carries_the_vehicle_the_plate_and_the_duty_the_driver_capability_answered_with()
+    {
+        // The roster read the driver capability's summary and kept the name out of it. Everything
+        // else on that summary - the van, its plate, whether the person is at the wheel - was loaded
+        // and dropped on the floor, leaving a dispatcher to tell two drivers of the same name apart
+        // by nothing at all. This is the assertion that the work already done reaches the screen.
+        //
+        // End to end rather than against the mapping, because there are three boundaries between
+        // the driver capability's answer and the browser's: the chat service's projection, the hub's
+        // return type, and the protocol that serializes it. A unit test of the middle one would pass
+        // with any of the other two dropping the fields.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var world = await ChatWorld.CreateAsync(postgres.ConnectionString, cancellationToken);
+
+        var admin = await world.AdminAsync(cancellationToken);
+        var dispatcher = await world.DispatcherAsync(admin.Token, cancellationToken);
+
+        var driving = await world.DriverAsync(cancellationToken, "Олена", "Андросова");
+        var resting = await world.DriverAsync(cancellationToken, "Петро", "Яценко");
+
+        await world.PutOnDutyWithAVehicleAsync(
+            driving.DriverId!.Value, "Renault Master", "АА1234ВС", Instant, cancellationToken);
+
+        var desk = await world.ConnectAsync(dispatcher, cancellationToken);
+
+        var roster = await desk.InvokeAsync<IReadOnlyList<ChatThreadSummary>>(
+            "ListThreads", cancellationToken);
+
+        var equipped = Assert.Single(roster, entry => entry.DriverId.Value == driving.DriverId);
+
+        Assert.Equal("Renault Master", equipped.VehicleModel);
+        Assert.Equal("АА1234ВС", equipped.VehicleLicensePlate);
+        Assert.True(equipped.OnDuty);
+
+        // And the other direction, which is the half that catches a projection filling the fields in
+        // with something rather than reading them: a driver with no vehicle has no vehicle, and
+        // absent is absent rather than an empty string in the roster row.
+        var bare = Assert.Single(roster, entry => entry.DriverId.Value == resting.DriverId);
+
+        Assert.Null(bare.VehicleModel);
+        Assert.Null(bare.VehicleLicensePlate);
+        Assert.False(bare.OnDuty);
+    }
+
+    [Fact]
     public async Task A_client_and_an_admin_reach_neither_a_thread_nor_the_roster()
     {
         // The row a reader will assume is a mistake. AD-4 makes an administrator satisfy every other

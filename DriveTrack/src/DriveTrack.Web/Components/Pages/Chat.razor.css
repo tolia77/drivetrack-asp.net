@@ -1,85 +1,313 @@
 /*
-    FR-69 / NFR-22 / NFR-29: the conversation, and the roster beside it on a desk wide enough for
-    both. Every palette value here is a token; the figures that are not - `flex`, `min-width`,
-    `max-width`, `max-height` and `overflow` - are geometry, which NFR-29's scan deliberately does
-    not read.
+    FR-68 / FR-69 / NFR-22 / NFR-29: the chat screen's own layer.
 
-    The layout wraps rather than scrolling sideways: on a phone the roster stacks above the
-    conversation instead of pushing it off the edge, which is the difference between a scrollbar on
-    a panel and a scrollbar on the whole screen.
+    One card, not two panels floating on the page. The roster and the conversation are two halves of
+    a single surface - a dispatcher's eye travels from a name on the left to that person's messages
+    on the right, and two separately bordered boxes with a gutter between them made that one journey
+    look like two screens. So the card owns the edge and the shadow, and the divider inside it is
+    the only rule between the halves.
+
+    Every palette value here is a `--dt-*` token. What stays literal is geometry NFR-29's scan
+    deliberately does not read - the roster's width, the card's height, `flex`, `overflow` - and the
+    breakpoint itself, which a media query cannot read from a custom property at all. It is written
+    as `640.98px` for the reason `Home.razor.css` and `MyDeliveries.razor.css` write it that way:
+    `_theme.scss` states the shell's own edge as `$dt-breakpoint-phone-max`, and a plain stylesheet
+    cannot see a Sass variable. Approximating it as `min-width: 641px` would leave a sliver of
+    widths where the shell is already a sidebar and this card is still one column.
+
+    The bubbles are not here. They are ChatLine's, in `ChatLine.razor.css`: a scoped stylesheet only
+    reaches the markup its own component writes, and the <li> is written there. That exact mistake
+    left the bubble rules matching nothing once already.
 */
 
-.dt-chat {
+/*
+    The screen, as a column that fills what the shell gives it. The card is the part that stretches,
+    so it takes whatever the heading and the banner left rather than a figure tuned to the heading
+    alone - which is what it used to be, and why the first refusal on this screen pushed the composer
+    off the bottom of the viewport. `min-height: 0` on the card is what lets it shrink far enough for
+    its own scroll box to do the scrolling.
+
+    Should the height fail to resolve - a shell whose row is not definite - the column falls back to
+    content height and the page scrolls, which is the same answer the phone layout gives on purpose.
+*/
+.dt-chat-screen {
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: var(--dt-space-4);
+    flex-direction: column;
+    height: 100%;
+    min-height: 24rem;
 }
 
 /*
-    The roster. `min-width` is what makes the wrap happen at a useful point: below it the two panels
-    would each be too narrow to read, so they stack instead.
+    The card. Bounded, so the conversation scrolls inside its own box and the page behind it does
+    not move - a composer that walks off the bottom of a long conversation is a composer a driver has
+    to scroll to reach.
+*/
+.dt-chat {
+    display: flex;
+    flex: 1;
+    align-items: stretch;
+    min-height: 0;
+    overflow: hidden;
+    border: var(--dt-border-width) solid var(--dt-border);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-surface-card);
+    box-shadow: var(--dt-shadow-card);
+}
+
+/*
+    The roster: a fixed column rather than a share of the width. A name list does not get more
+    readable as the window widens, and a flexible one moved the conversation's left edge every time
+    the browser was resized. It scrolls inside itself, so a fleet longer than the card does not
+    lengthen the card.
 */
 .dt-chat-roster {
     display: flex;
+    flex: 0 0 18rem;
     flex-direction: column;
-    flex: 1 1 14rem;
-    min-width: 14rem;
-    max-width: 20rem;
-    gap: var(--dt-space-2);
+    min-width: 0;
+    overflow-y: auto;
+    border-inline-end: var(--dt-border-width) solid var(--dt-border);
 }
 
+/*
+    The search stays put while the rows scroll under it. Opaque, because a sticky element over a
+    scrolling list shows whatever passes beneath it unless it carries its own fill.
+*/
+.dt-chat-search {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: var(--dt-z-sticky);
+    align-items: center;
+    gap: var(--dt-space-2);
+    padding: var(--dt-space-3);
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
+    background-color: var(--dt-surface-card);
+    color: var(--dt-ink-muted);
+}
+
+.dt-chat-search__box {
+    flex: 1;
+    min-width: 0;
+}
+
+/* A list, unbulleted: the markers would sit outside the rows and mark nothing a reader needs. */
+.dt-chat-threads {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/*
+    The rows themselves are ChatRosterRow's, in `ChatRosterRow.razor.css`, and the day separators are
+    ChatDaySeparator's: a scoped stylesheet only reaches the markup its own component writes, and
+    both elements are written there.
+*/
+
+/* The conversation's half of the card. `min-width: 0` or a long unbroken message widens it. */
 .dt-chat-thread-panel {
     display: flex;
+    flex: 1;
     flex-direction: column;
-    flex: 3 1 22rem;
     min-width: 0;
-    gap: var(--dt-space-3);
-    padding: var(--dt-space-4);
-    border: var(--dt-border-width) solid var(--dt-border);
-    border-radius: var(--dt-radius-lg);
-    background-color: var(--dt-surface-card);
 }
 
+/*
+    The header names the counterparty, and it does not scroll away with the conversation under it:
+    on a long thread, "who am I writing to" is exactly the question a reader loses the answer to.
+*/
 .dt-chat-header {
+    flex: none;
     margin: 0;
+    padding: var(--dt-space-3) var(--dt-space-4);
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
     font-size: var(--dt-h2-font-size);
     font-weight: var(--dt-h2-font-weight);
     line-height: var(--dt-h2-line-height);
 }
 
-/*
-    The conversation itself scrolls inside its own box. `max-height` rather than a fixed height, so
-    a two-line conversation does not sit in a tall empty rectangle.
-*/
+/* The conversation itself, and the only part of the card that scrolls. */
 .dt-chat-messages {
     display: flex;
+    flex: 1;
     flex-direction: column;
     list-style: none;
     overflow-y: auto;
-    max-height: 28rem;
     margin: 0;
-    padding: 0;
+    padding: var(--dt-space-4);
     gap: var(--dt-space-2);
 }
 
 /*
-    The bubbles themselves are ChatLine's, in `ChatLine.razor.css`: a scoped stylesheet only reaches
-    the markup its own component writes, and the <li> is written there.
+    The three sentences the screen says instead of a conversation: the refusal, the prompt to pick a
+    driver, and the empty thread. The first is rendered outside the card, so this rule carries its
+    own padding rather than inheriting the panel's.
 */
-
 .dt-chat-empty {
     margin: 0;
+    padding: var(--dt-space-4);
     color: var(--dt-ink-muted);
 }
 
+/*
+    The hub is down. The design's ConnectionDock, in this screen's own scope because a scoped
+    stylesheet only reaches the markup its component writes - `DtConnectionDock.razor.css` is
+    compiled against that component and would match nothing here.
+
+    Fixed and above everything (`z-dock`), and deliberately not covering the page: a reader whose
+    message did not send still needs to see what they typed.
+*/
+.dt-chat-dock {
+    /* The app ships one light theme (NFR-21), and this element must not be repainted by a
+       user-agent dark preference - the same guard DtConnectionDock's own rule carries. */
+    color-scheme: light only;
+    display: flex;
+    position: fixed;
+    left: 50%;
+    bottom: var(--dt-space-4);
+    transform: translateX(-50%);
+    box-sizing: border-box;
+    max-width: 92vw;
+    z-index: var(--dt-z-dock);
+    align-items: center;
+    gap: var(--dt-space-3);
+    margin: 0;
+    padding: var(--dt-space-3) var(--dt-space-4);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-nav-bg);
+    color: var(--dt-ink-inverse);
+    box-shadow: var(--dt-shadow-raised);
+    font-size: var(--dt-body-font-size);
+    line-height: var(--dt-body-line-height);
+}
+
+/*
+    The mark. Amber rather than red, and the one colour the palette has that holds on this surface:
+    `focus-ring-on-dark` is the step declared for the dark navigation and for this dock, and it
+    clears 7:1 on `nav-bg`.
+*/
+.dt-chat-dock__dot {
+    flex: none;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    background-color: var(--dt-focus-ring-on-dark);
+}
+
+.dt-chat-dock__text {
+    flex: 1;
+}
+
+/* The way out of the state the retries gave up in, on the one surface the ring has to change for. */
+.dt-chat-dock__action {
+    flex: none;
+    color: var(--dt-ink-inverse);
+    text-decoration: underline;
+}
+
+.dt-chat-dock__action:focus-visible {
+    outline: var(--dt-border-width-focus) solid var(--dt-focus-ring-on-dark);
+    outline-offset: var(--dt-border-width-focus);
+}
+
+/*
+    The composer, ruled off from the conversation above it. The rule is what makes the box a place
+    to write rather than the last line of what has been written.
+*/
 .dt-chat-composer {
     display: flex;
+    flex: none;
     flex-wrap: wrap;
+    align-items: center;
     gap: var(--dt-space-2);
+    padding: var(--dt-space-3) var(--dt-space-4);
+    border-top: var(--dt-border-width) solid var(--dt-border);
 }
 
 .dt-chat-input {
     flex: 1 1 12rem;
     min-width: 0;
+}
+
+/*
+    The hold around the Send control. A fieldset is HTML's own way of taking a group of controls out
+    of service, and it arrives with a browser style sheet's worth of box - so it is reset to nothing
+    and carries only the disabling.
+*/
+.dt-chat-hold {
+    flex: none;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+/*
+    Below the breakpoint the card is one column, the roster above the conversation.
+
+    Stated desktop-first with the phone as the exception, because that is the direction
+    `_theme.scss` states the shell in and the two have to switch on the same edge.
+
+    The card gives up its fixed height here. On a 390px screen a 100dvh box holding a scrolling
+    roster and a scrolling conversation is two nested scrollers inside a third, and the way out of
+    that is to let the page be the one that scrolls.
+*/
+@media (max-width: 640.98px) {
+    .dt-chat-screen {
+        height: auto;
+    }
+
+    .dt-chat {
+        flex: none;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    /*
+        The roster keeps a bound of its own so it cannot push the conversation off the screen: a
+        fleet of thirty drivers above the messages is a screen a driver has to scroll past to read
+        anything. It is the roster that scrolls, not the page.
+    */
+    .dt-chat-roster {
+        flex: none;
+        max-height: 40vh;
+        border-inline-end: 0;
+        border-bottom: var(--dt-border-width) solid var(--dt-border);
+    }
+
+    /*
+        The conversation takes a screen's worth and scrolls inside it. Without a bound of its own
+        the list grows with the history and the composer leaves the bottom of the page - which is
+        the one control a driver at a doorstep is reaching for.
+    */
+    .dt-chat-messages {
+        max-height: 60vh;
+        padding: var(--dt-space-3);
+    }
+
+    /*
+        The composer's two controls at `touch-target`, and the composer itself stuck to the bottom
+        of the card so it stays in reach as the conversation scrolls behind it.
+    */
+    .dt-chat-composer {
+        position: sticky;
+        bottom: 0;
+        background-color: var(--dt-surface-card);
+    }
+
+    .dt-chat-input,
+    .dt-chat-composer .btn {
+        min-height: var(--dt-touch-target);
+    }
+
+    /*
+        And the dock clears the composer rather than landing on it. Both are pinned to the bottom of
+        a 390px screen, so at the default offset the dock covers the box it is telling the reader to
+        keep their draft in - the opposite of what a dock that deliberately does not cover the page
+        is for. The offset is a touch target plus a gutter: the height the composer's own rules
+        give it.
+    */
+    .dt-chat-dock {
+        bottom: calc(var(--dt-touch-target) + var(--dt-space-6));
+    }
 }

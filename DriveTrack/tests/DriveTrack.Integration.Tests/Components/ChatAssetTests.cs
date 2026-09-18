@@ -194,6 +194,102 @@ public class ChatAssetTests
     }
 
     [Fact]
+    public void The_screen_is_told_when_the_hub_drops_and_when_it_comes_back()
+    {
+        // The module owns the socket, so the screen learns what happened to it only when it is told.
+        // `withAutomaticReconnect()` retries silently, which is the whole problem: nothing on the
+        // page changes, the composer still looks live, and the first news of the outage is a Send
+        // that fails.
+        var module = File.ReadAllText(ChatModulePath);
+
+        // Both failure events, and they are not the same one: `onreconnecting` is a drop the client
+        // still expects to recover from, `onclose` is the retry having given up for good. A module
+        // wired to only the first leaves a screen with its dock cleared on the connection that never
+        // came back.
+        Assert.Contains("connection.onreconnecting(", module, StringComparison.Ordinal);
+        Assert.Contains("connection.onclose(", module, StringComparison.Ordinal);
+
+        // Told apart by the second argument, because they are two different sentences on the screen:
+        // one is a wait, the other has to offer a way out. Collapsed into one, a screen sits under
+        // "reconnecting…" for the rest of the session after the retries have stopped.
+        Assert.Contains(
+            @"""ConnectionChangedAsync"", false, true", module, StringComparison.Ordinal);
+
+        Assert.Contains(
+            @"""ConnectionChangedAsync"", false, false", module, StringComparison.Ordinal);
+
+        // And the recovery, so the dock clears and the composer comes back.
+        Assert.Contains(
+            @"invokeMethodAsync(""ConnectionChangedAsync"", true, true)",
+            module,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_deliberate_stop_is_not_reported_back_as_an_outage_and_never_skips_the_rejoin()
+    {
+        // Two faults on one seam. `stop()` fires `onclose`, so every navigation away from chat was
+        // invoking into a DotNetObjectReference mid-teardown and calling StateHasChanged on a
+        // component that was going away - for a disconnection the component itself asked for.
+        var module = File.ReadAllText(ChatModulePath);
+
+        Assert.Contains("closing: false", module, StringComparison.Ordinal);
+        Assert.Contains("handle.closing = true;", module, StringComparison.Ordinal);
+        Assert.Contains("if (handle.closing) {", module, StringComparison.Ordinal);
+
+        // The flag is raised before the stop, not after: `stop()` reaches `onclose` too quickly for
+        // a flag set afterwards to have been read.
+        var raised = module.IndexOf("handle.closing = true;", StringComparison.Ordinal);
+        var stopped = module.IndexOf("connection.stop()", StringComparison.Ordinal);
+
+        Assert.True(raised >= 0 && stopped >= 0);
+        Assert.True(raised < stopped, "The stop is asked for before it is marked as deliberate.");
+
+        // And the other one: the rejoin is what a reconnect exists for. A SignalR group membership is
+        // keyed on the connection id, so a handler that abandoned itself on a rejected interop call
+        // would leave a healthy socket that never receives another broadcast - with nothing on
+        // screen to say so.
+        var told = module.IndexOf(
+            @"await dotNetRef.invokeMethodAsync(""ConnectionChangedAsync"", true, true);",
+            StringComparison.Ordinal);
+
+        var guarded = module.IndexOf("} catch {", StringComparison.Ordinal);
+        var rejoined = module.IndexOf(
+            @"connection.invoke(""JoinThread"", handle.joined)", StringComparison.Ordinal);
+
+        Assert.True(told >= 0, "The module never tells the screen the hub came back.");
+        Assert.True(
+            guarded > told && guarded < rejoined,
+            "A rejected interop call on reconnect skips the rejoin the reconnect exists for.");
+    }
+
+    [Fact]
+    public void An_arriving_message_scrolls_only_a_reader_who_was_already_at_the_bottom()
+    {
+        // FR-74 says the newest line is what a reader following a conversation sees. It does not say
+        // a reader who has scrolled up into last week should be dragged back down because somebody
+        // typed - that is the page being taken away mid-sentence, and on a long history it is
+        // unrecoverable without scrolling the whole way back.
+        var module = File.ReadAllText(ChatModulePath);
+
+        Assert.Contains("export function isAtBottom(elementId)", module, StringComparison.Ordinal);
+
+        // Asked before the append, so the answer is about where the reader was rather than where
+        // the new line left them - after it, the list is always taller than it was and the answer is
+        // always "no".
+        var screen = SharedMarkup.ReadComponent("Pages", "Chat.razor");
+
+        var asked = screen.IndexOf("await IsAtBottomAsync();", StringComparison.Ordinal);
+        var appended = screen.IndexOf("_thread with", StringComparison.Ordinal);
+
+        Assert.True(asked >= 0, "Chat.razor never asks where the reader is before appending a line.");
+        Assert.True(
+            asked < appended,
+            "Chat.razor asks where the reader is after appending the line, so the answer is always "
+                + "the bottom it just moved.");
+    }
+
+    [Fact]
     public void A_failed_library_fetch_is_not_remembered_forever()
     {
         // The module-scope promise is what stops two components injecting two script tags. Left set

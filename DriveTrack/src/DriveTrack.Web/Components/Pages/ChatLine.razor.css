@@ -8,6 +8,13 @@
     NFR-29's scan; they are also half the distinction between the two sides, which is deliberate:
     the side, the fill and the border each say whose message this is, so none of them is the only
     signal.
+
+    The speaker's corner is the third. Each bubble's bottom corner on the side it is aligned to is
+    cut back to `radius-sm` - the tail every messaging app draws, said with a radius rather than
+    with a pointer, so a bubble is anchored to its own side of the column instead of floating in it.
+    Logical corners rather than `bottom-right` and `bottom-left`, so the cut follows the writing
+    direction the alignment already follows: `flex-end` is the trailing edge and `end-end` is the
+    bottom of that same edge.
 */
 
 .dt-bubble {
@@ -20,6 +27,7 @@
 .dt-bubble--other {
     align-self: flex-start;
     border: var(--dt-border-width) solid var(--dt-border);
+    border-end-start-radius: var(--dt-radius-sm);
     background-color: var(--dt-chat-other-bg);
     color: var(--dt-ink);
 }
@@ -31,6 +39,7 @@
 */
 .dt-bubble--own {
     align-self: flex-end;
+    border-end-end-radius: var(--dt-radius-sm);
     background-color: var(--dt-chat-own-bg);
     color: var(--dt-ink-inverse);
 }
@@ -43,21 +52,19 @@
 }
 
 /*
-    Who and when, under the text. `color: inherit` with a reduced opacity rather than `ink-muted`:
-    the meta line sits on two different fills, and a muted grey chosen for the white one is
-    unreadable on the teal.
+    Who and when, under the text and on one line. `color: inherit` with a reduced opacity rather
+    than `ink-muted`: the meta sits on two different fills, and a muted grey chosen for the white
+    one is unreadable on the teal.
+
+    A block so it takes the line under the message rather than running on from it, and no `gap`:
+    what separates the name from the time is the dot the markup writes, so the spacing is the text's
+    own rather than a flex box's.
 */
 .dt-bubble__meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--dt-space-2);
+    display: block;
     margin-top: var(--dt-space-1);
     color: inherit;
     opacity: 0.8;
     font-size: var(--dt-small-font-size);
     line-height: var(--dt-small-line-height);
-}
-
-.dt-bubble__who {
-    font-weight: var(--dt-label-font-weight);
 }

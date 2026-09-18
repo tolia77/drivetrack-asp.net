@@ -1,6 +1,8 @@
 using DriveTrack.Application.Abstractions;
 using DriveTrack.Domain.Chat;
 using DriveTrack.Domain.Drivers;
+using DriveTrack.Domain.Shifts;
+using DriveTrack.Domain.Vehicles;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Integration.Tests.Deliveries;
 using DriveTrack.Integration.Tests.Identity;
@@ -8,6 +10,7 @@ using DriveTrack.Integration.Tests.Support;
 using DriveTrack.Web.Api;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DriveTrack.Integration.Tests.Chat;
@@ -145,6 +148,56 @@ internal sealed class ChatWorld : IAsyncDisposable
             Client, email, AdministrationApi.Password, cancellationToken);
 
         return new Participant(userId, driverId, token, email);
+    }
+
+    /// <summary>
+    /// Gives a driver a vehicle and puts them on duty, which is the state the roster has three
+    /// fields for.
+    /// <para>
+    /// Written straight into the tables rather than through the two owning capabilities, for the
+    /// reason <see cref="DriverAsync"/> writes its own rows: assigning a vehicle needs a dispatcher
+    /// and starting a shift needs the driver's own session, and neither is part of what a roster
+    /// test is asserting. What matters here is that the rows exist for the driver capability to read.
+    /// </para>
+    /// </summary>
+    /// <param name="driverId">The driver row to equip.</param>
+    /// <param name="model">The vehicle's model.</param>
+    /// <param name="licensePlate">Its plate.</param>
+    /// <param name="startedAt">When the open shift began.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task PutOnDutyWithAVehicleAsync(
+        int driverId,
+        string model,
+        string licensePlate,
+        DateTimeOffset startedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await Factory.Database.CreateContextAsync(cancellationToken);
+
+        var vehicle = new Vehicle
+        {
+            Model = model,
+            LicensePlate = licensePlate,
+            CapacityKg = 1200m,
+        };
+
+        context.Vehicles.Add(vehicle);
+        await context.SaveChangesAsync(cancellationToken);
+
+        var driver = await context.Drivers.SingleAsync(
+            row => row.Id == new DriverId(driverId), cancellationToken);
+
+        driver.VehicleId = vehicle.Id;
+
+        // Open: FR-117 reads "on duty" as a shift with no end, so a row with an EndedAt would leave
+        // the driver off duty and the assertion would be about nothing.
+        context.Shifts.Add(new Shift
+        {
+            DriverId = new DriverId(driverId),
+            StartedAt = startedAt,
+        });
+
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
