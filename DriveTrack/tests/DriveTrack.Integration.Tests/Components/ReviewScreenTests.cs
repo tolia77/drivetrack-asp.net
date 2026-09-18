@@ -76,6 +76,51 @@ public class ReviewScreenTests
     /// <summary>The delivery in <see cref="Own"/> that is finished and not yet reviewed.</summary>
     private const int ReviewableDeliveryId = 9;
 
+    /// <summary>The heading row: the screen's title, and the one action a client has.</summary>
+    private static readonly Regex PageHead = new(
+        @"<div\b[^>]*class=""[^""]*\bdt-page-head\b[^""]*""[^>]*>(?<body>.*?)</div>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>A column heading.</summary>
+    private static readonly Regex HeaderCell = new(
+        @"<th\b[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The actions heading, which keeps its name without printing it.</summary>
+    private static readonly Regex ActionsHeader = new(
+        @"<th\b[^>]*class=""[^""]*\bdt-table-actions\b[^""]*""[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// One body row, so a claim can be made about every cell in every row rather than about the
+    /// page as a whole - which a single missing label would satisfy.
+    /// </summary>
+    private static readonly Regex BodyRow = new(
+        @"<tr\b[^>]*class=""[^""]*\bdt-table-row\b[^""]*""[^>]*>(?<body>.*?)</tr>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>One cell of a row, so a claim can be made cell by cell rather than row by row.</summary>
+    private static readonly Regex Cell = new(
+        @"<td\b[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The row's actions cell.</summary>
+    private static readonly Regex ActionsCell = new(
+        @"<td\b[^>]*class=""[^""]*\bdt-table-actions\b[^""]*""[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The per-cell name span, matched by the class this screen marks it with.</summary>
+    private static readonly Regex LabelSpan = new(
+        @"<span\b[^>]*class=""[^""]*\bdt-review-label\b[^""]*""[^>]*>(?<body>.*?)</span>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
     [Fact]
     public async Task A_client_is_shown_what_they_wrote_and_a_way_to_write_another()
     {
@@ -351,6 +396,215 @@ public class ReviewScreenTests
         Assert.Equal(Mine.Length, SharedMarkup.Occurrences(html, "dt-table-row"));
     }
 
+    [Fact]
+    public async Task The_screen_carries_its_heading_and_a_client_s_one_action_in_the_shared_page_head()
+    {
+        // <h1> rather than <h2>: `FocusOnNavigate Selector="h1"` in Routes.razor looks for one, and
+        // on a page without it a keyboard user keeps the focus the previous screen had. In the
+        // shared heading row because the product has one heading shape - and the write action is
+        // about the collection the heading names rather than about any row in it, which is why it
+        // belongs beside the title instead of loose in a Bootstrap row underneath it.
+        var html = await RenderAsync(UserRole.Client);
+
+        var head = PageHead.Match(html);
+
+        Assert.True(head.Success, "The screen has no heading row.");
+
+        var body = head.Groups["body"].Value;
+
+        Assert.Contains("<h1", body, StringComparison.Ordinal);
+
+        // NFR-24: the heading carries the glyph the navigation already uses for this destination.
+        Assert.Contains("<svg", body, StringComparison.Ordinal);
+
+        // Found by its hook and only then asserted about by its colour, because `btn btn-primary`
+        // is what a create action looks like rather than what one is.
+        Assert.Contains("dt-review-create", body, StringComparison.Ordinal);
+        Assert.Contains("btn-primary", body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Dispatcher)]
+    [InlineData(UserRole.Admin)]
+    [InlineData(UserRole.Driver)]
+    public async Task A_role_with_nothing_to_write_gets_the_same_heading_row_holding_only_the_title(
+        UserRole role)
+    {
+        // The head is unconditional and its action is not. A dispatcher reads the collection, an
+        // administrator moderates it and a driver is refused it outright - none of the three
+        // authors a review - so the row holds the title alone, which is the shape the
+        // administration group already settled for a screen with no action of its own.
+        var html = await RenderAsync(role);
+
+        var head = PageHead.Match(html);
+
+        Assert.True(head.Success, "The screen has no heading row.");
+
+        var body = head.Groups["body"].Value;
+
+        Assert.Contains("<h1", body, StringComparison.Ordinal);
+        Assert.Contains("<svg", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("<button", body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Client)]
+    [InlineData(UserRole.Admin)]
+    public async Task Every_row_action_sits_in_the_shared_actions_cell(UserRole role)
+    {
+        // DtDataTable right-aligns the trailing cell through `.dt-table-row ::deep
+        // td.dt-table-actions`, so a cell that does not wear the class its own heading wears is a
+        // cell the shared rule cannot reach. Both tables here marked it `dt-row-actions` and styled
+        // it themselves as a flex row - which ignores `text-align` outright, so the move and the
+        // deletion of that rule are one change rather than two.
+        var html = await RenderAsync(role);
+
+        var cells = ActionsCell.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        // Before the count, because `0 == 0` is what a screen that rendered no rows at all would
+        // answer - and the loop below would then assert nothing.
+        Assert.NotEmpty(cells);
+
+        Assert.Equal(SharedMarkup.Occurrences(html, "dt-table-row"), cells.Length);
+
+        foreach (var cell in cells)
+        {
+            Assert.Contains("dt-review-edit", cell, StringComparison.Ordinal);
+            Assert.Contains("dt-review-delete", cell, StringComparison.Ordinal);
+        }
+
+        // The retired class, gone from the screen rather than merely unused: a stylesheet rule and
+        // a markup hook that no longer meet are how a screen ends up half-migrated.
+        Assert.DoesNotContain("dt-row-actions", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_dispatcher_gets_a_head_and_rows_of_the_same_width_and_no_actions_column()
+    {
+        // FR-64 against FR-65 as a layout claim rather than a capability one. The heading and the
+        // cell are gated on the same predicate, and they have to stay paired: hide one without the
+        // other and the table below the head is a column narrower than the head above it, so every
+        // value in every row is announced and painted under the wrong name.
+        var html = await RenderAsync(UserRole.Dispatcher);
+
+        var columns = HeaderCell.Matches(html).Count;
+
+        Assert.NotEqual(0, columns);
+
+        var rows = BodyRow.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        Assert.NotEmpty(rows);
+
+        foreach (var row in rows)
+        {
+            Assert.Equal(columns, Cell.Matches(row).Count);
+        }
+
+        // And neither side carries an actions column at all: the class is DtDataTable's hook for
+        // the trailing cell, so its absence is the absence of the column rather than of a button.
+        Assert.DoesNotContain("dt-table-actions", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-row-actions", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Client)]
+    [InlineData(UserRole.Admin)]
+    public async Task The_actions_column_keeps_its_name_without_printing_it(UserRole role)
+    {
+        // The buttons under it say what they do, so a column name printed above them competes with
+        // them for the same width - and a column with no name at all leaves a screen reader moving
+        // by cell with one unlabelled column. Hidden, not dropped, as on every other table here.
+        var html = await RenderAsync(role);
+
+        var actions = ActionsHeader.Match(html);
+
+        Assert.True(actions.Success, "The table has no actions heading.");
+        Assert.Contains("dt-visually-hidden", actions.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("Дії", actions.Groups["body"].Value, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Client, "усе було чудово")]
+    [InlineData(UserRole.Admin, "Тарас Шевченко")]
+    public async Task The_table_this_role_is_shown_sits_inside_the_one_collapse_wrapper(
+        UserRole role,
+        string value)
+    {
+        // `dt-reviews` is the only wrapper in the product with two possible occupants, and no role
+        // is shown both - so `PhoneLayoutTests` can only ever check the one its renderer draws.
+        // The other would sit outside the wrapper with every collapse rule matching nothing and
+        // that class still green, which is the gap this closes from the screen's own side.
+        var html = await RenderAsync(role);
+
+        var body = PhoneLayoutTests.BodyOf(html, "dt-reviews");
+
+        Assert.Contains("dt-table-scroll", body, StringComparison.Ordinal);
+        Assert.Contains("dt-table-row", body, StringComparison.Ordinal);
+
+        // And it is this role's table rather than merely a table: the author's list renders a
+        // verdict the moderation list is not asked for here, and the moderation list names a party
+        // the author's type has no field for at all.
+        Assert.Contains(value, body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Client)]
+    [InlineData(UserRole.Dispatcher)]
+    [InlineData(UserRole.Admin)]
+    public async Task Every_cell_carries_its_own_name_for_the_phone_layout(UserRole role)
+    {
+        // Below the phone breakpoint the head is dropped rather than hidden: a table laid out as
+        // blocks is no longer a table to a screen reader - the implicit table, row and cell roles
+        // go with the `display` they came from - so a `<thead>` left in place would name columns
+        // that no longer exist to be announced under. The label inside each cell is what replaces
+        // it, and that only works if every cell has one.
+        //
+        // Every table a role is shown, which is three cases rather than two: a client gets the
+        // author's list, an administrator the moderation one, and a dispatcher that same
+        // moderation table minus its actions column. The dispatcher is the case most likely to
+        // drift, because it is the only one whose columns and cells are both gated.
+        //
+        // Cell by cell rather than by counting labels against cells across the row: two labels in
+        // one cell and none in the next is the same total and a card with an unnamed line in it.
+        // And the label is checked against the heading of the column it is in, because a label that
+        // exists and reads wrongly names the value rather than failing to name it.
+        var html = await RenderAsync(role);
+
+        var columns = HeaderCell.Matches(html)
+            .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+            .ToArray();
+
+        Assert.NotEmpty(columns);
+
+        var rows = BodyRow.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        Assert.NotEmpty(rows);
+
+        foreach (var row in rows)
+        {
+            var cells = Cell.Matches(row)
+                .Select(match => match.Groups["body"].Value)
+                .ToArray();
+
+            Assert.Equal(columns.Length, cells.Length);
+
+            for (var index = 0; index < cells.Length; index++)
+            {
+                var names = LabelSpan.Matches(cells[index])
+                    .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+                    .ToArray();
+
+                Assert.Equal(new[] { columns[index] }, names);
+            }
+        }
+    }
+
     /// <summary>The text of every declaration in one rule of a stylesheet.</summary>
     private static string Rule(string stylesheet, string selector)
     {
@@ -372,6 +626,13 @@ public class ReviewScreenTests
     /// </summary>
     private static string ColourCandidates(string html) =>
         Regex.Replace(html, @"[^#0-9a-fA-F]", " ", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// The screen as an administrator meets it, for <c>PhoneLayoutTests</c> to read the wrapper out
+    /// of. An administrator rather than the default role of nothing: that class asks for a screen
+    /// that actually draws a table, and a driver is shown a sentence instead of one.
+    /// </summary>
+    internal static Task<string> RenderReviewsAsync() => RenderAsync(UserRole.Admin);
 
     private static Task<string> RenderAsync(
         UserRole role,

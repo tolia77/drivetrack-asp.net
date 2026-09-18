@@ -1,0 +1,44 @@
+/*
+    The two things this screen asks of its own card, and nothing else.
+
+    Not a stacking rule. `_bootstrap-bridge.scss` moves the framework's `sm` onto
+    `$dt-breakpoint-phone`, so `.col-sm-4` / `.col-sm-8` only take effect from 641px - the same
+    edge the shell switches on - and below it `.row > *` already gives every `<dt>` and `<dd>` the
+    full width. There is no band where this list is two columns under a phone shell, and a rule
+    stacking it here would match the widths at which it is already stacked.
+
+    No `::deep`: the `<dt>`, the `<dd>` and the card's three actions are all written in this
+    component's own markup and carry its scope. `.dt-profile-card` is the class handed to DtCard,
+    and it is only the ancestor in the selector - the scope attribute lands on the last element,
+    which is this screen's.
+
+    NFR-29: nothing here is a palette value but the touch target, which is a `--dt-*` reference.
+    The breakpoint is geometry the palette does not name, and a media query cannot read a custom
+    property in any case - `_theme.scss` writes the same edge as `$dt-breakpoint-phone-max`.
+*/
+
+/*
+    A long value breaks inside the card rather than widening it. Two of these rows hold a string
+    with no space in it to break at - an email address and a driver's licence number - and on a
+    390px screen an address at a long domain pushes the card past the viewport and hands the page
+    a sideways scroller. `anywhere` rather than `break-word`, as `ChatLine.razor.css` writes it for
+    the same problem: it lets the intrinsic width shrink too.
+
+    Unconditional, because the value is no shorter above the breakpoint - it is only the column
+    that is wider.
+*/
+.dt-profile-card dl.row dd {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640.98px) {
+    /*
+        Every control in the card is at least `touch-target` tall. The three actions are `btn-sm`,
+        which is the right size in a card head beside a title on a desktop and a 31px target on a
+        phone - the same floor the collapsing tables hold their row actions to, and for the same
+        reason: a control that small is one a thumb misses.
+    */
+    .dt-profile-card .btn {
+        min-height: var(--dt-touch-target);
+    }
+}

@@ -21,6 +21,49 @@ namespace DriveTrack.Integration.Tests.Components;
 /// </summary>
 public class ProfileScreenTests
 {
+    /// <summary>The heading row: the screen's title, and nothing else this screen puts beside it.</summary>
+    private static readonly Regex PageHead = new(
+        @"<div\b[^>]*class=""[^""]*\bdt-page-head\b[^""]*""[^>]*>(?<body>.*?)</div>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    [Fact]
+    public async Task The_screen_carries_its_heading_in_the_shared_page_head_and_nothing_beside_it()
+    {
+        // <h1> rather than <h2>: `FocusOnNavigate Selector="h1"` in Routes.razor looks for one, and
+        // on a page without it a keyboard user keeps the focus the previous screen had. In the
+        // shared heading row because the product has one heading shape - this screen has no action
+        // of its own to put beside the title and is written the same way all the same, so a reader
+        // moving between screens is not shown two different ways of starting a page.
+        var html = await RenderAsync(Client());
+
+        var head = PageHead.Match(html);
+
+        Assert.True(head.Success, "The screen has no heading row.");
+
+        var body = head.Groups["body"].Value;
+
+        Assert.Contains("<h1", body, StringComparison.Ordinal);
+
+        // NFR-24: the heading carries the glyph the navigation already uses for this destination.
+        // It was the last of the signed-in application screens whose <h1> had none. Outside that
+        // set the claim does not hold and is not made here: SignIn, Register and Error still carry
+        // a bare `dt-type-h1`, none of them being a destination the navigation names.
+        Assert.Contains("<svg", body, StringComparison.Ordinal);
+
+        // And the three things a user can change are not copied up here. They are actions on the
+        // record the card holds rather than on the screen, so they stay in that card's head - and a
+        // second copy beside the title would be the same control offered twice, which is what the
+        // exactly-once count above this would catch and this states the reason for.
+        Assert.DoesNotContain("<button", body, StringComparison.Ordinal);
+
+        foreach (var action in new[] { "dt-profile-edit", "dt-profile-password", "dt-profile-email" })
+        {
+            Assert.DoesNotContain(action, body, StringComparison.Ordinal);
+            Assert.Equal(1, SharedMarkup.Occurrences(html, action));
+        }
+    }
+
     [Fact]
     public async Task The_screen_offers_an_edit_a_password_change_and_an_address_change()
     {

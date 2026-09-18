@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace DriveTrack.Integration.Tests.Components;
 
 /// <summary>
@@ -42,6 +44,7 @@ public class PhoneLayoutTests
         { "Clients", "Admin", "dt-clients", "dt-client-label" },
         { "Dispatchers", "Admin", "dt-dispatchers", "dt-dispatcher-label" },
         { "Notifications", "Admin", "dt-notifications", "dt-notification-label" },
+        { "Reviews", "", "dt-reviews", "dt-review-label" },
     };
 
     [Theory]
@@ -57,7 +60,15 @@ public class PhoneLayoutTests
         // lose that while the file still contains the class somewhere.
         var html = await RenderAsync(screen);
 
-        Assert.Contains($@"class=""{wrapper}""", html, StringComparison.Ordinal);
+        // The table inside the wrapper rather than the class somewhere on the page. Every rule
+        // below the breakpoint is written `.{wrapper} ::deep …`, so a closing `</div>` moved above
+        // the table leaves the class rendered, this assertion's weaker form satisfied and every
+        // collapse rule matching nothing - which is the silent failure this class exists for, from
+        // the one direction a `Contains` cannot see.
+        var body = BodyOf(html, wrapper);
+
+        Assert.Contains("dt-table-scroll", body, StringComparison.Ordinal);
+        Assert.Contains("dt-table-row", body, StringComparison.Ordinal);
 
         // The other half: the stylesheet hangs off that same name. `::deep` on the head, because
         // the `<thead>` is DtDataTable's element and carries that component's scope - without it
@@ -75,6 +86,49 @@ public class PhoneLayoutTests
     }
 
     /// <summary>
+    /// The markup inside one wrapper <c>&lt;div&gt;</c>, walked to its own closing tag rather than
+    /// to the first one: the table it holds renders several <c>&lt;div&gt;</c>s of its own, so a
+    /// non-greedy match would stop inside the very thing being looked for.
+    /// <para>
+    /// Internal because <c>ReviewScreenTests</c> asks the same question of the one wrapper with
+    /// two possible occupants, and a second copy of a tag walker is a second set of bugs.
+    /// </para>
+    /// </summary>
+    internal static string BodyOf(string html, string wrapper)
+    {
+        var opening = new Regex(
+            $@"<div\b[^>]*class=""{Regex.Escape(wrapper)}""[^>]*>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(5));
+
+        var start = opening.Match(html);
+
+        Assert.True(start.Success, $@"The screen renders no <div class=""{wrapper}"">.");
+
+        var body = start.Index + start.Length;
+        var depth = 1;
+
+        var tags = new Regex(
+            @"<(?<close>/?)div\b[^>]*>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant,
+            TimeSpan.FromSeconds(5));
+
+        foreach (Match tag in tags.Matches(html, body))
+        {
+            depth += tag.Groups["close"].Value.Length == 0 ? 1 : -1;
+
+            if (depth == 0)
+            {
+                return html[body..tag.Index];
+            }
+        }
+
+        Assert.Fail($@"The <div class=""{wrapper}""> is never closed.");
+
+        return string.Empty;
+    }
+
+    /// <summary>
     /// One of the screens, rendered through the stubs its own suite already keeps. Borrowed rather
     /// than duplicated: a second set of stubs is a second answer to what these screens are given,
     /// and this class has no opinion about that.
@@ -89,6 +143,7 @@ public class PhoneLayoutTests
         "Clients" => AdministrationScreenTests.RenderClientsAsync(),
         "Dispatchers" => AdministrationScreenTests.RenderDispatchersAsync(),
         "Notifications" => NotificationScreenTests.RenderLogAsync(),
+        "Reviews" => ReviewScreenTests.RenderReviewsAsync(),
         _ => throw new ArgumentOutOfRangeException(nameof(screen), screen, "No such screen."),
     };
 }

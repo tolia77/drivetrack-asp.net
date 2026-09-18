@@ -24,7 +24,16 @@
 
 <PageTitle>@Localizer["ProfileTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">@Localizer["ProfileTitle"]</h1>
+@* The screen's title, in the shared heading row. Nothing beside it: the three things a user can
+   change here are actions on the record the card below holds rather than on the screen, so they
+   stay in that card's head where the record they act on is. The wrapper is written all the same,
+   because the product has one heading shape and a reader moving between screens should not be
+   shown two different ways of starting a page. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Profile" />@Localizer["ProfileTitle"]
+    </h1>
+</div>
 
 @* Rendered at page level as well as inside each dialog: a refusal the user can act on has to be
    visible whether the dialog is still open or has already been dismissed. *@

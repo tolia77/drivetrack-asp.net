@@ -28,9 +28,27 @@
 
 <PageTitle>@Localizer["ReviewsTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">
-    <Icon Name="IconName.Reviews" />@Localizer["ReviewsTitle"]
-</h1>
+@* The screen's title and, for a client, the one action that opens an empty form - on one line, the
+   shape the four fleet screens and the two delivery ones already settled. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Reviews" />@Localizer["ReviewsTitle"]
+    </h1>
+
+    @* Offered only when there is something to review. An action whose form opens on an empty picker
+       posts no delivery and is answered "no such delivery" - a true sentence about a question the
+       client did not ask. The gate travels with the action into the head, as MyDeliveries wraps its
+       own head action: the head holds the title and whatever the role in front of it may do, and
+       for the three roles that may do nothing it holds the title alone. The hint below says the
+       same thing the picker's own hint says, because it is the same rule: a finished delivery of
+       theirs that they have not already written about. *@
+    @if (_authors && _reviewable.Count > 0)
+    {
+        <button type="button" class="btn btn-primary dt-review-create" @onclick="OpenCreateAsync">
+            <Icon Name="IconName.Create" />@Localizer["WriteReview"]
+        </button>
+    }
+</div>
 
 @* NFR-3: the message is the localized string for the code the service threw, resolved through the
    same catalogue the REST envelope uses. Nothing an exception carries reaches this page.
@@ -43,142 +61,185 @@
     <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 }
 
-@* Offered only when there is something to review. An action whose form opens on an empty picker
-   posts no delivery and is answered "no such delivery" - a true sentence about a question the
-   client did not ask. The hint below says the same thing the picker's own hint says, because it is
-   the same rule: a finished delivery of theirs that they have not already written about. *@
-@if (_authors && _reviewable.Count > 0)
-{
-    <div class="row g-4 align-items-end mb-4">
-        <div class="col-sm-auto">
-            <button type="button" class="btn btn-primary dt-review-create" @onclick="OpenCreateAsync">
-                <Icon Name="IconName.Create" />@Localizer["WriteReview"]
-            </button>
-        </div>
-    </div>
-}
-
+@* The sibling of the action above rather than a second copy of it: never both, and neither while
+   the lists are still loading - the action waits for a delivery to put in its picker and this waits
+   for `!_loading`, so the first pass shows a bare head and the sentence appears once the answer is
+   in. Saying "there is nothing to review" before looking would be a claim the screen cannot yet
+   make. It stays below the head because it is a sentence rather than a control - a paragraph inside
+   the heading row would sit on the line beside the title. *@
 @if (_authors && !_loading && _reviewable.Count == 0)
 {
     <p class="dt-review-nothing-to-review">@Localizer["ReviewDeliveryHint"]</p>
 }
 
-@* FR-63: the author's own list. A separate table from the moderation one below rather than the
-   same table with columns hidden, because the two are different types - AuthoredReviewSummary has
-   no party field at all, so a driver's identity cannot reach this table however it is later edited
-   (AD-17). *@
-@if (_authors)
-{
-    <DtDataTable TItem="AuthoredReviewSummary"
-                 Items="_mine"
-                 IsLoading="_loading"
-                 EmptyText="@Localizer["ReviewsEmpty"]">
-        <HeaderTemplate>
-            <th scope="col">@Localizer["ReviewDelivery"]</th>
-            <th scope="col">@Localizer["ReviewRating"]</th>
-            <th scope="col">@Localizer["ReviewText"]</th>
-            <th scope="col">@Localizer["CreatedAt"]</th>
-            <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
-        </HeaderTemplate>
-        <RowTemplate Context="review">
-            <td>@review.DeliveryId</td>
-            <td>
-                @* AD-18: the band is Domain's own reading of the number, carried on the row, and
-                   the shared display is only what that band looks like. No threshold here, and no
-                   colour - the `dt-rating--*` modifier resolves to a --dt-rating-* token in
-                   _theme.scss (AD-28, NFR-29). *@
-                <DtRatingDisplay Rating="review.Rating" Band="review.Band" />
-            </td>
-            <td>@review.Text</td>
-            <td>@Moment(review.CreatedAt)</td>
-            <td class="dt-row-actions">
-                @* The handler is built in C# rather than written as a lambda in the attribute: a
-                   `=>` here would close the tag as far as NFR-14's markup scan is concerned, and
-                   everything after it would be read as rendered English. *@
-                <button type="button" class="btn btn-secondary btn-sm dt-review-edit" @onclick="EditMine(review)">
-                    <Icon Name="IconName.Edit" />@Localizer["Edit"]
-                </button>
-                <button type="button" class="btn btn-danger btn-sm dt-review-delete" @onclick="Remove(review.Id)">
-                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
-                </button>
-            </td>
-        </RowTemplate>
-    </DtDataTable>
-}
+@* The wrapper is this screen's anchor into the tables it does not own: below the phone breakpoint
+   the rows stop being rows and become cards, and the elements that have to change - the table, its
+   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
+   scoped element around them is what gives `::deep` something to hang from.
 
-@* FR-64: every review, with both parties named. A dispatcher gets the table and no actions, which
-   is the same rule the guard states - they read the collection and never write to it - rendered
-   rather than restated. *@
-@if (_readsEvery)
-{
-    <DtDataTable TItem="ReviewSummary"
-                 Items="_all"
-                 IsLoading="_loading"
-                 EmptyText="@Localizer["ReviewsEmpty"]">
-        <HeaderTemplate>
-            <th scope="col">@Localizer["ReviewDelivery"]</th>
-            <th scope="col">@Localizer["Client"]</th>
-            <th scope="col">@Localizer["Driver"]</th>
-            <th scope="col">@Localizer["ReviewRating"]</th>
-            <th scope="col">@Localizer["ReviewText"]</th>
-            <th scope="col">@Localizer["CreatedAt"]</th>
-            @* Only for the role that has any. A dispatcher reads the collection and writes to none
-               of it, so an unconditional heading here would label a column of permanently empty
-               cells; the cell below carries the same predicate, so header and row stay the same
-               width for whoever is reading. *@
-            @if (_moderates)
-            {
-                <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
-            }
-        </HeaderTemplate>
-        <RowTemplate Context="review">
-            <td>@review.DeliveryId</td>
-            <td>
-                @if (review.Client is null)
-                {
-                    <span>@Localizer["NoClient"]</span>
-                }
-                @if (review.Client is not null)
-                {
-                    <span>@review.Client.Name</span>
-                }
-            </td>
-            <td>
-                @if (review.Driver is null)
-                {
-                    <span>@Localizer["NoDriver"]</span>
-                }
-                @if (review.Driver is not null)
-                {
-                    <span>@review.Driver.Name</span>
-                }
-            </td>
-            <td>
-                <DtRatingDisplay Rating="review.Rating" Band="review.Band" />
-            </td>
-            <td>@review.Text</td>
-            <td>@Moment(review.CreatedAt)</td>
-            @* FR-65 and FR-66 are an administrator's. Offering a dispatcher an action that could
-               only ever fail is worse than not offering it - and FR-12 is unchanged: this hides,
-               the guard decides. The cell goes with the buttons rather than staying behind empty,
-               because the heading above is conditional on the same predicate. *@
-            @if (_moderates)
-            {
-                <td class="dt-row-actions">
-                    <button type="button" class="btn btn-secondary btn-sm dt-review-edit" @onclick="EditAny(review)">
+   One wrapper around both tables rather than one each. No role is ever shown both, and the two take
+   identical treatment, so a second wrapper would be a second copy of every rule in the media query
+   and the place a divergence between the author's cards and the moderator's would start. *@
+<div class="dt-reviews">
+    @* FR-63: the author's own list. A separate table from the moderation one below rather than the
+       same table with columns hidden, because the two are different types - AuthoredReviewSummary
+       has no party field at all, so a driver's identity cannot reach this table however it is later
+       edited (AD-17). *@
+    @if (_authors)
+    {
+        <DtDataTable TItem="AuthoredReviewSummary"
+                     Items="_mine"
+                     IsLoading="_loading"
+                     EmptyText="@Localizer["ReviewsEmpty"]">
+            <HeaderTemplate>
+                <th scope="col">@Localizer["ReviewDelivery"]</th>
+                <th scope="col">@Localizer["ReviewRating"]</th>
+                <th scope="col">@Localizer["ReviewText"]</th>
+                <th scope="col">@Localizer["CreatedAt"]</th>
+                @* The actions column keeps its name for a screen reader and drops it on screen, as
+                   every other table in the product does: the buttons under it say what they do, and
+                   a column named above them competes with them for the same width. *@
+                <th scope="col" class="dt-table-actions">
+                    <span class="dt-visually-hidden">@Localizer["Actions"]</span>
+                </th>
+            </HeaderTemplate>
+            <RowTemplate Context="review">
+                @* The per-cell name, carried by the cell rather than only by the column heading. Not
+                   the same thing on both sides of the breakpoint: above it the span is dropped,
+                   where the `<th>` already names the column and a second name in every cell would
+                   be that name read twice a row; below it the head is gone and the span is painted,
+                   as something a reader can see, and that is what replaces it. *@
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["ReviewDelivery"]</span>
+                    @review.DeliveryId
+                </td>
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["ReviewRating"]</span>
+                    @* AD-18: the band is Domain's own reading of the number, carried on the row, and
+                       the shared display is only what that band looks like. No threshold here, and
+                       no colour - the `dt-rating--*` modifier resolves to a --dt-rating-* token in
+                       _theme.scss (AD-28, NFR-29). *@
+                    <DtRatingDisplay Rating="review.Rating" Band="review.Band" />
+                </td>
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["ReviewText"]</span>
+                    @review.Text
+                </td>
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["CreatedAt"]</span>
+                    @Moment(review.CreatedAt)
+                </td>
+                @* `dt-table-actions` rather than a class of this screen's own: the right-aligned,
+                   nowrapped actions column is DtDataTable's own rule, and the cell has to wear the
+                   class its heading already wears to be reached by it. *@
+                <td class="dt-table-actions">
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["Actions"]</span>
+                    @* The handler is built in C# rather than written as a lambda in the attribute: a
+                       `=>` here would close the tag as far as NFR-14's markup scan is concerned, and
+                       everything after it would be read as rendered English. *@
+                    <button type="button" class="btn btn-secondary btn-sm dt-review-edit" @onclick="EditMine(review)">
                         <Icon Name="IconName.Edit" />@Localizer["Edit"]
                     </button>
                     <button type="button" class="btn btn-danger btn-sm dt-review-delete" @onclick="Remove(review.Id)">
                         <Icon Name="IconName.Delete" />@Localizer["Delete"]
                     </button>
                 </td>
-            }
-        </RowTemplate>
-    </DtDataTable>
-}
+            </RowTemplate>
+        </DtDataTable>
+    }
+
+    @* FR-64: every review, with both parties named. A dispatcher gets the table and no actions,
+       which is the same rule the guard states - they read the collection and never write to it -
+       rendered rather than restated. *@
+    @if (_readsEvery)
+    {
+        <DtDataTable TItem="ReviewSummary"
+                     Items="_all"
+                     IsLoading="_loading"
+                     EmptyText="@Localizer["ReviewsEmpty"]">
+            <HeaderTemplate>
+                <th scope="col">@Localizer["ReviewDelivery"]</th>
+                <th scope="col">@Localizer["Client"]</th>
+                <th scope="col">@Localizer["Driver"]</th>
+                <th scope="col">@Localizer["ReviewRating"]</th>
+                <th scope="col">@Localizer["ReviewText"]</th>
+                <th scope="col">@Localizer["CreatedAt"]</th>
+                @* Only for the role that has any. A dispatcher reads the collection and writes to
+                   none of it, so an unconditional heading here would label a column of permanently
+                   empty cells; the cell below carries the same predicate, so header and row stay the
+                   same width for whoever is reading. *@
+                @if (_moderates)
+                {
+                    <th scope="col" class="dt-table-actions">
+                        <span class="dt-visually-hidden">@Localizer["Actions"]</span>
+                    </th>
+                }
+            </HeaderTemplate>
+            <RowTemplate Context="review">
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["ReviewDelivery"]</span>
+                    @review.DeliveryId
+                </td>
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["Client"]</span>
+                    @if (review.Client is null)
+                    {
+                        <span>@Localizer["NoClient"]</span>
+                    }
+                    @if (review.Client is not null)
+                    {
+                        <span>@review.Client.Name</span>
+                    }
+                </td>
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["Driver"]</span>
+                    @if (review.Driver is null)
+                    {
+                        <span>@Localizer["NoDriver"]</span>
+                    }
+                    @if (review.Driver is not null)
+                    {
+                        <span>@review.Driver.Name</span>
+                    }
+                </td>
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["ReviewRating"]</span>
+                    <DtRatingDisplay Rating="review.Rating" Band="review.Band" />
+                </td>
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["ReviewText"]</span>
+                    @review.Text
+                </td>
+                <td>
+                    <span class="dt-visually-hidden dt-review-label">@Localizer["CreatedAt"]</span>
+                    @Moment(review.CreatedAt)
+                </td>
+                @* FR-65 and FR-66 are an administrator's. Offering a dispatcher an action that could
+                   only ever fail is worse than not offering it - and FR-12 is unchanged: this hides,
+                   the guard decides. The cell goes with the buttons rather than staying behind
+                   empty, because the heading above is conditional on the same predicate - and the
+                   per-cell name goes with the cell, or a dispatcher's card would carry a line headed
+                   "Дії" with nothing at all underneath it. *@
+                @if (_moderates)
+                {
+                    <td class="dt-table-actions">
+                        <span class="dt-visually-hidden dt-review-label">@Localizer["Actions"]</span>
+                        <button type="button" class="btn btn-secondary btn-sm dt-review-edit" @onclick="EditAny(review)">
+                            <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm dt-review-delete" @onclick="Remove(review.Id)">
+                            <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                        </button>
+                    </td>
+                }
+            </RowTemplate>
+        </DtDataTable>
+    }
+</div>
 
 @* A driver. Said plainly rather than shown as an empty table, which would read as "nobody has
-   written anything" instead of "this is not yours". *@
+   written anything" instead of "this is not yours". Outside the wrapper, because the wrapper is
+   an anchor for rules about a table and this is the screen for the one role that gets none. *@
 @if (!_authors && !_readsEvery)
 {
     <p class="dt-review-refused">@Localizer["ReviewsNotAvailable"]</p>

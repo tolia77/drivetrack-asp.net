@@ -1,22 +1,14 @@
 /*
-    The reviews screen's own layout, and nothing else. The rating colours are app-level rather than
-    scoped, in _theme.scss: the driver roster renders the same judgement from an average, and a
-    scoped copy here would be the same three tokens written twice - which is where a divergence
-    between "a verdict" and "the average of several verdicts" would start.
-*/
+    The reviews screen's own layout, and the one thing it asks of the tables it does not own. The
+    rating colours are app-level rather than scoped, in _theme.scss: the driver roster renders the
+    same judgement from an average, and a scoped copy here would be the same three tokens written
+    twice - which is where a divergence between "a verdict" and "the average of several verdicts"
+    would start.
 
-/*
-    The actions cell. Bootstrap's buttons carry no margin of their own, so Edit and Delete would
-    otherwise touch; the gap is a token because NFR-29 scans it as a visual value.
-
-    A row where the buttons are absent - a dispatcher reading the collection under FR-64 - collapses
-    to an empty cell, which is what an empty cell should look like.
+    NFR-29: every palette value here is a `--dt-*` reference. What is literal is geometry the
+    palette does not name - the breakpoint itself, which a media query cannot read from a custom
+    property at all.
 */
-.dt-row-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--dt-space-2);
-}
 
 /*
     Two explanations rather than refusals, so both are muted: nothing went wrong in either case.
@@ -27,4 +19,165 @@
 .dt-review-refused,
 .dt-review-nothing-to-review {
     color: var(--dt-ink-muted);
+}
+
+/*
+    The name of the cell, carried by the cell rather than by a column heading.
+
+    Not rendered at all above the breakpoint: up there the `<th>` names the column, the cell is
+    announced under it, and a second name inside every cell would be that name read twice on every
+    row. Below the breakpoint the head is gone and this is what replaces it - see the media query,
+    where the span also gives up `dt-visually-hidden` and becomes something a reader can see.
+
+    No `::deep`: the span is written in this screen's own `RowTemplate`, so it carries this
+    component's scope. The rules that reach the table, the head and the rows do need one, and have
+    one, because those elements are DtDataTable's.
+*/
+.dt-review-label {
+    display: none;
+}
+
+/*
+    Below the breakpoint, the stacked layout.
+
+    Stated desktop-first with the phone as the exception, because that is the direction
+    `_theme.scss` states the shell in and the two have to switch on the same edge. The theme writes
+    that edge as `$dt-breakpoint-phone-max`; this file is plain CSS rather than Sass and cannot read
+    a Sass variable, and a custom property is not legal in a media query either, so the figure is
+    written out - and deliberately not approximated as `min-width: 641px`, which would leave a
+    sliver of widths where the shell is a sidebar and the rows are already cards.
+
+    One set of rules for both tables. `.dt-reviews` wraps the author's list and the moderation list
+    alike, and no role is ever shown both, so a wrapper each would be this whole media query written
+    twice and the place the two would start to drift apart.
+
+    ::deep on everything that reaches into a table: the table, its head and its rows are
+    DtDataTable's elements and carry that component's scope, and `.dt-reviews` is this screen's
+    wrapper, so it anchors those selectors - which is also what keeps these rules off the other
+    tables in the product. The label and the heading row are this screen's own elements and are
+    anchored without one.
+*/
+@media (max-width: 640.98px) {
+    /*
+        The head is dropped rather than hidden. A table laid out as blocks is no longer a table to a
+        screen reader - the implicit table, row and cell roles go with the `display` they came from
+        - so a head left in the accessibility tree would name columns that no longer exist to be
+        announced under. What replaces it is the label inside each cell, revealed just below.
+    */
+    .dt-reviews ::deep thead {
+        display: none;
+    }
+
+    /*
+        And the label takes the heading's place, as something a reader can actually see. `display`
+        alone would not do that: `dt-visually-hidden` also pulls the span out of the flow, shrinks
+        it to a pixel, hides the overflow and masks what is left, so every one of those has to be
+        handed back here - or a card would show a bare rating figure whose name lived only in the
+        heading that has just been dropped.
+
+        A face of its own, so it reads as the name of the value rather than as a second value: the
+        same quietened label ramp the column headings wear. Full width so it takes the line above
+        the value, in the actions cell as well - that one is a flex row, and without this the name
+        of the column would sit on the line beside the buttons it names.
+    */
+    .dt-reviews .dt-review-label {
+        display: block;
+        position: static;
+        width: 100%;
+        height: auto;
+        overflow: visible;
+        clip: auto;
+        clip-path: none;
+        white-space: normal;
+        color: var(--dt-ink-muted);
+        font-size: var(--dt-label-font-size);
+        line-height: var(--dt-label-line-height);
+        font-weight: var(--dt-label-font-weight);
+    }
+
+    /*
+        A table laid out as blocks. Every level of it, or a `display: block` row would have its
+        cells wrapped back into an anonymous table box and nothing would change.
+    */
+    .dt-reviews ::deep table,
+    .dt-reviews ::deep tbody,
+    .dt-reviews ::deep tr,
+    .dt-reviews ::deep td {
+        display: block;
+        width: 100%;
+    }
+
+    /*
+        The inner scroll goes with the table. DtDataTable caps its scroll box at 32rem so a long
+        table cannot push the page down, which is right for a table and wrong for this: on a 390px
+        screen it would put a 512px scrolling region inside a scrolling page, and escaping one
+        nested scroller is exactly what collapsing to cards is for. The page scrolls instead.
+    */
+    .dt-reviews ::deep .dt-table-scroll {
+        max-height: none;
+    }
+
+    /*
+        One row, one card - and the card's padding is on its cells rather than on the row. That is
+        what keeps the striping and the hover tint, which is what tells one card from the next: the
+        themed framework paints both as an inset shadow on the cell (`.table > :not(caption) > * >
+        *`), so padding on the row - or a gap between the cells - would be a frame the fill never
+        reaches, and an odd card would show its text lines painted and its border of white space
+        bare. With the padding on the cells the fill covers the card edge to edge, and what is left
+        for the row is the card's own edge.
+    */
+    .dt-reviews ::deep tr.dt-table-row {
+        border-bottom: var(--dt-border-width) solid var(--dt-border);
+    }
+
+    /*
+        Every cell is a line of the card, full width, and it carries the card's padding for the
+        reason above. The cell borders go: a card ruled between each of its own lines is several
+        cards.
+
+        And a long unbroken value breaks inside the card rather than widening it. A review is free
+        text a client typed, so a card here is the most likely place in the product to meet a
+        hundred characters with no space in them; without this it pushes the cell past 390px and
+        `.dt-table-scroll` - which still scrolls, it is only its height cap that was released above
+        - hands the card a sideways scroller of its own. Escaping that scroller is the whole of what
+        this collapse is for. `anywhere` rather than `break-word`, as `ChatLine.razor.css` writes it
+        for the same problem: it lets the intrinsic width shrink too, which is what a cell inside a
+        grid or a flex track needs.
+    */
+    .dt-reviews ::deep tr.dt-table-row td {
+        padding: var(--dt-space-2) var(--dt-space-3);
+        border: 0;
+        overflow-wrap: anywhere;
+    }
+
+    /*
+        The row's actions, which on a desktop are one nowrapped line at the trailing edge and on a
+        card are a block of buttons a thumb has to be able to land on. Long enough a selector to
+        take the two properties back from DtDataTable's own rule, which is written for the table
+        shape.
+    */
+    .dt-reviews ::deep tr.dt-table-row td.dt-table-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--dt-space-2);
+        white-space: normal;
+        text-align: start;
+    }
+
+    /*
+        Every control in a card is at least `touch-target` tall. The same floor the other collapsing
+        screens are held to, and for the same reason: a 36px control is one a thumb misses.
+    */
+    .dt-reviews ::deep tr.dt-table-row .btn {
+        min-height: var(--dt-touch-target);
+    }
+
+    /*
+        And the action beside the heading, which the rule above cannot reach: the heading row sits
+        outside the wrapper, because the wrapper exists only to give `::deep` somewhere to hang from
+        and the head is this screen's own markup.
+    */
+    .dt-page-head .btn {
+        min-height: var(--dt-touch-target);
+    }
 }
