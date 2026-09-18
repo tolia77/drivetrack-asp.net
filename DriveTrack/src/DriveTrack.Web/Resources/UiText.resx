@@ -668,6 +668,32 @@
   <data name="ProofPhotosHint" xml:space="preserve">
     <value>Щонайменше одна фотографія, не більше п’яти, кожна до 5 МіБ.</value>
   </data>
+  <!-- The photo grid's own two strings. The count is numerals in a badge, so the word in front of
+       them is available to a screen reader and not on screen: "2 / 5" is read at a glance and
+       "Обрано фотографій" is what says what the two figures are. -->
+  <data name="ProofPhotoCount" xml:space="preserve">
+    <value>Обрано фотографій</value>
+  </data>
+  <data name="ProofPhotoTile" xml:space="preserve">
+    <value>Фотографія</value>
+  </data>
+  <data name="ProofPhotoAdd" xml:space="preserve">
+    <value>Додати фото</value>
+  </data>
+  <!-- The saving label the action wears while a capture is in flight. A separate key rather than
+       the same words with an ellipsis: "Зберігаємо" is a report and "Зберегти підтвердження" is an
+       instruction, and one sentence cannot be both. -->
+  <data name="ProofSaving" xml:space="preserve">
+    <value>Зберігаємо…</value>
+  </data>
+  <data name="ProofPhotoRemove" xml:space="preserve">
+    <value>Прибрати фотографію</value>
+  </data>
+  <!-- Said in words rather than as a figure: a pill reading "7 / 5" states a count above the
+       ceiling in the shape it uses for a valid one. The hint under the grid still names the five. -->
+  <data name="ProofPhotosOverLimit" xml:space="preserve">
+    <value>Забагато фотографій</value>
+  </data>
   <data name="ProofLocation" xml:space="preserve">
     <value>Місце вручення</value>
   </data>
@@ -696,6 +722,18 @@
   </data>
   <data name="SignatureClear" xml:space="preserve">
     <value>Очистити підпис</value>
+  </data>
+  <!-- The pad's three states, as the design names them. The prompt says what the frame is for, and
+       the two hints say whether it has anything on it - which a canvas cannot say for itself,
+       because its accessible name never changes. -->
+  <data name="SignaturePrompt" xml:space="preserve">
+    <value>Розпишіться пальцем або мишею</value>
+  </data>
+  <data name="SignatureEmpty" xml:space="preserve">
+    <value>Порожньо</value>
+  </data>
+  <data name="SignatureSigned" xml:space="preserve">
+    <value>Підписано</value>
   </data>
   <!-- Story 8.1: FR-68 to FR-76. The destination, and the screen behind it. -->
   <data name="NavChat" xml:space="preserve">

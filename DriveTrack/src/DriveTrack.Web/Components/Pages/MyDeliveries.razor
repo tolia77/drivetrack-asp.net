@@ -250,7 +250,10 @@
     <ChildContent>
         @if (_capturing is not null)
         {
-            <ProofCapture DeliveryId="_capturing.Id" OnCaptured="CapturedAsync" />
+            @* The whole row as well as its id. The panel names the parcel being signed for, and
+               this screen is already holding the record that says which one it is - so the summary
+               costs a parameter rather than a second read of a delivery the driver is standing on. *@
+            <ProofCapture DeliveryId="_capturing.Id" Summary="_capturing" OnCaptured="CapturedAsync" />
         }
     </ChildContent>
 </DtDialog>

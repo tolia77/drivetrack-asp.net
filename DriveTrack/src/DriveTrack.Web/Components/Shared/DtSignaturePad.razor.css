@@ -1,31 +1,60 @@
 /*
-    NFR-29: every palette value here resolves to a `--dt-*` token. The two figures that are not are
-    geometry - the pad's height and its full width - and NFR-29's scan deliberately does not read
-    `width` or `height`.
+    NFR-29: every palette value here resolves to a `--dt-*` token. What stays literal is geometry -
+    the pad's height, its full width, the absolute placement of the baseline and the cross - and
+    NFR-29's scan deliberately does not read `width`, `height`, `inset`, `top` or `left`.
 
     The height is stated because a canvas with no height collapses to nothing: there is no content
-    inside it to give the box a size, so a pad laid out by its contents would be invisible.
+    inside it to give the box a size, so a pad laid out by its contents would be invisible. 11.25rem
+    is the design's 180px floor, which is what a signature written with a finger needs to be legible
+    rather than a squiggle in a slot.
 */
 
 .dt-signature {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: var(--dt-space-2);
 }
 
-.dt-signature-canvas {
+/*
+    The frame, and the three states the design draws on it.
+
+    It carries the edge, the fill and the radius rather than the canvas, because the empty state's
+    baseline and cross sit inside the frame and under the strokes: a canvas painting its own
+    background would cover them. The canvas is therefore transparent, which changes nothing about
+    what `toDataURL` produces - a canvas's CSS background was never in its bitmap.
+*/
+.dt-signature-pad {
+    position: relative;
     width: 100%;
-    height: 10rem;
+    height: 11.25rem;
     border: var(--dt-border-width-focus) dashed var(--dt-border-control);
     border-radius: var(--dt-radius-md);
     background-color: var(--dt-surface-card);
 
     /*
-        The one line that makes the pad work on a phone. Without it a drag across the canvas is a
-        scroll gesture, the page moves under the finger and the signature is a single dot - and the
-        failure looks like a broken component rather than a browser doing exactly what it was told.
+        The one line that makes the pad work on a phone, on the frame as well as the canvas: without
+        it a drag is a scroll gesture, the page moves under the finger and the signature is a single
+        dot - and the failure looks like a broken component rather than a browser doing exactly what
+        it was told.
     */
+    touch-action: none;
+}
+
+/*
+    Signed. The frame goes solid, which is the whole of the difference: a dashed edge is an
+    invitation, and an invitation still open over a signature that has been given reads as a box
+    that did not take it.
+*/
+.dt-signature-pad--signed {
+    border-style: solid;
+}
+
+.dt-signature-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     touch-action: none;
 
     /* A drag on a canvas otherwise selects the surrounding text on a desktop. */
@@ -33,9 +62,65 @@
 }
 
 /*
-    Clear sits below the pad, reachable with a thumb: the pad is used on a phone at a doorstep, and
-    a mis-drawn signature has to be as easy to undo as it was to make.
+    The empty state's three marks. None of them takes a pointer event: a finger that comes down on
+    the prompt rather than on bare canvas has to start a stroke like any other, and an element on
+    top of the canvas that swallowed the press would make the middle of the pad the one place a
+    signature cannot begin.
+*/
+.dt-signature-baseline,
+.dt-signature-mark,
+.dt-signature-prompt {
+    position: absolute;
+    pointer-events: none;
+    color: var(--dt-ink-muted);
+}
+
+/* The line a signature is written on, inset from the frame so it reads as a rule rather than an edge. */
+.dt-signature-baseline {
+    left: 12%;
+    right: 12%;
+    top: 58%;
+    border-top: var(--dt-border-width) solid var(--dt-border-control);
+}
+
+/* The cross at the start of the line, which is what says which end to begin at. */
+.dt-signature-mark {
+    left: 12%;
+    top: 58%;
+    transform: translate(-50%, -100%);
+}
+
+.dt-signature-prompt {
+    left: 0;
+    right: 0;
+    top: 62%;
+    text-align: center;
+}
+
+/*
+    Clear and the state hint on one line, wrapping rather than overflowing: Ukrainian runs longer
+    than English and the pair has to hold at 360px.
+*/
+.dt-signature-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dt-space-3);
+}
+
+/*
+    Clear is reachable with a thumb: the pad is used on a phone at a doorstep, and a mis-drawn
+    signature has to be as easy to undo as it was to make.
 */
 .dt-signature-clear {
     min-height: var(--dt-touch-target);
+}
+
+.dt-signature-state {
+    color: var(--dt-ink-muted);
+}
+
+/* Signed is the one state that is an outcome rather than an absence, so it carries the mark for it. */
+.dt-signature-state--signed {
+    color: var(--dt-success-text);
 }

@@ -1,7 +1,17 @@
 /*
-    NFR-29: every colour, spacing figure and radius here resolves to a `--dt-*` token. The figures
-    that are geometry - `display`, `flex-direction`, `flex-wrap`, `justify-content` - name no palette
-    value and are outside the scan, as they are in the timeline's stylesheet.
+    FR-121 and NFR-29: the capture panel, drawn at 360px first.
+
+    Every colour, spacing figure and radius here resolves to a `--dt-*` token. The figures that are
+    geometry - `display`, `flex-direction`, `flex-wrap`, `grid-template-columns`, `position`,
+    `min-height` - name no palette value and are outside the scan, as they are in the timeline's
+    stylesheet. The design writes 48px for the save, 15px for a hint and 14px and 20px for two
+    paddings; none of those is on this product's scale, so each one snaps to the step that already
+    exists rather than arriving as a fourth figure nobody can name.
+
+    Three of the pieces drawn here belong to other components and are styled in their own files:
+    the signature pad's frame and states are DtSignaturePad's, the refusal banner is
+    DtFailureBanner's and a field's own message is DtFieldError's. Scoped CSS is stamped per
+    component, so a rule for their markup written here would match nothing at all.
 */
 
 .dt-proof-form {
@@ -10,32 +20,223 @@
     gap: var(--dt-space-4);
 }
 
+/* One part of the capture: its label, its control and whatever the control has to say about itself. */
+.dt-proof-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-1);
+}
+
+/*
+    The summary card's contents. Inside the card rather than on it: `dt-proof-summary` lands on
+    DtCard's own <div>, which carries DtCard's scope attribute and not this file's, so a rule
+    written against it here would match nothing. The card keeps its own padding and this stack sits
+    in it - which is also the right division, because how a card is padded is the card's decision.
+*/
+.dt-proof-summary-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-1);
+}
+
+.dt-proof-summary-place {
+    margin: 0;
+}
+
+/*
+    The parcel and the window. Wrapping rows rather than one line: Ukrainian runs long, the design's
+    own line carries three facts, and a fourth column on a 360px screen has to fall to the next line
+    instead of pushing the status label off the edge.
+*/
+.dt-proof-summary-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dt-space-2);
+    margin: 0;
+    color: var(--dt-ink-muted);
+}
+
+/* The label and its count on one line, the count against the far edge where the design puts it. */
+.dt-proof-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--dt-space-2);
+}
+
+/* The label is a list item's label here rather than a form's, so it sheds the stack margin. */
+.dt-proof-legend .form-label {
+    margin: 0;
+}
+
 /* The sentences that explain a control rather than label it: quieter than the label above them. */
 .dt-proof-hint {
     margin: var(--dt-space-1) 0 0;
     color: var(--dt-ink-muted);
-    font-size: var(--dt-body-font-size);
-}
-
-.dt-proof-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--dt-space-2);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
 }
 
 /*
-    FR-121 read as the design states it: the capture is drawn at 360px first, and every hit target
-    on it is at least `touch-target`. A driver is standing at a door holding a parcel, and a 36px
-    control is one a thumb misses.
-
-    ::deep, because two of these controls are the framework's own markup - InputFile renders the
-    <input> itself - and a scoped rule only reaches what its own component wrote.
+    The photo grid. Auto-fill rather than a fixed column count, so the same rule gives two tiles at
+    360px and four on a desktop dialog without a breakpoint of its own; the minimum is what keeps a
+    tile big enough to be a thumb target.
 */
-.dt-proof-form ::deep .form-control {
+.dt-proof-photos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+    gap: var(--dt-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/*
+    A tile. Square-ish and sunken, which is what makes the row read as a strip of photographs rather
+    than as a list of file names - and what makes the Add tile at the end of it read as the next one
+    in the strip.
+*/
+.dt-proof-photo {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--dt-space-1);
+
+    /*
+        Square, which is what "tile" means here and what makes the strip read as photographs. The
+        floor stays, because a ratio alone would let a narrow column shrink the tile below a thumb;
+        both are geometry and outside the token gate.
+    */
+    aspect-ratio: 1;
+    min-height: var(--dt-touch-target);
+    padding: var(--dt-space-3);
+    border: var(--dt-border-width) solid var(--dt-border);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-surface-sunken);
+    color: var(--dt-ink-muted);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
+    text-align: center;
+}
+
+/*
+    The file's own name, clipped rather than wrapped: a camera writes long names, and a tile that
+    grew to fit one would leave the row of tiles ragged.
+*/
+.dt-proof-photo-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The Add tile invites rather than records, so it wears the dashed edge the empty pad wears. */
+.dt-proof-photo-add {
+    border-style: dashed;
+    border-color: var(--dt-border-control);
+    background-color: var(--dt-surface-card);
+    color: var(--dt-brand);
+}
+
+/*
+    At the limit the design withdraws the Add tile, and `display: none` is what withdraws it -
+    dropping the <li> would take the spent pickers inside it out of the document with it, and those
+    are the only thing keeping the already-chosen files readable. Hidden, they stay.
+*/
+.dt-proof-photo-add--full {
+    display: none;
+}
+
+/* A tile's own Remove, in its corner rather than under the name: the name is what it acts on. */
+.dt-proof-photo-remove {
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-width: var(--dt-touch-target);
+    min-height: var(--dt-touch-target);
+    padding: 0;
+    color: var(--dt-ink-muted);
+}
+
+.dt-proof-photo-label {
+    margin: 0;
+    font-weight: var(--dt-label-font-weight);
+}
+
+/*
+    The picker itself, laid over the whole tile and invisible. Transparent rather than removed: a
+    `display: none` input is one a keyboard cannot reach and a screen reader does not announce, and
+    the file control is the only way a driver adds a photograph at all.
+
+    `::deep`, and this rule is worthless without it: `InputFile` renders the <input> itself, so the
+    element carries that component's scope attribute and not this file's. Written plainly the
+    selector compiles to `.dt-proof-picker[b-…]`, matches nothing, and a native file control renders
+    visibly in the middle of the tile - which is the whole of the tile's premise gone. The `::deep`
+    rule fifty lines below is here for the same reason.
+
+    The spent inputs stack under the live one and are disabled, so the one on top is the one a click
+    or a keyboard reaches. `height`, `width` and `inset` are geometry, and `opacity` names no palette
+    value.
+*/
+.dt-proof-photo-add ::deep .dt-proof-picker {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/*
+    The focus ring the transparent input cannot show for itself: an outline drawn on an element at
+    zero opacity is an outline nobody can see, so the tile around it wears the state instead. The
+    figures are the same pair every other focusable thing in the product uses.
+*/
+.dt-proof-photo-add:focus-within {
+    outline: var(--dt-border-width-focus) solid var(--dt-focus-ring);
+    outline-offset: var(--dt-border-width-focus);
+}
+
+/*
+    The save, pinned to the bottom of the dialog's own scroll box. DtDialog's body is what scrolls,
+    so a sticky element inside it stays on screen while the form moves under it - which is the
+    design's "inside thumb reach" without the panel having to become the dialog's foot.
+
+    It carries the card surface and a rule above it, because content passes behind it - without the
+    fill the map would scroll through the button. A hairline rather than the raised shadow: every
+    elevation token in this system throws downward, and a bar pinned to the bottom of a box wants
+    the separation above it.
+*/
+.dt-proof-actions {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    padding: var(--dt-space-3) 0 0;
+    border-top: var(--dt-border-width) solid var(--dt-border);
+    background-color: var(--dt-surface-card);
+}
+
+/*
+    Full width, and the label centred in it. One action, so there is nothing for it to be aligned
+    against - and a button a thumb cannot miss is the whole of FR-121 on this screen.
+*/
+.dt-proof-submit {
+    flex: 1;
+    justify-content: center;
     min-height: var(--dt-touch-target);
 }
 
-.dt-proof-actions ::deep .btn {
+/*
+    FR-121 read as the design states it: every hit target on this panel is at least `touch-target`.
+    A driver is standing at a door holding a parcel, and a 36px control is one a thumb misses.
+
+    ::deep, because the controls are the framework's own markup - InputFile renders the <input>
+    itself - and a scoped rule only reaches what its own component wrote.
+*/
+.dt-proof-form ::deep .form-control {
     min-height: var(--dt-touch-target);
 }

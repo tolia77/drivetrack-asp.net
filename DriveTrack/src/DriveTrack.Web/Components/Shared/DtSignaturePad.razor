@@ -10,16 +10,66 @@
    a canvas whose attribute size and CSS size disagree draws a signature that does not follow the
    finger.
 
+   The design gives the pad three states and this markup is the whole of them. Empty is a dashed
+   frame with a baseline, a cross and the sentence saying what to do with it - a driver at a door
+   has to be able to tell at a glance that this box is somewhere to draw rather than somewhere
+   to read. Signed is the same frame gone solid with the invitation withdrawn and a hint saying the
+   stroke registered. Cleared is empty again, which is why both arms read one field rather than two.
+
+   That field is fed from the browser, not guessed at here: the module owns `marked` - it is the
+   same flag `read()` answers null on - and a second copy of it in C# would be a copy free to
+   disagree with the bytes actually on the canvas. So the module calls NotifyMarkedAsync on the
+   first stroke and ClearAsync reads the flag back rather than assuming what clearing did.
+
    Every JS call happens in OnAfterRenderAsync or later, so static rendering never reaches IJSRuntime
-   and this component renders on the server's first pass exactly as it does in a render test. *@
+   and this component renders on the server's first pass exactly as it does in a render test - in the
+   empty state, which is the state a freshly opened pad is in. *@
 
 <div class="dt-signature">
-    <canvas @ref="_element" class="dt-signature-canvas" role="img"
-            aria-label="@Localizer["SignatureLabel"]"></canvas>
+    @* The frame, and everything drawn inside it. The decorations come before the canvas so the
+       canvas paints over them, and they take no pointer events of their own - a finger that came
+       down on the prompt rather than on bare canvas must still start a stroke. *@
+    <div class="dt-signature-pad @SignedClass">
+        @if (!_signed)
+        {
+            <span class="dt-signature-baseline" aria-hidden="true"></span>
+            <span class="dt-signature-mark" aria-hidden="true"><Icon Name="IconName.Close" /></span>
+            <span class="dt-signature-prompt dt-type-small">@Localizer["SignaturePrompt"]</span>
+        }
 
-    <button type="button" class="btn btn-outline-secondary btn-sm dt-signature-clear" @onclick="ClearAsync">
-        <Icon Name="IconName.Close" />@Localizer["SignatureClear"]
-    </button>
+        <canvas @ref="_element" class="dt-signature-canvas" role="img"
+                aria-label="@Localizer["SignatureLabel"]"></canvas>
+    </div>
+
+    @* Clear and the state hint on one line under the pad, which is where the design puts them: the
+       hint qualifies the pad and the action undoes it, and a driver reads both with the same
+       glance. role="status" so the change from empty to signed is announced rather than only
+       drawn - the canvas itself cannot say it, because its accessible name never changes. *@
+    <div class="dt-signature-foot">
+        <button type="button" class="btn btn-outline-secondary btn-sm dt-signature-clear" @onclick="ClearAsync">
+            <Icon Name="IconName.Close" />@Localizer["SignatureClear"]
+        </button>
+
+        @* One region, rendered from the first pass and never replaced - only its text changes. A
+           live region inserted into the page together with its content is routinely not announced,
+           because the observer has nothing to compare the insertion against, and two @@if arms each
+           carrying their own role="status" is exactly that: every change destroys one region and
+           creates another. The arms are therefore inside it rather than around it.
+
+           Independent @@if blocks rather than an if/else chain, for the reason every other screen in
+           this product writes them that way: an `else` reads to NFR-14's source scan as a rendered
+           English word, and a key chosen in C# is a key the closed-catalogue test cannot see. *@
+        <span class="dt-signature-state dt-type-small @StateClass" role="status">
+            @if (_signed)
+            {
+                <Icon Name="IconName.Confirm" />@Localizer["SignatureSigned"]
+            }
+            @if (!_signed)
+            {
+                @Localizer["SignatureEmpty"]
+            }
+        </span>
+    </div>
 </div>
 
 @code {
@@ -27,6 +77,40 @@
 
     private ElementReference _element;
     private IJSObjectReference? _module;
+    private DotNetObjectReference<DtSignaturePad>? _self;
+
+    /// <summary>
+    /// Whether anything has been drawn, as the module last reported it. Never set from a guess: the
+    /// only two writers are <see cref="NotifyMarkedAsync"/>, which the module calls on the first
+    /// stroke, and <see cref="ClearAsync"/>, which reads the flag back out of the module afterwards.
+    /// </summary>
+    private bool _signed;
+
+    /// <summary>The modifier this pad's frame is wearing.</summary>
+    private string SignedClass => Modifier(_signed);
+
+    /// <summary>
+    /// The modifier the state hint is wearing. A class on the one stable region rather than a second
+    /// region: changing an element's class does not replace the element, and replacing it is what
+    /// costs the announcement.
+    /// </summary>
+    private string StateClass => _signed ? "dt-signature-state--signed" : string.Empty;
+
+    /// <summary>
+    /// The modifier a frame wears in each of the pad's two states: solid once there is a stroke on
+    /// it, and nothing while it is still empty and dashed.
+    /// </summary>
+    /// <remarks>
+    /// Internal and static because the signed half is unreachable from a render test: the harness
+    /// renders statically, dispatches no pointer events and executes no module, so a pad it draws is
+    /// always the empty one. Written the other way round - the modifier on the empty state and none
+    /// on the signed one - every assertion this suite can make about the rendered pad still holds,
+    /// while a driver is shown a solid frame inviting nothing and a dashed one over a signature that
+    /// was already given.
+    /// </remarks>
+    /// <param name="signed">Whether anything has been drawn.</param>
+    internal static string Modifier(bool signed) =>
+        signed ? "dt-signature-pad--signed" : string.Empty;
 
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -39,8 +123,39 @@
         // Imported at first render rather than at initialisation: the element the module attaches
         // its pointer listeners to does not exist until the markup above has been written.
         _module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+        _self ??= DotNetObjectReference.Create(this);
 
-        await _module.InvokeVoidAsync("attach", _element);
+        await _module.InvokeVoidAsync("attach", _element, _self);
+    }
+
+    /// <summary>
+    /// Called by the module the first time a pointer comes down on the canvas, and never again for
+    /// the same stroke run.
+    /// </summary>
+    /// <remarks>
+    /// A push rather than a poll, because the thing being reported happens in the browser and
+    /// nothing on the server would otherwise ask. It is one message per pad per signature - the
+    /// module reports the transition, not the movement - so a signature drawn quickly does not
+    /// become a stream of interop calls up the circuit.
+    /// <para>
+    /// The flag is read back rather than assigned true, for the same reason <see cref="ClearAsync"/>
+    /// reads it back: this message crosses a circuit and can still be in flight when a wipe
+    /// completes. Assigning true on arrival would leave the pad saying "signed" over a canvas that
+    /// has just been cleared - and the capture would then send no signature at all, which is the one
+    /// state this hint exists to keep a driver out of.
+    /// </para>
+    /// </remarks>
+    [JSInvokable]
+    public async Task NotifyMarkedAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        _signed = await _module.InvokeAsync<bool>("marked", _element);
+
+        StateHasChanged();
     }
 
     /// <summary>
@@ -66,16 +181,14 @@
     }
 
     /// <summary>Wipes the pad, so a mis-drawn signature is redrawn rather than submitted.</summary>
+    /// <remarks>
+    /// The rendered state is read back out of the module rather than assigned false here. The module
+    /// owns <c>marked</c> - it is the flag <c>read()</c> answers null on - and a pad that said
+    /// "empty" while the module still held a stroke would be a frame inviting a signature over a
+    /// signature. The extra call is one round trip on a button press, which is not a path anything
+    /// is waiting on.
+    /// </remarks>
     public async Task ClearAsync()
-    {
-        if (_module is not null)
-        {
-            await _module.InvokeVoidAsync("clear", _element);
-        }
-    }
-
-    /// <inheritdoc />
-    public async ValueTask DisposeAsync()
     {
         if (_module is null)
         {
@@ -84,13 +197,44 @@
 
         try
         {
+            await _module.InvokeVoidAsync("clear", _element);
+
+            _signed = await _module.InvokeAsync<bool>("marked", _element);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Guarded like teardown is, and for a sharper reason: this runs from a click. The
+            // circuit can drop while the dialog is open, and an exception out of an event handler is
+            // not a failed wipe - it is an unhandled error that takes the screen down, losing the
+            // recipient's name and the signature along with the pad nobody managed to clear.
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_module is null)
+            {
+                return;
+            }
+
             await _module.InvokeVoidAsync("detach", _element);
             await _module.DisposeAsync();
         }
         catch (JSDisconnectedException)
         {
-            // The circuit went away before the component did. There is no browser left to tidy, and
-            // throwing here would replace a disconnect with an unhandled error.
+            // The circuit went away before the component did. There is no browser left to tidy,
+            // and throwing here would replace a disconnect with an unhandled error.
+        }
+        finally
+        {
+            // In the finally, so "whether or not" is true of every exception and of the early return
+            // as well, rather than only of the one caught above. The reference is this side's and
+            // nothing else releases it: a detach that threw anything else would otherwise leak one
+            // per dialog opened.
+            _self?.Dispose();
         }
     }
 }

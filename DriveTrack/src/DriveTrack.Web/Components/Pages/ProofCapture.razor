@@ -4,10 +4,18 @@
    list of their own deliveries, so the capture belongs over that row - a route would lose which row
    it was and a back button would leave a half-typed capture behind.
 
+   The order below is the design's, and it is the order the act itself has: which parcel this is, who
+   took it, their signature, the photographs, and the one action that sends them. The summary leads
+   because it is the only thing on the panel a driver checks rather than fills in - a capture filed
+   against the wrong row is evidence about the wrong delivery, and the dialog's own title says only
+   that a hand-over is being recorded.
+
    The coordinates are read from the device and are neither typed nor editable, which is FR-119 read
    literally: the point recorded is where the capture happened. A browser that refuses geolocation
    therefore cannot capture, and the panel says so - inventing a fallback, the dropoff point say,
-   would record a place the hand-over did not happen.
+   would record a place the hand-over did not happen. The design draws none of this block, and it
+   stays all the same: without it every capture is refused 422 naming a field this panel never
+   offered to fill in, after five photographs have already been streamed up the circuit.
 
    Failures render through FailureKeys.For, exactly as the dispatch board does, so the dialog and the
    REST envelope resolve the same refusal through the same catalogue (NFR-3).
@@ -15,6 +23,9 @@
    The @@if blocks are independent rather than if/else chains and every handler is built in code: an
    `else` reads to NFR-14's source scan as a rendered English word, and a `=>` inside an attribute
    closes the tag as far as that scan is concerned. *@
+@* The picker ids are built here, and an id is a token rather than a formatted quantity - so the
+   figure in it is written under the invariant culture like every other identifier in this product. *@
+@using System.Globalization
 @inject IProofOfDeliveryService Proofs
 @inject IJSRuntime JS
 @inject IStringLocalizer<UiText> Localizer
@@ -26,7 +37,41 @@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
 <div class="dt-proof-form">
-    <div>
+    @* Which parcel is being signed for. The call site already holds the whole row - it is what the
+       driver pressed Record on - so this costs a parameter rather than a read, and a panel that
+       named nothing was a panel a driver could only trust by remembering which button they pressed.
+
+       The dropoff rather than the pickup: this is the door being stood at. Address when one has
+       resolved and coordinates when none has (FR-94), which is the same reading both delivery
+       screens give the same value. *@
+    @if (Summary is { } delivery)
+    {
+        <DtCard Class="dt-proof-summary">
+            <div class="dt-proof-summary-body">
+                <p class="dt-proof-summary-place dt-type-h3">
+                    <span class="dt-visually-hidden">@Localizer["Dropoff"]</span>
+                    <Icon Name="IconName.Location" />@Describe(delivery.Dropoff)
+                </p>
+
+                @* The parcel as one line, the way the own-deliveries row states it: what is being moved,
+                   how heavy it is, and where it has got to. The weight carries its unit, because a bare
+                   figure beside a description is a number with no name. *@
+                <p class="dt-proof-summary-meta dt-type-small">
+                    <span class="dt-visually-hidden">@Localizer["Package"]</span>
+                    <span>@delivery.PackageDetails</span>
+                    <span>@delivery.PackageWeightKg @Localizer["WeightUnit"]</span>
+                    <DeliveryStatusLabel Status="delivery.Status" />
+                </p>
+
+                <p class="dt-proof-summary-meta dt-type-small">
+                    <span class="dt-visually-hidden">@Localizer["DeliveryWindow"]</span>
+                    <span>@Window(delivery)</span>
+                </p>
+            </div>
+        </DtCard>
+    }
+
+    <div class="dt-proof-field">
         <label class="form-label" for="@_recipientFieldId">@Localizer["ProofRecipientName"]</label>
         <input id="@_recipientFieldId" class="form-control" type="text"
                maxlength="@CaptureProofCommandValidator.RecipientNameMaximumLength"
@@ -34,24 +79,105 @@
         <DtFieldError Field="RecipientName" Failures="_failures" />
     </div>
 
-    <div>
+    <div class="dt-proof-field">
         <span class="form-label">@Localizer["ProofSignature"]</span>
         <DtSignaturePad @ref="_signature" />
         <DtFieldError Field="Signature" Failures="_failures" />
     </div>
 
-    <div>
-        <label class="form-label" for="@_photosFieldId">@Localizer["ProofPhotos"]</label>
-        @* The accept list is the same allowlist ProofAssetRules holds, stated here as the browser
-           spells it. It narrows the picker; it refuses nothing - the validator does that, and it
-           runs whether or not a caller went round this control. *@
-        <InputFile id="@_photosFieldId" class="form-control" multiple
-                   accept="image/png,image/jpeg,image/webp" OnChange="Choose" />
+    <div class="dt-proof-field">
+        @* The label and the count on one line, which is the design's badge: a driver at a door
+           checks how many they have taken against how many they are allowed far more often than
+           they read the sentence explaining it. The figures are numerals rather than a formatted
+           sentence, and the word in front of them is hidden - a screen reader hears "photographs
+           chosen, 2 of 5" and the eye reads the pill. *@
+        <div class="dt-proof-legend">
+            <span class="form-label">@Localizer["ProofPhotos"]</span>
+            <DtBadge Class="dt-proof-photo-count">
+                <span class="dt-visually-hidden">@Localizer["ProofPhotoCount"]</span>
+                @if (OverTheLimit)
+                {
+                    <span>@Localizer["ProofPhotosOverLimit"]</span>
+                }
+                @if (!OverTheLimit)
+                {
+                    <span>@_photos.Count / @ProofAssetRules.MaximumPhotos</span>
+                }
+            </DtBadge>
+        </div>
+
+        @* A tile for each chosen file and the Add tile after them, which is the whole of the photo
+           control: the <input> itself is inside the Add tile, filling it, so the tile IS the
+           picker rather than a button wired to one. It is transparent rather than display:none,
+           because a hidden input is an input a keyboard cannot reach, and the tile shows the focus
+           it takes.
+
+           The tile shows the file's name and a glyph rather than the photograph. A thumbnail would
+           mean reading up to five 5 MiB files into base64 and pushing them back down the circuit to
+           be looked at, which is the cost of the upload paid twice before the driver has pressed
+           anything.
+
+           `role="list"` because `list-style: none` takes the list semantics away in Safari and
+           VoiceOver, and a strip of photographs is exactly the thing whose count a reader wants
+           announced.
+
+           Adding a photograph adds one: the chosen files accumulate and each tile carries its own
+           Remove, so a driver who picked the wrong picture takes it out rather than starting the
+           whole capture again. Nothing here refuses a file - the panel is not a second, stricter
+           definition of a valid proof (AD-9) - so a selection over the limit is still sent and
+           still refused by CaptureProofCommandValidator with the rule that names the ceiling,
+           which is the same answer the REST surface gives. *@
+        <ul class="dt-proof-photos" role="list">
+            @foreach (var photo in _photos)
+            {
+                <li class="dt-proof-photo">
+                    <Icon Name="IconName.Camera" />
+                    <span class="dt-visually-hidden">@Localizer["ProofPhotoTile"]</span>
+                    <span class="dt-proof-photo-name">@photo.Name</span>
+                    <button type="button" class="btn btn-link btn-sm dt-proof-photo-remove"
+                            aria-label="@Localizer["ProofPhotoRemove"]" @onclick="RemoveHandler(photo)">
+                        <Icon Name="IconName.Close" />
+                    </button>
+                </li>
+            }
+
+            @* The Add tile is always rendered and hidden at the limit rather than dropped, and that
+               is load-bearing rather than tidy. Blazor's file control empties its own file table on
+               every change event and clears the input's value on every click, so a file picked on an
+               input that has since fired again cannot be read at all - "There is no file with ID N".
+               Accumulating therefore means one input per gesture, and those inputs have to stay in
+               the page until the capture is sent. `display: none` hides the tile without taking them
+               out of the document, which removing the <li> would.
+
+               Only the newest input is live. The rest are disabled, so they are neither clickable
+               nor reachable by a keyboard and exist only to keep the files they were given readable.
+
+               The accept list is the same allowlist ProofAssetRules holds, stated as the browser
+               spells it. It narrows the picker; it refuses nothing. `image/*` would be a widening,
+               not a simplification: it would let an iPhone's HEIC through to be refused afterwards.
+
+               There is no `capture` attribute, and its absence is the decision: a present `capture`
+               makes a phone open the camera and hand back a single frame, overriding `multiple` on
+               exactly the device this panel is drawn for. Without it the phone still offers the
+               camera in its own chooser, and one gesture can still pick five out of the gallery. *@
+            <li class="dt-proof-photo dt-proof-photo-add @AddTileClass">
+                <label class="dt-proof-photo-label" for="@PickerId(_gestures)">
+                    <Icon Name="IconName.Camera" />@Localizer["ProofPhotoAdd"]
+                </label>
+                @foreach (var gesture in Enumerable.Range(0, _gestures + 1))
+                {
+                    <InputFile id="@PickerId(gesture)" class="dt-proof-picker" multiple
+                               disabled="@Spent(gesture)"
+                               accept="image/png,image/jpeg,image/webp" OnChange="Choose" />
+                }
+            </li>
+        </ul>
+
         <p class="dt-proof-hint">@Localizer["ProofPhotosHint"]</p>
         <DtFieldError Field="Assets" Failures="_failures" />
     </div>
 
-    <div>
+    <div class="dt-proof-field">
         <span class="form-label">@Localizer["ProofLocation"]</span>
         @if (_location is null && _locationRefused)
         {
@@ -67,15 +193,32 @@
         }
     </div>
 
+    @* Pinned to the bottom of the dialog's own scroll box, full width, inside thumb reach: a driver
+       holding a parcel one-handed should not have to scroll a form to find the button that files
+       it. Sticky rather than a dialog action, because the panel is dialog CONTENT - the foot
+       belongs to DtDialog, and putting the capture there would move it out of the component two
+       tests already read as one piece.
+
+       Disabled while there is no capture point as well as while a capture is in flight. FR-119
+       records where the hand-over happened and the form draws no coordinate field, so a submit
+       without one can only ever return a 422 naming CaptureLocation - a refusal about something
+       this panel never offered to fill in, paid for with every photograph streamed up the circuit
+       first. The sentence above the map is what the driver acts on instead.
+
+       The design says the action stays enabled and shows the misses afterwards. That reading holds
+       for the boxes on this panel and not for this one: every other refusal has an input to land
+       under, and this one has none. *@
     <div class="dt-proof-actions">
-        @* Disabled while there is no capture point as well as while a capture is in flight. FR-119
-           records where the hand-over happened and the form draws no coordinate field, so a submit
-           without one can only ever return a 422 naming CaptureLocation - a refusal about something
-           this panel never offered to fill in, paid for with every photograph streamed up the
-           circuit first. The sentence above the map is what the driver acts on instead. *@
-        <button type="button" class="btn btn-secondary dt-proof-submit" disabled="@(_saving || _location is null)"
+        <button type="button" class="btn btn-primary dt-proof-submit" disabled="@(_saving || _location is null)"
                 @onclick="CaptureAsync">
-            <Icon Name="IconName.Camera" />@Localizer["ProofCaptureAction"]
+            @if (_saving)
+            {
+                <Icon Name="IconName.Proof" />@Localizer["ProofSaving"]
+            }
+            @if (!_saving)
+            {
+                <Icon Name="IconName.Proof" />@Localizer["ProofCaptureAction"]
+            }
         </button>
     </div>
 </div>
@@ -97,8 +240,19 @@
     /// </summary>
     private readonly string _recipientFieldId = $"dt-proof-recipient-{Guid.NewGuid():N}";
 
-    /// <inheritdoc cref="_recipientFieldId" />
+    /// <summary>
+    /// The prefix every picker's id is built from. Generated rather than fixed for the reason
+    /// <see cref="_recipientFieldId"/> is, and a prefix rather than an id because this control is
+    /// one input per gesture: see the Add tile's comment for why.
+    /// </summary>
     private readonly string _photosFieldId = $"dt-proof-photos-{Guid.NewGuid():N}";
+
+    /// <summary>
+    /// How many times the driver has picked. The newest picker is number <c>_gestures</c> and is the
+    /// live one; every lower number has already fired and is kept only so the files it handed over
+    /// stay readable.
+    /// </summary>
+    private int _gestures;
 
     private IReadOnlyList<IBrowserFile> _photos = [];
     private IReadOnlyList<ScreenFailure> _failures = [];
@@ -113,6 +267,26 @@
     [Parameter]
     [EditorRequired]
     public int DeliveryId { get; set; }
+
+    /// <summary>
+    /// The row the capture is being filed against, so the panel can say which parcel is being signed
+    /// for.
+    /// </summary>
+    /// <remarks>
+    /// A parameter rather than a read. The own-deliveries screen holds the whole
+    /// <see cref="AssignedDeliverySummary"/> already - it is the row whose Record button opened this
+    /// dialog - so asking a capability for it again would be a round trip for data the caller is
+    /// standing on.
+    /// <para>
+    /// Optional, and deliberately not <c>EditorRequired</c>: nothing on the capture path reads it -
+    /// the command carries <see cref="DeliveryId"/> - so a panel without it still captures correctly
+    /// and simply says less. The card is then withheld rather than drawn empty, because a summary
+    /// naming nothing is worse than no summary: it reads as a delivery whose details failed to load.
+    /// The one call site passes the row it is already holding.
+    /// </para>
+    /// </remarks>
+    [Parameter]
+    public AssignedDeliverySummary? Summary { get; set; }
 
     /// <summary>
     /// Raised once a proof has committed, so the screen behind the dialog can withdraw the capture
@@ -183,13 +357,70 @@
         // refusal - it is an unhandled exception on the circuit, which takes the whole screen down
         // instead of showing a message.
         //
-        // Every file therefore reaches the command, and CaptureProofCommandValidator refuses the
-        // sixth with the rule that names the limit (FR-119). That is the same answer the REST
-        // surface gives, which is what AD-9 is for: this panel is not a second, stricter definition
-        // of a valid proof, and it is not a kinder one either.
-        _photos = change.GetMultipleFiles(change.FileCount);
+        // Every file therefore reaches the command, and CaptureProofCommandValidator refuses a
+        // selection over the limit with the rule that names it (FR-119). That is the same answer the
+        // REST surface gives, which is what AD-9 is for: this panel is not a second, stricter
+        // definition of a valid proof, and it is not a kinder one either.
+        //
+        // Appended rather than assigned: the tile grid and an Add action promise that a second pick
+        // adds to the first, and replacing meant a driver who took four photographs and then added
+        // one was left holding one. The gesture is counted here, which retires the input that just
+        // fired and puts a fresh one behind the Add tile - see the Add tile's comment for why the
+        // spent ones have to stay in the page.
+        _photos = [.. _photos, .. change.GetMultipleFiles(change.FileCount)];
+        _gestures++;
         _failures = [];
     }
+
+    /// <summary>A tile's Remove, bound as a delegate so no lambda has to live in markup.</summary>
+    private Action RemoveHandler(IBrowserFile photo) => () => Remove(photo);
+
+    /// <summary>
+    /// Takes one photograph out of the selection.
+    /// </summary>
+    /// <remarks>
+    /// The other half of appending, and the reason a wrong pick is no longer a dead end: without it
+    /// a driver who chose five unusable photographs could only escape by closing the dialog, which
+    /// loses the recipient's name and their signature with it.
+    /// <para>
+    /// By reference rather than by name or index, because a gallery happily yields two files called
+    /// the same thing and the list is rebuilt on every pick. The input the file came from is left
+    /// exactly where it is: it costs nothing, and it is still the owner of any sibling picked in the
+    /// same gesture.
+    /// </para>
+    /// </remarks>
+    /// <param name="photo">The file whose tile was dismissed.</param>
+    private void Remove(IBrowserFile photo)
+    {
+        _photos = [.. _photos.Where(chosen => !ReferenceEquals(chosen, photo))];
+
+        // The refusal on the page was about the selection that has just changed, so it is no longer
+        // about anything - the same reason picking clears it.
+        _failures = [];
+    }
+
+    /// <summary>The id of one picker. One per gesture, all sharing this panel's generated prefix.</summary>
+    /// <param name="gesture">Which pick the input belongs to.</param>
+    private string PickerId(int gesture) =>
+        _photosFieldId + "-" + gesture.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Whether a picker has already been used. A spent input is disabled rather than removed: it is
+    /// the only thing keeping the files it handed over readable, and disabling it takes it out of
+    /// the keyboard's path and the pointer's without taking it out of the document.
+    /// </summary>
+    /// <param name="gesture">Which pick the input belongs to.</param>
+    private bool Spent(int gesture) => gesture != _gestures;
+
+    /// <summary>
+    /// The modifier the Add tile wears once five photographs have been chosen: the design withdraws
+    /// it there. Hidden rather than dropped, because the pickers inside it are still holding files.
+    /// </summary>
+    private string AddTileClass =>
+        OffersAnotherPhoto(_photos.Count) ? string.Empty : "dt-proof-photo-add--full";
+
+    /// <summary>Whether more has been chosen than a proof may carry.</summary>
+    private bool OverTheLimit => IsOverTheLimit(_photos.Count);
 
     private async Task CaptureAsync()
     {
@@ -344,4 +575,64 @@
             ProofAssetRules.IsAllowedLength(file.Size)
                 ? file.OpenReadStream(ProofAssetRules.MaximumAssetBytes)
                 : Stream.Null);
+
+    /// <summary>
+    /// Whether the Add tile is still drawn: the design withdraws it once five photographs have been
+    /// chosen.
+    /// </summary>
+    /// <remarks>
+    /// A method rather than the comparison written in the <c>@@if</c>, for two reasons. The first is
+    /// NFR-14's source scan: a <c>&lt;</c> inside a markup condition opens a tag as far as that scan
+    /// is concerned, and everything before it is then read as rendered English. The second is that
+    /// static rendering dispatches no events, so nothing in the suite can choose a file — lifted
+    /// here, the rule is asserted directly for every count including the ones only a caller going
+    /// round this control can produce.
+    /// <para>
+    /// Withdrawing the tile is the whole of the rule. Nothing here refuses a file: the panel is not
+    /// a second, stricter definition of a valid proof (AD-9), so a sixth photograph picked another
+    /// way still reaches <c>CaptureProofCommandValidator</c> and is refused there by the rule that
+    /// names the limit — which is the same answer the REST surface gives.
+    /// </para>
+    /// </remarks>
+    /// <param name="chosen">How many files the driver has picked.</param>
+    internal static bool OffersAnotherPhoto(int chosen) => chosen < ProofAssetRules.MaximumPhotos;
+
+    /// <summary>
+    /// Whether the selection is larger than a proof may carry, which the count says in words rather
+    /// than as a figure.
+    /// </summary>
+    /// <remarks>
+    /// Reachable because picking adds rather than replaces: four and then three is seven. A badge
+    /// reading "7 / 5" states a count above the ceiling in the shape it uses for a valid one, which
+    /// reads as a quota that has simply grown - so the badge says the selection is over the limit
+    /// instead, and the sentence beneath it still names the ceiling.
+    /// <para>
+    /// Not a refusal. The files are still sent and <c>CaptureProofCommandValidator</c> is still what
+    /// turns them down (AD-9); this only decides what the pill says.
+    /// </para>
+    /// </remarks>
+    /// <param name="chosen">How many files the driver has picked.</param>
+    internal static bool IsOverTheLimit(int chosen) => chosen > ProofAssetRules.MaximumPhotos;
+
+    /// <summary>
+    /// The dropoff as the summary card shows it: its resolved address, or its coordinates when none
+    /// has resolved (FR-94).
+    /// </summary>
+    /// <remarks>
+    /// <see cref="LocationText"/>'s reading, shared with both delivery screens. A second copy of the
+    /// fallback here would be a driver reading one thing on the row they pressed and another on the
+    /// panel that opened - about the same door.
+    /// </remarks>
+    /// <param name="location">The stored point.</param>
+    private static string Describe(LocationView location) => LocationText.Describe(location);
+
+    /// <summary>The figures of the delivery window, as the own-deliveries row states them (FR-100).</summary>
+    /// <remarks>
+    /// <see cref="CellText"/>'s reading, for the reason <see cref="Describe"/> is shared: the window
+    /// is the promise this capture is closing, and the panel must not word it differently from the
+    /// row above it.
+    /// </remarks>
+    /// <param name="delivery">The row this capture is filed against.</param>
+    private static string Window(AssignedDeliverySummary delivery) =>
+        CellText.Window(delivery.WindowEarliestAt, delivery.WindowLatestAt);
 }

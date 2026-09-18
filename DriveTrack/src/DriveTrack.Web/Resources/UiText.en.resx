@@ -628,6 +628,24 @@
   <data name="ProofPhotosHint" xml:space="preserve">
     <value>At least one photograph, no more than five, each up to 5 MiB.</value>
   </data>
+  <data name="ProofPhotoCount" xml:space="preserve">
+    <value>Photographs chosen</value>
+  </data>
+  <data name="ProofPhotoTile" xml:space="preserve">
+    <value>Photograph</value>
+  </data>
+  <data name="ProofPhotoAdd" xml:space="preserve">
+    <value>Add a photo</value>
+  </data>
+  <data name="ProofSaving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="ProofPhotoRemove" xml:space="preserve">
+    <value>Remove the photograph</value>
+  </data>
+  <data name="ProofPhotosOverLimit" xml:space="preserve">
+    <value>Too many photographs</value>
+  </data>
   <data name="ProofLocation" xml:space="preserve">
     <value>Place of the handover</value>
   </data>
@@ -651,6 +669,15 @@
   </data>
   <data name="SignatureClear" xml:space="preserve">
     <value>Clear the signature</value>
+  </data>
+  <data name="SignaturePrompt" xml:space="preserve">
+    <value>Sign here with a finger or mouse</value>
+  </data>
+  <data name="SignatureEmpty" xml:space="preserve">
+    <value>Empty</value>
+  </data>
+  <data name="SignatureSigned" xml:space="preserve">
+    <value>Signed</value>
   </data>
   <data name="NavChat" xml:space="preserve">
     <value>Conversations</value>
