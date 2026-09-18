@@ -462,6 +462,12 @@
   <data name="DeliveryNotes" xml:space="preserve">
     <value>Примітки</value>
   </data>
+  <data name="WindowFrom" xml:space="preserve">
+    <value>з</value>
+  </data>
+  <data name="WindowUntil" xml:space="preserve">
+    <value>до</value>
+  </data>
   <data name="WindowEarliestAt" xml:space="preserve">
     <value>Прибути не раніше</value>
   </data>
@@ -503,6 +509,9 @@
   </data>
   <data name="FilterAll" xml:space="preserve">
     <value>Усі</value>
+  </data>
+  <data name="Filters" xml:space="preserve">
+    <value>Фільтри</value>
   </data>
   <data name="ResetFilters" xml:space="preserve">
     <value>Скинути фільтри</value>

@@ -24,9 +24,19 @@
 
 <PageTitle>@Localizer["DeliveriesTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">
-    <Icon Name="IconName.Deliveries" />@Localizer["DeliveriesTitle"]
-</h1>
+@* The screen's title and the one action that opens an empty form, on one line. The create action
+   is about the collection rather than about any row in it, so it belongs beside the heading that
+   names the collection - and the filters, which narrow that collection, belong in the panel below
+   with the action that clears them rather than up here beside a create. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Deliveries" />@Localizer["DeliveriesTitle"]
+    </h1>
+
+    <button type="button" class="btn btn-primary dt-delivery-create" @onclick="OpenCreateAsync">
+        <Icon Name="IconName.Create" />@Localizer["Create"]
+    </button>
+</div>
 
 @* FR-29 and FR-103 arrive here: a missing driver, a missing client and an overloaded vehicle each
    resolve through the same catalogue the REST envelope uses, so the two cannot disagree (NFR-3).
@@ -34,92 +44,98 @@
    the boxes that produced them. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-@* NFR-27 keeps paging, and this screen asks for the first page and filters it in the browser - so
-   past a full page the rest is neither shown nor findable. Saying so is the difference between a
-   limit and a screen that quietly lies about how much work there is. *@
-<div class="row g-4 align-items-end mb-4">
-    <div class="col-sm-auto">
-        <button type="button" class="btn btn-primary dt-delivery-create" @onclick="OpenCreateAsync">
-            <Icon Name="IconName.Create" />@Localizer["Create"]
-        </button>
+@* FR-20 and FR-101: every filter in one bounded panel rather than three loose rows floating on the
+   page, and one action at the end of it that clears all ten. A per-field clear would leave a
+   dispatcher hunting for the box still narrowing the list.
+
+   A <form> rather than a <div>, so the group has a role and an accessible name: a screen reader
+   announces the ten controls as the filters they are instead of as ten unrelated boxes between the
+   heading and the table. Nothing is posted - every box is two-way bound and the table re-renders as
+   it is typed in - so the default submission is prevented rather than handled. *@
+<form class="dt-card dt-filters mb-4" aria-label="@Localizer["Filters"]"
+      @onsubmit="KeepFilters" @onsubmit:preventDefault>
+    <div class="dt-filters-grid">
+        <div>
+            <label class="form-label" for="delivery-filter-driver">@Localizer["Driver"]</label>
+            <input id="delivery-filter-driver" type="search" class="form-control"
+                   @bind="_filter.Driver" @bind:event="oninput" />
+        </div>
+        <div>
+            <label class="form-label" for="delivery-filter-client">@Localizer["Client"]</label>
+            <input id="delivery-filter-client" type="search" class="form-control"
+                   @bind="_filter.Client" @bind:event="oninput" />
+        </div>
+        <div>
+            <label class="form-label" for="delivery-filter-pickup">@Localizer["Pickup"]</label>
+            <input id="delivery-filter-pickup" type="search" class="form-control"
+                   @bind="_filter.Pickup" @bind:event="oninput" />
+        </div>
+        <div>
+            <label class="form-label" for="delivery-filter-dropoff">@Localizer["Dropoff"]</label>
+            <input id="delivery-filter-dropoff" type="search" class="form-control"
+                   @bind="_filter.Dropoff" @bind:event="oninput" />
+        </div>
+        <div>
+            <label class="form-label" for="delivery-filter-details">@Localizer["PackageDetails"]</label>
+            <input id="delivery-filter-details" type="search" class="form-control"
+                   @bind="_filter.PackageDetails" @bind:event="oninput" />
+        </div>
+        <div>
+            <label class="form-label" for="delivery-filter-notes">@Localizer["DeliveryNotes"]</label>
+            <input id="delivery-filter-notes" type="search" class="form-control"
+                   @bind="_filter.DeliveryNotes" @bind:event="oninput" />
+        </div>
     </div>
-    <div class="col-sm-auto">
-        @* FR-101: one action clears every filter, including the date range. A per-field clear would
-           leave a dispatcher hunting for the one box still narrowing the list. *@
-        <button type="button" class="btn btn-outline-secondary" @onclick="ResetFilters">
+
+    <div class="dt-filters-row">
+        <div class="dt-filters-field">
+            <label class="form-label" for="delivery-filter-status">@Localizer["Status"]</label>
+            <DtSelect Id="delivery-filter-status" @bind-Value="_filter.Status">
+                <option value="">@Localizer["FilterAll"]</option>
+                @* The value is the enum member rendered, not a literal beside it: AD-21 makes the
+                   member name the wire form, and writing it out here would be a second copy to
+                   keep in step. *@
+                <option value="@DeliveryStatus.Pending">@Localizer["StatusPending"]</option>
+                <option value="@DeliveryStatus.InTransit">@Localizer["StatusInTransit"]</option>
+                <option value="@DeliveryStatus.Delivered">@Localizer["StatusDelivered"]</option>
+                <option value="@DeliveryStatus.Failed">@Localizer["StatusFailed"]</option>
+            </DtSelect>
+        </div>
+        <div class="dt-filters-field">
+            <label class="form-label" for="delivery-filter-created-from">@Localizer["CreatedFrom"]</label>
+            <input id="delivery-filter-created-from" type="date" class="form-control"
+                   @bind="_filter.CreatedFrom" />
+        </div>
+        <div class="dt-filters-field">
+            <label class="form-label" for="delivery-filter-created-to">@Localizer["CreatedTo"]</label>
+            <input id="delivery-filter-created-to" type="date" class="form-control"
+                   @bind="_filter.CreatedTo" />
+        </div>
+
+        @* The box and its word are one control, so the label wraps the input as well as pointing at
+           it: the whole phrase is then the hit area, which on a phone is the difference between a
+           checkbox a thumb can find and one it cannot. A native checkbox rather than the framework's
+           restyled one, because the tick is painted with `accent-color` and an `appearance: none`
+           control has no tick left to paint. *@
+        <label class="dt-check" for="delivery-filter-overdue">
+            <input id="delivery-filter-overdue" type="checkbox" @bind="_filter.OverdueOnly" />
+            @Localizer["OverdueOnly"]
+        </label>
+
+        @* The panel's own reset and the empty table's are the same action and deliberately not the
+           same hook: they say the same words, so a test that could not tell them apart would pass
+           on a board that offers the way out of an empty filtered list to a board with rows in it
+           and never offers it where it is needed. *@
+        <button type="button" class="btn btn-outline-secondary ms-auto dt-delivery-filters-reset"
+                @onclick="ResetFilters">
             <Icon Name="IconName.Close" />@Localizer["ResetFilters"]
         </button>
     </div>
-</div>
+</form>
 
-<div class="row g-4 align-items-end mb-4">
-    <div class="col-sm">
-        <label class="form-label" for="delivery-filter-driver">@Localizer["Driver"]</label>
-        <input id="delivery-filter-driver" type="search" class="form-control"
-               @bind="_filter.Driver" @bind:event="oninput" />
-    </div>
-    <div class="col-sm">
-        <label class="form-label" for="delivery-filter-client">@Localizer["Client"]</label>
-        <input id="delivery-filter-client" type="search" class="form-control"
-               @bind="_filter.Client" @bind:event="oninput" />
-    </div>
-    <div class="col-sm">
-        <label class="form-label" for="delivery-filter-pickup">@Localizer["Pickup"]</label>
-        <input id="delivery-filter-pickup" type="search" class="form-control"
-               @bind="_filter.Pickup" @bind:event="oninput" />
-    </div>
-    <div class="col-sm">
-        <label class="form-label" for="delivery-filter-dropoff">@Localizer["Dropoff"]</label>
-        <input id="delivery-filter-dropoff" type="search" class="form-control"
-               @bind="_filter.Dropoff" @bind:event="oninput" />
-    </div>
-</div>
-
-<div class="row g-4 align-items-end mb-4">
-    <div class="col-sm">
-        <label class="form-label" for="delivery-filter-details">@Localizer["PackageDetails"]</label>
-        <input id="delivery-filter-details" type="search" class="form-control"
-               @bind="_filter.PackageDetails" @bind:event="oninput" />
-    </div>
-    <div class="col-sm">
-        <label class="form-label" for="delivery-filter-notes">@Localizer["DeliveryNotes"]</label>
-        <input id="delivery-filter-notes" type="search" class="form-control"
-               @bind="_filter.DeliveryNotes" @bind:event="oninput" />
-    </div>
-    <div class="col-sm">
-        <label class="form-label" for="delivery-filter-status">@Localizer["Status"]</label>
-        <DtSelect Id="delivery-filter-status" @bind-Value="_filter.Status">
-            <option value="">@Localizer["FilterAll"]</option>
-            @* The value is the enum member rendered, not a literal beside it: AD-21 makes the member
-               name the wire form, and writing it out here would be a second copy to keep in step. *@
-            <option value="@DeliveryStatus.Pending">@Localizer["StatusPending"]</option>
-            <option value="@DeliveryStatus.InTransit">@Localizer["StatusInTransit"]</option>
-            <option value="@DeliveryStatus.Delivered">@Localizer["StatusDelivered"]</option>
-            <option value="@DeliveryStatus.Failed">@Localizer["StatusFailed"]</option>
-        </DtSelect>
-    </div>
-</div>
-
-<div class="row g-4 align-items-end mb-4">
-    <div class="col-sm">
-        <label class="form-label" for="delivery-filter-created-from">@Localizer["CreatedFrom"]</label>
-        <input id="delivery-filter-created-from" type="date" class="form-control"
-               @bind="_filter.CreatedFrom" />
-    </div>
-    <div class="col-sm">
-        <label class="form-label" for="delivery-filter-created-to">@Localizer["CreatedTo"]</label>
-        <input id="delivery-filter-created-to" type="date" class="form-control"
-               @bind="_filter.CreatedTo" />
-    </div>
-    <div class="col-sm">
-        <div class="form-check">
-            <input id="delivery-filter-overdue" type="checkbox" class="form-check-input"
-                   @bind="_filter.OverdueOnly" />
-            <label class="form-check-label" for="delivery-filter-overdue">@Localizer["OverdueOnly"]</label>
-        </div>
-    </div>
-</div>
-
+@* NFR-27 keeps paging, and this screen asks for the first page and filters it in the browser - so
+   past a full page the rest is neither shown nor findable. Saying so is the difference between a
+   limit and a screen that quietly lies about how much work there is. *@
 <DtDataTable TItem="DeliverySummary"
              IsTruncated="IsTruncated"
              Note="@Localizer["DeliveriesTruncated"]"
@@ -134,7 +150,8 @@
     <EmptyAction>
         @if (IsFiltered)
         {
-            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ResetFilters">
+            <button type="button" class="btn btn-outline-secondary btn-sm dt-delivery-empty-reset"
+                    @onclick="ResetFilters">
                 <Icon Name="IconName.Close" />@Localizer["ResetFilters"]
             </button>
         }
@@ -149,59 +166,100 @@
            the rows silently rearrange and nothing says which column did it or in which direction.
            Its three values are ARIA tokens rather than prose - a browser reads them out in the
            user's own language - so they take no resource key, and they are computed in a method
-           for the same reason the handlers are. *@
+           for the same reason the handlers are.
+
+           The glyph is the sighted half of the same fact. Every heading carries the stacked pair
+           that means "this sorts"; the one the rows are actually in order by swaps it for a single
+           chevron pointing the way it went, so ascending and descending differ by shape rather than
+           by the brand colour alone. Chosen in a method keyed on the column, exactly as the ARIA
+           state is - a method call is legal in an attribute value, and the two alternatives are the
+           `=>` and the call inside an @@if that the Razor idioms here forbid. *@
+        <th scope="col" aria-sort="@SortState(DeliveryColumn.Window)">
+            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Window)">
+                @Localizer["DeliveryWindow"]<Icon Name="@SortGlyph(DeliveryColumn.Window)" />
+            </button>
+        </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Driver)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Driver)">
-                @Localizer["Driver"]<Icon Name="IconName.Sort" />
+                @Localizer["Driver"]<Icon Name="@SortGlyph(DeliveryColumn.Driver)" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Client)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Client)">
-                @Localizer["Client"]<Icon Name="IconName.Sort" />
+                @Localizer["Client"]<Icon Name="@SortGlyph(DeliveryColumn.Client)" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Pickup)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Pickup)">
-                @Localizer["Pickup"]<Icon Name="IconName.Sort" />
+                @Localizer["Pickup"]<Icon Name="@SortGlyph(DeliveryColumn.Pickup)" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Dropoff)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Dropoff)">
-                @Localizer["Dropoff"]<Icon Name="IconName.Sort" />
+                @Localizer["Dropoff"]<Icon Name="@SortGlyph(DeliveryColumn.Dropoff)" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.PackageDetails)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.PackageDetails)">
-                @Localizer["PackageDetails"]<Icon Name="IconName.Sort" />
+                @Localizer["PackageDetails"]<Icon Name="@SortGlyph(DeliveryColumn.PackageDetails)" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.DeliveryNotes)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.DeliveryNotes)">
-                @Localizer["DeliveryNotes"]<Icon Name="IconName.Sort" />
+                @Localizer["DeliveryNotes"]<Icon Name="@SortGlyph(DeliveryColumn.DeliveryNotes)" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Status)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Status)">
-                @Localizer["Status"]<Icon Name="IconName.Sort" />
+                @Localizer["Status"]<Icon Name="@SortGlyph(DeliveryColumn.Status)" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.CreatedAt)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.CreatedAt)">
-                @Localizer["CreatedAt"]<Icon Name="IconName.Sort" />
+                @Localizer["CreatedAt"]<Icon Name="@SortGlyph(DeliveryColumn.CreatedAt)" />
             </button>
         </th>
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.Overdue)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Overdue)">
-                @Localizer["Overdue"]<Icon Name="IconName.Sort" />
-            </button>
+        @* The actions column keeps its heading for a screen reader and drops it on screen: the
+           buttons under it say what they do, and a column named twice is a column name competing
+           with them. The cell itself stays, so the column keeps its width for a role with no
+           actions in it. *@
+        <th scope="col" class="dt-table-actions">
+            <span class="dt-visually-hidden">@Localizer["Actions"]</span>
         </th>
-        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="delivery">
+        @* FR-19 and FR-100: the window the delivery was promised in, and - when the clock has passed
+           its far bound - the badge saying so, inside this cell rather than in a column of its own.
+           Overdue is derived from the window, so a column apart from it would have been the same
+           fact twice with a gap between them; beside the hours it is a mark on the value it is
+           about. Routed through a method rather than formatted in markup: NFR-14's scan strips a
+           Razor expression only up to its first closing bracket, so a `.ToString(...)` tail would be
+           left behind in the text node and read as a rendered English word. *@
+        <td class="dt-table-window">
+            @* A window with both bounds is a range and says so with the dash between them. A window
+               with one bound is a direction - "from" or "until" - because a range with a hole where
+               a bound should be says nothing about which end is missing, and a dash standing in for
+               an absent figure beside a dash meaning "to" reads as neither. The word is rendered
+               here rather than composed in the method because the catalogue is closed against the
+               keys asked for in markup, and a key resolved only from code is a key no test sees. *@
+            @if (delivery.WindowEarliestAt is not null && delivery.WindowLatestAt is null)
+            {
+                <span>@Localizer["WindowFrom"]</span>
+            }
+            @if (delivery.WindowEarliestAt is null && delivery.WindowLatestAt is not null)
+            {
+                <span>@Localizer["WindowUntil"]</span>
+            }
+            @Window(delivery)
+            @if (delivery.IsOverdue)
+            {
+                <DtBadge Variant="DtBadgeVariant.Overdue">@Localizer["Overdue"]</DtBadge>
+            }
+        </td>
         <td>
             @if (delivery.Driver is null)
             {
-                <span>@Localizer["NoDriver"]</span>
+                <span class="dt-muted">@Localizer["NoDriver"]</span>
             }
             @if (delivery.Driver is not null)
             {
@@ -211,7 +269,7 @@
         <td>
             @if (delivery.Client is null)
             {
-                <span>@Localizer["NoClient"]</span>
+                <span class="dt-muted">@Localizer["NoClient"]</span>
             }
             @if (delivery.Client is not null)
             {
@@ -219,7 +277,13 @@
             }
         </td>
         @* FR-21: the cell is the way to the map. The label is the address when one has been
-           resolved and the coordinates when none has (FR-94), so the cell is never empty. *@
+           resolved and the coordinates when none has (FR-94), so the cell is never empty.
+
+           The design draws these two as plain text with a single Map action in the row, and that is
+           the one place this screen departs from it: one button cannot mean two places. DtMap takes
+           a single point and carries no marker collection, so a row-level Map would have to pick a
+           side or grow a component the two form pickers also render. Two cells, two points, two
+           ways in. *@
         <td>
             <button type="button" class="btn btn-link btn-sm dt-delivery-pickup"
                     @onclick="ShowLocationHandler(delivery.Pickup)">
@@ -233,28 +297,14 @@
             </button>
         </td>
         <td>@delivery.PackageDetails</td>
-        <td>@delivery.DeliveryNotes</td>
+        <td class="dt-muted">@delivery.DeliveryNotes</td>
         @* One status vocabulary, shared with the own-deliveries screen and with every timeline
-           entry. The filter's <option> list below keeps its own literal keys, because those are
+           entry. The filter's <option> list above keeps its own literal keys, because those are
            values as much as labels. *@
         <td><DeliveryStatusLabel Status="delivery.Status" /></td>
-        @* Routed through a method rather than formatted in markup: NFR-14's scan strips a Razor
-           expression only up to its first closing bracket, so a `.ToString(...)` tail would be left
-           behind in the text node and read as a rendered English word. *@
-        <td>@Created(delivery)</td>
-        <td>
-            @* FR-19: derived from the window and the clock, never stored - so there is nothing to
-               show when a delivery is on time, and a badge only where there is something to say. *@
-            @if (delivery.IsOverdue)
-            {
-                <DtBadge Variant="DtBadgeVariant.Overdue">@Localizer["Overdue"]</DtBadge>
-            }
-        </td>
-        <td>
-            <button type="button" class="btn btn-secondary btn-sm dt-delivery-edit"
-                    @onclick="EditHandler(delivery)">
-                <Icon Name="IconName.Edit" />@Localizer["Edit"]
-            </button>
+        @* Routed through a method for the reason the window is. *@
+        <td class="dt-muted">@Created(delivery)</td>
+        <td class="dt-table-actions">
             @* FR-108: the history is a row action rather than a column, because it is a
                conversation about one delivery and not a value to be compared across the table. *@
             <button type="button" class="btn btn-outline-secondary btn-sm dt-delivery-timeline"
@@ -268,6 +318,12 @@
             <button type="button" class="btn btn-outline-secondary btn-sm dt-proof-open"
                     @onclick="ProofHandler(delivery)">
                 <Icon Name="IconName.Proof" />@Localizer["ProofOpen"]
+            </button>
+            @* Last of the three the design draws, and the only one of them that changes anything:
+               the neutral reads come first and the edit colour closes the row. *@
+            <button type="button" class="btn btn-secondary btn-sm dt-delivery-edit"
+                    @onclick="EditHandler(delivery)">
+                <Icon Name="IconName.Edit" />@Localizer["Edit"]
             </button>
             @* FR-24 reserves deletion to an administrator, and the service refuses a dispatcher who
                asks. Offering an action that could only ever fail is worse than not offering it.
@@ -341,72 +397,86 @@
                `For="@(() => ...)"` lambda inside an attribute is what NFR-14's scan misreads. *@
             <ValidationSummary />
 
-            <div class="mb-4">
-                <label class="form-label" for="delivery-details">@Localizer["PackageDetails"]</label>
-                <InputText id="delivery-details" class="form-control" @bind-Value="_form.PackageDetails" />
-                <DtFieldError Field="PackageDetails" Failures="_failures" />
+            @* FR-16: both are optional, and the empty choice is how a dispatcher says so - on an
+               edit it is also how they unassign, which AD-23 carries as a present null. The two are
+               one question - who carries this, and for whom - so they are one row of two columns
+               that stacks when the panel is too narrow to hold both. *@
+            <div class="dt-cols mb-4">
+                <div>
+                    <label class="form-label" for="delivery-driver">@Localizer["Driver"]</label>
+                    <DtSelect Id="delivery-driver" @bind-Value="_form.DriverId">
+                        <option value="">@Localizer["NoDriver"]</option>
+                        @* FR-98: the standing travels with the name, because this is the moment a
+                           dispatcher chooses who carries a parcel. Built in C# rather than as three
+                           markup branches inside an <option>, which may only hold text. *@
+                        @foreach (var driver in _drivers)
+                        {
+                            <option value="@driver.Id.Value">@DriverOption(driver)</option>
+                        }
+                    </DtSelect>
+                </div>
+                <div>
+                    <label class="form-label" for="delivery-client">@Localizer["Client"]</label>
+                    <DtSelect Id="delivery-client" @bind-Value="_form.ClientId">
+                        <option value="">@Localizer["NoClient"]</option>
+                        @foreach (var client in _clients)
+                        {
+                            <option value="@client.ClientId.Value">@client.FirstName @client.LastName</option>
+                        }
+                    </DtSelect>
+                </div>
             </div>
-            <div class="mb-4">
-                <label class="form-label" for="delivery-weight">@Localizer["PackageWeightKg"]</label>
-                @* No {0} in the message: the framework fills it with the CLR property name, which
-                   would put a Latin word in front of a user (NFR-14). *@
-                <InputNumber id="delivery-weight" class="form-control"
-                             ParsingErrorMessage="@Localizer["NumberParseError"]"
-                             @bind-Value="_form.PackageWeightKg" />
-                @* FR-103's second figure. NFR-3 gives one wire message per code, so the refusal
-                   itself cannot name the numbers - this is where the dispatcher sees the one they
-                   are about to exceed, at the moment they could exceed it. *@
-                <DtFieldError Field="PackageWeightKg" Failures="_failures" />
-                <div class="form-text">@Localizer["VehicleCapacityHint"] @CapacityText</div>
+
+            @* What is being moved and how heavy it is: one question again, and the capacity hint
+               under the weight is about the pair rather than about the number alone. *@
+            <div class="dt-cols mb-4">
+                <div>
+                    <label class="form-label" for="delivery-details">@Localizer["PackageDetails"]</label>
+                    <InputText id="delivery-details" class="form-control" @bind-Value="_form.PackageDetails" />
+                    <DtFieldError Field="PackageDetails" Failures="_failures" />
+                </div>
+                <div>
+                    <label class="form-label" for="delivery-weight">@Localizer["PackageWeightKg"]</label>
+                    @* No {0} in the message: the framework fills it with the CLR property name, which
+                       would put a Latin word in front of a user (NFR-14). *@
+                    <InputNumber id="delivery-weight" class="form-control"
+                                 ParsingErrorMessage="@Localizer["NumberParseError"]"
+                                 @bind-Value="_form.PackageWeightKg" />
+                    @* FR-103's second figure. NFR-3 gives one wire message per code, so the refusal
+                       itself cannot name the numbers - this is where the dispatcher sees the one they
+                       are about to exceed, at the moment they could exceed it. *@
+                    <DtFieldError Field="PackageWeightKg" Failures="_failures" />
+                    <div class="form-text">@Localizer["VehicleCapacityHint"] @CapacityText</div>
+                </div>
             </div>
+
+            @* FR-100: either bound may stand alone and both may be absent; only an inverted pair is
+               refused, by the validator and by the check constraint behind it. Side by side, because
+               that is the only arrangement in which an inverted pair is visible as one. *@
+            <div class="dt-cols mb-4">
+                <div>
+                    <label class="form-label" for="delivery-window-earliest">@Localizer["WindowEarliestAt"]</label>
+                    <InputDate id="delivery-window-earliest" class="form-control"
+                               Type="InputDateType.DateTimeLocal"
+                               ParsingErrorMessage="@Localizer["DateParseError"]"
+                               @bind-Value="_form.WindowEarliestAt" />
+                </div>
+                <div>
+                    <label class="form-label" for="delivery-window-latest">@Localizer["WindowLatestAt"]</label>
+                    <InputDate id="delivery-window-latest" class="form-control"
+                               Type="InputDateType.DateTimeLocal"
+                               ParsingErrorMessage="@Localizer["DateParseError"]"
+                               @bind-Value="_form.WindowLatestAt" />
+                    <DtFieldError Field="WindowLatestAt" Failures="_failures" />
+                </div>
+            </div>
+
+            @* Free text about the whole delivery, so it runs the width of the panel under the fields
+               it qualifies. *@
             <div class="mb-4">
                 <label class="form-label" for="delivery-notes">@Localizer["DeliveryNotes"]</label>
                 <InputTextArea id="delivery-notes" class="form-control" @bind-Value="_form.DeliveryNotes" />
                 <DtFieldError Field="DeliveryNotes" Failures="_failures" />
-            </div>
-
-            @* FR-100: either bound may stand alone and both may be absent; only an inverted pair is
-               refused, by the validator and by the check constraint behind it. *@
-            <div class="mb-4">
-                <label class="form-label" for="delivery-window-earliest">@Localizer["WindowEarliestAt"]</label>
-                <InputDate id="delivery-window-earliest" class="form-control"
-                           Type="InputDateType.DateTimeLocal"
-                           ParsingErrorMessage="@Localizer["DateParseError"]"
-                           @bind-Value="_form.WindowEarliestAt" />
-            </div>
-            <div class="mb-4">
-                <label class="form-label" for="delivery-window-latest">@Localizer["WindowLatestAt"]</label>
-                <InputDate id="delivery-window-latest" class="form-control"
-                           Type="InputDateType.DateTimeLocal"
-                           ParsingErrorMessage="@Localizer["DateParseError"]"
-                           @bind-Value="_form.WindowLatestAt" />
-                <DtFieldError Field="WindowLatestAt" Failures="_failures" />
-            </div>
-
-            @* FR-16: both are optional, and the empty choice is how a dispatcher says so - on an
-               edit it is also how they unassign, which AD-23 carries as a present null. *@
-            <div class="mb-4">
-                <label class="form-label" for="delivery-driver">@Localizer["Driver"]</label>
-                <DtSelect Id="delivery-driver" @bind-Value="_form.DriverId">
-                    <option value="">@Localizer["NoDriver"]</option>
-                    @* FR-98: the standing travels with the name, because this is the moment a
-                       dispatcher chooses who carries a parcel. Built in C# rather than as three
-                       markup branches inside an <option>, which may only hold text. *@
-                    @foreach (var driver in _drivers)
-                    {
-                        <option value="@driver.Id.Value">@DriverOption(driver)</option>
-                    }
-                </DtSelect>
-            </div>
-            <div class="mb-4">
-                <label class="form-label" for="delivery-client">@Localizer["Client"]</label>
-                <DtSelect Id="delivery-client" @bind-Value="_form.ClientId">
-                    <option value="">@Localizer["NoClient"]</option>
-                    @foreach (var client in _clients)
-                    {
-                        <option value="@client.ClientId.Value">@client.FirstName @client.LastName</option>
-                    }
-                </DtSelect>
             </div>
         </EditForm>
     </ChildContent>
@@ -550,7 +620,9 @@
     private DtDialog? _proofDialog;
     private DtConfirmDialog? _deleteDialog;
 
-    private DeliveryColumn _sortColumn = DeliveryColumn.CreatedAt;
+    // The board opens on the column the design leads with: a dispatcher's question is what is due
+    // next, and the creation order answers a different one.
+    private DeliveryColumn _sortColumn = DeliveryColumn.Window;
     private bool _sortDescending;
     private bool _loading = true;
     private bool _isAdmin;
@@ -608,10 +680,17 @@
         return vehicles.FirstOrDefault(vehicle => vehicle.Id == vehicleId)?.CapacityKg;
     }
 
+    /// <summary>
+    /// What a cell shows where there is no value at all. An em dash rather than an empty cell: a
+    /// blank reads as a value that failed to render, and it carries no Latin letters for NFR-14's
+    /// scan to object to.
+    /// </summary>
+    private const string NoValue = "—";
+
     /// <summary>The capacity as the hint renders it, or a dash when there is none to show.</summary>
     private string CapacityText => SelectedCapacityKg is { } capacity
         ? capacity.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)
-        : "—";
+        : NoValue;
 
     protected override async Task OnInitializedAsync()
     {
@@ -666,6 +745,48 @@
     private Func<Task> ProofHandler(DeliverySummary delivery) => () => ShowProofAsync(delivery);
 
     /// <summary>
+    /// The glyph a heading wears: the stacked pair on every column that can be sorted by, and a
+    /// single chevron on the one the rows are actually ordered by, pointing the way they went.
+    /// <para>
+    /// The sighted half of <see cref="SortState" />. The design marks the sorted column by colour
+    /// alone, which leaves ascending and descending identical to anyone reading the shapes - and
+    /// leaves the direction available only through an attribute a sighted reader never hears.
+    /// </para>
+    /// <para>
+    /// A method keyed on the column, exactly as the ARIA state is: a method call is legal in an
+    /// attribute value, and the two alternatives - a <c>=&gt;</c> in the attribute, or the call
+    /// inside an <c>@@if</c> - are both what the Razor idioms on this screen forbid.
+    /// </para>
+    /// </summary>
+    private IconName SortGlyph(DeliveryColumn column) =>
+        GlyphFor(column, _sortColumn, _sortDescending);
+
+    /// <summary>
+    /// Which of the three glyphs a heading wears, as a function of the board's sort state alone.
+    /// </summary>
+    /// <remarks>
+    /// Static and internal for the reason <see cref="CapacityOf" /> is: the descending arm is
+    /// unreachable from a rendering test. This harness renders HTML and never presses anything, so
+    /// a board rendered fresh is always ascending, and a test written against the markup can only
+    /// ever see two of the three answers. Pulling the choice out of the instance lets the third be
+    /// asserted directly, which matters here because the whole point of the glyph is that the two
+    /// directions differ - and a version that returned the same chevron for both would render
+    /// perfectly and pass every assertion the page can make about itself.
+    /// </remarks>
+    internal static IconName GlyphFor(
+        DeliveryColumn column,
+        DeliveryColumn sorted,
+        bool descending)
+    {
+        if (column != sorted)
+        {
+            return IconName.Sort;
+        }
+
+        return descending ? IconName.SortDescending : IconName.SortAscending;
+    }
+
+    /// <summary>
     /// The creation instant in local time (AD-13: storage is offset zero, and the conversion
     /// happens here, in the presentation layer, and nowhere else).
     /// </summary>
@@ -677,6 +798,56 @@
     /// </remarks>
     private static string Created(DeliverySummary delivery) =>
         delivery.CreatedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
+
+    /// <summary>What sits between the two bounds of a window that has both.</summary>
+    private const string WindowSeparator = " – ";
+
+    /// <summary>
+    /// The figures of a delivery window as the board's first column shows them (FR-100), in local
+    /// time for the reason <see cref="Created" /> is.
+    /// </summary>
+    /// <remarks>
+    /// FR-100 lets either bound stand alone and lets both be absent, so all four shapes are answered
+    /// rather than assumed. A pair inside one local day says the date once and lets the two times
+    /// bound it, which is how a window is read aloud; a pair that crosses midnight carries the date
+    /// on both sides, or the second figure would silently claim the first one's day. A single bound
+    /// is the figure alone - the cell's markup puts the word in front of it that says which end it
+    /// is, because a separator with nothing on one side of it is not a range.
+    /// </remarks>
+    private static string Window(DeliverySummary delivery)
+    {
+        var earliest = delivery.WindowEarliestAt?.ToLocalTime();
+        var latest = delivery.WindowLatestAt?.ToLocalTime();
+
+        if (earliest is { } from && latest is { } to)
+        {
+            // The same local day, so the far bound needs only its time.
+            if (from.Date == to.Date)
+            {
+                return Moment(from)
+                    + WindowSeparator
+                    + to.ToString("t", System.Globalization.CultureInfo.CurrentCulture);
+            }
+
+            return Moment(from) + WindowSeparator + Moment(to);
+        }
+
+        if (earliest is { } only)
+        {
+            return Moment(only);
+        }
+
+        if (latest is { } bound)
+        {
+            return Moment(bound);
+        }
+
+        return NoValue;
+    }
+
+    /// <summary>One bound of a window, written out in full.</summary>
+    private static string Moment(DateTimeOffset instant) =>
+        instant.ToString("g", System.Globalization.CultureInfo.CurrentCulture);
 
     /// <summary>
     /// One driver as the assignment picker names them: who they are, and how they are thought of
@@ -768,7 +939,20 @@
             // dispatcher could name.
             DeliveryColumn.Status => deliveries.OrderBy(delivery => delivery.Status),
             DeliveryColumn.CreatedAt => deliveries.OrderBy(delivery => delivery.CreatedAt),
-            DeliveryColumn.Overdue => deliveries.OrderBy(delivery => delivery.IsOverdue),
+
+            // By when the parcel is first due, which is the near bound when it has one and the far
+            // bound when that is all it was given - keying a "by noon" delivery off its missing
+            // near bound would file it with the deliveries that carry no window at all.
+            //
+            // Those sort to the far end in BOTH directions, which is why this arm is the one that
+            // reads `descending`: "nothing is due" is neither the earliest thing on the board nor
+            // the latest, and a single sentinel key would be carried to the front by the reversal
+            // below. Ordering the two groups the other way round before that reversal is what keeps
+            // the windowless rows out of the way of a dispatcher scanning from the top, whichever
+            // way the column is pointing.
+            DeliveryColumn.Window => deliveries
+                .OrderBy(delivery => (Due(delivery) is null) != descending)
+                .ThenBy(delivery => Due(delivery) ?? DateTimeOffset.MaxValue),
 
             // Total over the enum: a column added without an ordering fails loudly here rather than
             // silently rendering the rows in whatever order they arrived.
@@ -782,6 +966,14 @@
 
         return descending ? [.. stable.Reverse()] : [.. stable];
     }
+
+    /// <summary>
+    /// When a delivery is first due: the near bound of its window, or the far bound when that is the
+    /// only one it was given. Null when it was promised no window at all, which is not a time and
+    /// must not be sorted as one.
+    /// </summary>
+    private static DateTimeOffset? Due(DeliverySummary delivery) =>
+        delivery.WindowEarliestAt ?? delivery.WindowLatestAt;
 
     /// <summary>
     /// A text key for a column, with a null reading as empty so an unassigned row sorts to one end
@@ -829,6 +1021,26 @@
 
     /// <summary>True when a text box holds something the rows are actually narrowed by.</summary>
     private static bool Narrows(string? value) => !string.IsNullOrWhiteSpace(value);
+
+    /// <summary>
+    /// What Enter in a filter box does, which is nothing.
+    /// <para>
+    /// The panel is a real <c>&lt;form&gt;</c> so the ten controls have a role and an accessible
+    /// name, and a form submits. Every box is two-way bound and the table re-renders as it is typed
+    /// in, so there is nothing to send - and the default submission would be a GET to this same
+    /// address that threw away every filter the dispatcher had set.
+    /// </para>
+    /// <para>
+    /// A bound handler beside <c>@@onsubmit:preventDefault</c> rather than the directive on its own:
+    /// the directive suppresses the browser's default for an event Blazor is handling, and this is
+    /// the handler that makes it one. Nothing else in this solution writes it standalone, and a
+    /// guard that only works if a framework detail holds is not a guard.
+    /// </para>
+    /// </summary>
+    private static void KeepFilters()
+    {
+        // Deliberately empty: the filters are already applied.
+    }
 
     private void ResetFilters() => _filter = new DeliveryFilter();
 
@@ -1075,6 +1287,18 @@
     /// <summary>The columns the dispatch table can be ordered by (FR-20).</summary>
     internal enum DeliveryColumn
     {
+        /// <summary>
+        /// The window the delivery was promised in, which is the column the board leads with.
+        /// <para>
+        /// It replaced an Overdue column rather than joining one: overdue is derived from this
+        /// window and the clock, so the two were the same fact in two places, and the badge now
+        /// sits inside this column's cell. Ordering by overdue is gone with it - a two-valued sort
+        /// that only ever produced two blocks - and the overdue filter keeps the capability that
+        /// was worth having.
+        /// </para>
+        /// </summary>
+        Window,
+
         /// <summary>The assigned driver's name.</summary>
         Driver,
 
@@ -1098,9 +1322,6 @@
 
         /// <summary>When the delivery was opened.</summary>
         CreatedAt,
-
-        /// <summary>Whether the window has passed.</summary>
-        Overdue,
     }
 
     /// <summary>

@@ -110,3 +110,16 @@
     background-color: var(--dt-warning-subtle);
     color: var(--dt-warning-text);
 }
+
+/*
+    The row's own cells, which come from the consumer's RowTemplate and therefore carry the
+    consuming component's scope. `.dt-table-row` is this component's element, so it anchors the
+    selector the same way `.dt-table-head` does above.
+
+    The actions cell mirrors its header: the buttons stay on one line, at the trailing edge, under
+    the column the header reserved for them.
+*/
+.dt-table-row ::deep td.dt-table-actions {
+    white-space: nowrap;
+    text-align: end;
+}

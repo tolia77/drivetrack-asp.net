@@ -107,4 +107,14 @@ public enum IconName
 
     /// <summary>A sortable column header, and the direction it can be taken in (FR-82).</summary>
     Sort,
+
+    /// <summary>
+    /// The column the rows are actually ordered by, smallest first. The stacked pair above says
+    /// "this sorts"; a single chevron says which way it went, so ascending and descending differ by
+    /// shape rather than only by the <c>aria-sort</c> a sighted reader never hears.
+    /// </summary>
+    SortAscending,
+
+    /// <summary>The same column ordered the other way (FR-82).</summary>
+    SortDescending,
 }

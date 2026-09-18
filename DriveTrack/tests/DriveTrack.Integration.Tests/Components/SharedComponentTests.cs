@@ -83,6 +83,47 @@ public class SharedComponentTests
     }
 
     [Fact]
+    public async Task The_two_sort_directions_are_drawn_as_two_different_shapes()
+    {
+        // The direction glyphs are the one pair in the set whose whole purpose is to differ from
+        // each other, and every other assertion about them is satisfied by two names pointing at
+        // one shape: the source scan above only asks that each member has a branch, the board
+        // renders fresh and is therefore always ascending, and the screen's own choice test compares
+        // enum members without ever opening Icon.razor. Give the descending branch the ascending
+        // path and all three stay green while both headings draw the same chevron.
+        //
+        // So the two are rendered and their paths compared. Read off the drawn `d` rather than off
+        // the branch, because the shape is the claim - a reader sees the line, not the member name.
+        var ascending = PathsOf(await RenderIconAsync(IconName.SortAscending));
+        var descending = PathsOf(await RenderIconAsync(IconName.SortDescending));
+
+        Assert.NotEmpty(ascending);
+        Assert.NotEmpty(descending);
+        Assert.NotEqual(ascending, descending);
+
+        // And neither is the stacked pair the unsorted headings wear, which is the third shape the
+        // set has to keep apart: a sorted column that kept the pair would say a column is sortable
+        // where it needed to say which way it went.
+        Assert.NotEqual(PathsOf(await RenderIconAsync(IconName.Sort)), ascending);
+        Assert.NotEqual(PathsOf(await RenderIconAsync(IconName.Sort)), descending);
+    }
+
+    /// <summary>One glyph, rendered as the product renders it.</summary>
+    private static Task<string> RenderIconAsync(IconName name) =>
+        ComponentRenderer.RenderAsync<Icon>(new Dictionary<string, object?> { ["Name"] = name });
+
+    /// <summary>Every path an icon drew, in order, as one comparable string.</summary>
+    private static string PathsOf(string svg) => string.Join(
+        "|",
+        PathData.Matches(svg).Select(match => match.Groups["d"].Value));
+
+    /// <summary>The geometry of one drawn path.</summary>
+    private static readonly Regex PathData = new(
+        @"\bd\s*=\s*""(?<d>[^""]+)""",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    [Fact]
     public void The_icon_markup_is_inline_and_needs_no_second_stylesheet()
     {
         // NFR-24 without a webfont, a sprite or a third <link>: one <svg> the component writes

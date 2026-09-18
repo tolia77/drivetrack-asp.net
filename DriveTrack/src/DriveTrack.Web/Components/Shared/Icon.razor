@@ -159,6 +159,16 @@
     {
         <path d="M8 10l4-4 4 4M8 14l4 4 4-4" />
     }
+    @* The two halves of the stacked pair above, drawn one at a time: the sorted column keeps the
+       glyph in the same box and at the same weight, so only its direction changes. *@
+    @if (Name == IconName.SortAscending)
+    {
+        <path d="M7 14l5-5 5 5" />
+    }
+    @if (Name == IconName.SortDescending)
+    {
+        <path d="M7 10l5 5 5-5" />
+    }
 </svg>
 
 @code {

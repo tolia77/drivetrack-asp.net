@@ -457,6 +457,12 @@
   <data name="DeliveryNotes" xml:space="preserve">
     <value>Notes</value>
   </data>
+  <data name="WindowFrom" xml:space="preserve">
+    <value>From</value>
+  </data>
+  <data name="WindowUntil" xml:space="preserve">
+    <value>Until</value>
+  </data>
   <data name="WindowEarliestAt" xml:space="preserve">
     <value>Arrive no earlier than</value>
   </data>
@@ -495,6 +501,9 @@
   </data>
   <data name="FilterAll" xml:space="preserve">
     <value>All</value>
+  </data>
+  <data name="Filters" xml:space="preserve">
+    <value>Filters</value>
   </data>
   <data name="ResetFilters" xml:space="preserve">
     <value>Reset the filters</value>

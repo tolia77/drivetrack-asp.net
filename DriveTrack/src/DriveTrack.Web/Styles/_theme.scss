@@ -82,7 +82,12 @@ h1:focus {
 .btn:active:focus,
 .form-control:focus,
 .form-select:focus,
-.form-check-input:focus {
+.form-check-input:focus,
+// The overdue filter is a native checkbox rather than the framework's restyled one - the tick is
+// painted with `accent-color`, and an `appearance: none` control has no tick left to paint - so it
+// answers to none of the selectors above and would draw the browser's ring beside nine controls
+// drawing the token's.
+.dt-check input:focus {
     box-shadow: none;
     outline: var(--dt-border-width-focus) solid var(--dt-focus-ring);
     outline-offset: var(--dt-border-width-focus);
@@ -721,6 +726,153 @@ $dt-breakpoint-phone-max: $dt-breakpoint-phone - 0.02px;
     color: var(--dt-ink-muted);
 }
 
+
+// -----------------------------------------------------------------------------
+// Cards
+//
+// App-level rather than scoped to DtCard, because the card surface is no longer
+// that component's alone: the dispatch board's filter panel is a <form> wearing
+// the same chrome, and a scoped rule cannot reach an element another component
+// renders. One definition, two consumers - the alternative was DtCard's copy and
+// a second one beside it that would drift the first time either moved.
+// -----------------------------------------------------------------------------
+.dt-card {
+    background-color: var(--dt-surface-card);
+    border: var(--dt-border-width) solid var(--dt-border);
+    border-radius: var(--dt-radius-md);
+    box-shadow: var(--dt-shadow-card);
+}
+
+// The head is separated by a hairline rather than by a tint: a filled header bar
+// is the first step towards a card that is also a banner, and the design keeps
+// the two apart.
+.dt-card__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--dt-space-2);
+    padding: var(--dt-space-4);
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
+}
+
+.dt-card__title {
+    margin: 0;
+}
+
+.dt-card__body {
+    padding: var(--dt-space-4);
+}
+
+
+// -----------------------------------------------------------------------------
+// Paired fields
+//
+// Two controls read as one question - a driver and a client, the two bounds of a
+// delivery window - sitting side by side inside a dialog and stacking when the
+// panel is too narrow for both. `auto-fit` rather than a breakpoint: the pair
+// stacks when the panel runs out of room, which on a wide dialog is a different
+// width from the one the phone breakpoint names.
+// -----------------------------------------------------------------------------
+.dt-cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--dt-space-4);
+}
+
+
+// -----------------------------------------------------------------------------
+// The filter panel (FR-20, FR-101)
+//
+// A card whose body is the form itself, so the ten controls are one bounded
+// object on the page rather than three loose rows of inputs floating on the
+// tinted background. The card supplies the surface; these three rules supply the
+// arrangement the design draws - six text boxes across the top, and a row of the
+// narrower controls under them ending in the one action that clears them all.
+//
+// The grid is `auto-fit` rather than the design's literal `repeat(6, ...)`: six
+// columns is a desktop answer, and the same declaration gives two on a tablet and
+// one on a phone without a breakpoint of its own. The floor in the `minmax` is what
+// decides when it drops a column - a track narrower than that is a box too narrow to
+// read a Ukrainian label above - and the `1fr` ceiling is what shares the rest out
+// evenly rather than letting the longest label claim it.
+// -----------------------------------------------------------------------------
+.dt-filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-3);
+    padding: var(--dt-space-4);
+}
+
+.dt-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--dt-space-3);
+}
+
+// The narrower controls, aligned on their boxes rather than on their labels: the
+// check has no label above it, so aligning on the top edge would leave it
+// floating a line higher than everything it sits beside.
+.dt-filters-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--dt-space-3);
+}
+
+// A field in that row takes a share of the width rather than all of it, and wraps
+// to its own line before it gets too narrow to read.
+.dt-filters-field {
+    flex: 1 1 10rem;
+    min-width: 0;
+}
+
+
+// -----------------------------------------------------------------------------
+// The check control
+//
+// A checkbox and its own word on one line, sized to the control row it sits in so
+// the box lines up with the inputs beside it rather than with their labels. The
+// tick takes the create colour because it is the one thing on the row that turns
+// something on.
+// -----------------------------------------------------------------------------
+.dt-check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--dt-space-2);
+    min-height: var(--dt-control-height);
+    font-size: var(--dt-label-font-size);
+    line-height: var(--dt-label-line-height);
+    font-weight: var(--dt-label-font-weight);
+}
+
+.dt-check input {
+    flex: none;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    accent-color: var(--dt-action-create);
+}
+
+
+// -----------------------------------------------------------------------------
+// The page heading row
+//
+// The screen's title and the one action that opens a new record, on one line.
+// App-level because every screen with a create action has the same pair, and a
+// copy per screen is where two headings start sitting at different heights.
+// -----------------------------------------------------------------------------
+.dt-page-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dt-space-4);
+}
+
+.dt-page-head h1 {
+    flex: 1 1 auto;
+    margin: 0;
+}
 
 // -----------------------------------------------------------------------------
 // The four utilities

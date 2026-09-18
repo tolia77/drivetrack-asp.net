@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using DriveTrack.Application.Authorization;
 using DriveTrack.Application.Common;
@@ -62,6 +63,48 @@ public class DeliveryScreenTests
     private static readonly Regex Picker = new(
         @"<DtLocationPicker\b(?<attributes>[^>]*)>",
         RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// The three sort glyphs as <c>Icon.razor</c> draws them: the stacked pair every sortable
+    /// heading wears, and the two single chevrons the sorted one swaps it for.
+    /// </summary>
+    private const string SortGlyph = "M8 10l4-4 4 4M8 14l4 4 4-4";
+
+    /// <inheritdoc cref="SortGlyph" />
+    private const string AscendingGlyph = "M7 14l5-5 5 5";
+
+    /// <inheritdoc cref="SortGlyph" />
+    private const string DescendingGlyph = "M7 10l5 5 5-5";
+
+    /// <summary>The one heading that claims a direction, whichever column it turns out to be.</summary>
+    private static readonly Regex SortedHeader = new(
+        @"<th\b[^>]*aria-sort=""ascending""[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The actions heading, found by the class the table reserves the column with.</summary>
+    private static readonly Regex ActionsHeader = new(
+        @"<th\b[^>]*class=""[^""]*\bdt-table-actions\b[^""]*""[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>One window cell, whatever shape of window it holds.</summary>
+    private static readonly Regex WindowCell = new(
+        @"<td\b[^>]*class=""[^""]*\bdt-table-window\b[^""]*""[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The filter panel: a form wearing the card surface.</summary>
+    private static readonly Regex FilterPanel = new(
+        @"<form\b[^>]*class=""[^""]*\bdt-filters\b[^""]*""[^>]*>",
+        RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The heading row: the screen's title and the action that opens an empty form.</summary>
+    private static readonly Regex PageHead = new(
+        @"<div\b[^>]*class=""[^""]*\bdt-page-head\b[^""]*""[^>]*>(?<body>.*?)</div>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
     private static readonly Regex Label = new(
@@ -548,6 +591,87 @@ public class DeliveryScreenTests
     }
 
     [Fact]
+    public async Task An_empty_board_says_so_and_offers_nothing_there_is_no_way_out_of()
+    {
+        // The state nothing asserted, on a screen whose whole job is a list. An empty board has two
+        // causes - filters that match none of the fetched rows, and a fetch that came back with
+        // nothing - and only the first has a way out. Static rendering cannot type into a filter, so
+        // what is reachable here is the second: a board with no deliveries at all, which must say it
+        // is empty and must not offer to clear filters nobody set.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher, board: []);
+
+        Assert.Contains("dt-table-empty", html, StringComparison.Ordinal);
+        Assert.Contains("Ще немає жодної доставки.", html, StringComparison.Ordinal);
+
+        // By its own hook, not by its words: the filter panel above carries a reset that says
+        // exactly the same thing, so a text assertion here would be green whatever the empty state
+        // did.
+        Assert.DoesNotContain("dt-delivery-empty-reset", html, StringComparison.Ordinal);
+
+        // And the panel's own reset is still there, so the assertion above is about the empty state
+        // rather than about a screen that lost both.
+        Assert.Contains("dt-delivery-filters-reset", html, StringComparison.Ordinal);
+
+        // No rows, and none of the chrome that only a row has: the truncation note is a claim about
+        // a full page, and an empty board is the opposite of one.
+        Assert.Equal(0, SharedMarkup.Occurrences(html, "dt-table-row"));
+        Assert.DoesNotContain("dt-table-note", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_filters_are_one_named_group_and_the_create_action_sits_with_the_heading()
+    {
+        // The restructure's own claims, which the id list above cannot see: it passed on the three
+        // loose rows of inputs this replaced, and would pass again on a silent revert to them.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        // A real <form> with an accessible name, so the ten controls are announced as the filters
+        // they are rather than as ten unrelated boxes between the heading and the table. The name is
+        // read back in the language a user gets it in: a key that resolved to itself would be Latin
+        // here and nowhere else.
+        var panel = FilterPanel.Match(html);
+
+        Assert.True(panel.Success, "The filters are not a form carrying the card surface.");
+        Assert.Contains(@"aria-label=""Фільтри""", panel.Value, StringComparison.Ordinal);
+
+        // Every one of the ten is inside it, including the reset - a panel that named itself and
+        // then held half the controls would be worse than none.
+        var group = html[panel.Index..html.IndexOf("</form>", panel.Index, StringComparison.Ordinal)];
+
+        Assert.Contains(@"id=""delivery-filter-driver""", group, StringComparison.Ordinal);
+        Assert.Contains(@"id=""delivery-filter-overdue""", group, StringComparison.Ordinal);
+        Assert.Contains("dt-delivery-filters-reset", group, StringComparison.Ordinal);
+
+        // And the create action is beside the heading rather than in a row of its own: it is about
+        // the collection the heading names, and the reset - which narrows that collection - is not.
+        var head = PageHead.Match(html);
+
+        Assert.True(head.Success, "The screen has no heading row.");
+        Assert.Contains("dt-delivery-create", head.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("<h1", head.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-delivery-filters-reset", head.Groups["body"].Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_actions_column_keeps_its_name_without_printing_it()
+    {
+        // The buttons under it say what they do, so a column name printed above them competes with
+        // them for the same width - and a column with no name at all leaves a screen reader moving
+        // by cell with one unlabelled column. Hidden, not dropped.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        var actions = ActionsHeader.Match(html);
+
+        Assert.True(actions.Success, "The table has no actions heading.");
+        Assert.Contains("dt-visually-hidden", actions.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("Дії", actions.Groups["body"].Value, StringComparison.Ordinal);
+
+        // Not a sort control: it names no value to order by, and counting it as one would put the
+        // sortable count at ten.
+        Assert.DoesNotContain("<button", actions.Groups["body"].Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Each_column_heading_is_a_sort_control()
     {
         // DtDataTable renders whatever rows it is given and sorts nothing, so the control belongs
@@ -563,9 +687,172 @@ public class DeliveryScreenTests
 
         // And the reordering is perceivable: without aria-sort the rows rearrange silently, and a
         // screen-reader user is given no way to tell which column did it. The board opens ordered
-        // by the creation date, so exactly one heading claims a direction and the rest claim none.
+        // by the delivery window, so exactly one heading claims a direction and the rest claim none.
         Assert.Equal(1, SharedMarkup.Occurrences(html, @"aria-sort=""ascending"""));
         Assert.Equal(8, SharedMarkup.Occurrences(html, @"aria-sort=""none"""));
+
+        // The sighted half of the same fact, which aria-sort alone leaves to a colour. Eight
+        // headings wear the stacked pair that means "this sorts"; the sorted one wears a single
+        // chevron pointing the way the rows went, so ascending and descending are told apart by
+        // shape rather than by hue. Asserted on the drawn path rather than on the enum member,
+        // because what a reader gets is the glyph: a member wired to the wrong path would leave
+        // every name in the source right and every heading on the page identical.
+        Assert.Equal(8, SharedMarkup.Occurrences(html, SortGlyph));
+        Assert.Equal(1, SharedMarkup.Occurrences(html, AscendingGlyph));
+        Assert.Equal(0, SharedMarkup.Occurrences(html, DescendingGlyph));
+
+        // And it is the delivery window that claims it. Counting one ascending heading says a
+        // column is sorted and not which, so the board could open on any of the nine - the creation
+        // date it opened on before this story included - and every count above would still hold.
+        // The window is the column the design leads with, because a dispatcher's question is what
+        // is due next.
+        var claiming = SortedHeader.Match(html);
+
+        Assert.True(claiming.Success, "No heading claims a sort direction.");
+        Assert.Contains("Часове вікно", claiming.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains(AscendingGlyph, claiming.Groups["body"].Value, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [MemberData(nameof(WindowShapes))]
+    public async Task The_window_cell_says_which_bounds_it_has(
+        DateTimeOffset? earliest,
+        DateTimeOffset? latest,
+        string expected)
+    {
+        // FR-100 lets either bound stand alone and lets both be absent, so the cell has four shapes
+        // and only one of them is a range. A one-sided window used to render as a range with a hole
+        // in it - a dash standing in for the missing bound, beside the dash that means "to" - which
+        // says nothing about which end is missing.
+        //
+        // Read off the rendered cell rather than off the formatter, because the word that makes a
+        // single bound directional is in the markup and the figures are in the method: an assertion
+        // against either half alone would pass on a cell that never puts the two together.
+        var html = await RenderDeliveriesAsync(
+            UserRole.Dispatcher,
+            board: [Row(windowEarliest: earliest, windowLatest: latest)]);
+
+        var cell = WindowCell.Match(html);
+
+        Assert.True(cell.Success, "The board renders no window cell.");
+        Assert.Equal(expected, Words(cell.Groups["body"].Value));
+    }
+
+    /// <summary>
+    /// The four shapes a delivery window takes, and what the first column says about each. The
+    /// figures are formatted here the way the screen formats them - local time, the reader's own
+    /// culture - so the case asserts the shape of the cell rather than restating a date format that
+    /// would fail on a machine in another zone.
+    /// </summary>
+    public static TheoryData<DateTimeOffset?, DateTimeOffset?, string> WindowShapes()
+    {
+        var morning = Local(2026, 9, 17).AddHours(-3);
+        var noon = Local(2026, 9, 17);
+        var overnight = Local(2026, 9, 18).AddHours(-1);
+
+        return new TheoryData<DateTimeOffset?, DateTimeOffset?, string>
+        {
+            // Both bounds inside one local day: the date is said once and the two times bound it.
+            { morning, noon, Moment(morning) + " – " + Time(noon) },
+
+            // Both bounds across midnight: each side carries its own date, or the second figure
+            // would silently claim the first one's day.
+            { noon, overnight, Moment(noon) + " – " + Moment(overnight) },
+
+            // One bound apiece: a direction rather than a range.
+            { morning, null, "з " + Moment(morning) },
+            { null, noon, "до " + Moment(noon) },
+
+            // None at all: the dash that stands for a value there is none of.
+            { null, null, "—" },
+        };
+    }
+
+    [Fact]
+    public void The_window_column_orders_by_when_a_delivery_is_first_due()
+    {
+        // The column the board opens on, and the one ordering in Sort that has to read the
+        // direction. A delivery keeps its place by its near bound; one given only a far bound is
+        // due at that bound rather than being windowless, which is the shape the dispatch board's
+        // own overdue row carries; and a delivery promised no window at all is neither the earliest
+        // thing on the board nor the latest, so it sits at the far end whichever way the column
+        // points. A single sentinel key satisfies the ascending half and is carried to the front by
+        // the reversal.
+        var rows = new[]
+        {
+            Row(id: 1, windowEarliest: Local(2026, 9, 18), windowLatest: Local(2026, 9, 19)),
+            Row(id: 2),
+            Row(id: 3, windowLatest: Local(2026, 9, 16)),
+            Row(id: 4, windowEarliest: Local(2026, 9, 17)),
+        };
+
+        Assert.Equal(
+            new[] { 3, 4, 1, 2 },
+            Web.Components.Pages.Deliveries
+                .Sort(rows, DeliveryColumn.Window, descending: false)
+                .Select(row => row.Id)
+                .ToArray());
+
+        Assert.Equal(
+            new[] { 1, 4, 3, 2 },
+            Web.Components.Pages.Deliveries
+                .Sort(rows, DeliveryColumn.Window, descending: true)
+                .Select(row => row.Id)
+                .ToArray());
+    }
+
+    [Fact]
+    public async Task The_overdue_mark_rides_in_the_window_cell_rather_than_a_column_of_its_own()
+    {
+        // The move this story is built around. Overdue used to be a column, and it is now a badge
+        // inside the delivery window - the header map above proves the column is gone, but nothing
+        // proved where the mark went, and a badge that survived in the wrong cell would leave both
+        // the column count and the catalogue exactly as they should be.
+        var html = await RenderDeliveriesAsync(UserRole.Dispatcher);
+
+        // Matched on the class as a token rather than on the whole opening tag: the screen carries a
+        // scoped stylesheet, so Blazor stamps its own attribute after the class and an exact tag
+        // match would find nothing.
+        var windows = WindowCell.Matches(html);
+
+        Assert.NotEmpty(windows);
+
+        var marked = windows.Count(cell =>
+            cell.Groups["body"].Value.Contains("dt-badge--overdue", StringComparison.Ordinal));
+
+        // Not vacuous - the board this renders has an overdue row.
+        Assert.NotEqual(0, marked);
+
+        // And every mark on the page is one of those: an equal count is what rules out a second
+        // home for it somewhere else in the row.
+        Assert.Equal(marked, SharedMarkup.Occurrences(html, "dt-badge--overdue"));
+    }
+
+    [Fact]
+    public void The_sorted_heading_draws_a_different_glyph_for_each_direction()
+    {
+        // The arm the page cannot show. A board renders fresh and therefore ascending, so the test
+        // above can only ever see two of the three glyphs, and a version that answered the same
+        // chevron for both directions would render perfectly and satisfy every assertion the markup
+        // can make about itself. That is the whole claim of drawing the direction at all, so it is
+        // asserted where it is reachable: on the choice itself.
+        const DeliveryColumn sorted = DeliveryColumn.Window;
+
+        var ascending = Web.Components.Pages.Deliveries.GlyphFor(sorted, sorted, descending: false);
+        var descending = Web.Components.Pages.Deliveries.GlyphFor(sorted, sorted, descending: true);
+
+        Assert.NotEqual(ascending, descending);
+        Assert.Equal(IconName.SortAscending, ascending);
+        Assert.Equal(IconName.SortDescending, descending);
+
+        // And every other column keeps the stacked pair, in both directions: the glyph says which
+        // column is sorted as well as which way, and a column that wore a chevron while another
+        // held the order would be two headings claiming it.
+        foreach (var other in Enum.GetValues<DeliveryColumn>().Where(column => column != sorted))
+        {
+            Assert.Equal(IconName.Sort, Web.Components.Pages.Deliveries.GlyphFor(other, sorted, descending: false));
+            Assert.Equal(IconName.Sort, Web.Components.Pages.Deliveries.GlyphFor(other, sorted, descending: true));
+        }
     }
 
     [Fact]
@@ -582,6 +869,11 @@ public class DeliveryScreenTests
 
         var expected = new Dictionary<DeliveryColumn, string>
         {
+            // The window is the board's first column and the only one whose key is not its own
+            // member name: the catalogue already carried `DeliveryWindow` for the landing page's
+            // summary, and a second entry saying the same word in the same two languages would be
+            // the drift NFR-6 is about.
+            [DeliveryColumn.Window] = "DeliveryWindow",
             [DeliveryColumn.Driver] = "Driver",
             [DeliveryColumn.Client] = "Client",
             [DeliveryColumn.Pickup] = "Pickup",
@@ -590,7 +882,6 @@ public class DeliveryScreenTests
             [DeliveryColumn.DeliveryNotes] = "DeliveryNotes",
             [DeliveryColumn.Status] = "Status",
             [DeliveryColumn.CreatedAt] = "CreatedAt",
-            [DeliveryColumn.Overdue] = "Overdue",
         };
 
         // Every member, so a column added to the enum without a heading is caught here rather than
@@ -1312,13 +1603,15 @@ public class DeliveryScreenTests
     // Rendering
     // -------------------------------------------------------------------------------------
 
-    private static Task<string> RenderDeliveriesAsync(UserRole role) =>
+    private static Task<string> RenderDeliveriesAsync(
+        UserRole role,
+        IReadOnlyList<DeliverySummary>? board = null) =>
         ComponentRenderer.RenderAsync<Web.Components.Pages.Deliveries>(
             parameters: null,
             services =>
             {
                 services.AddSingleton<ICurrentUser>(new StubCaller(role));
-                services.AddSingleton<IDeliveryService>(new StubDeliveryService());
+                services.AddSingleton<IDeliveryService>(new StubDeliveryService(board: board));
                 services.AddSingleton<IDriverService>(new StubDriverService());
                 services.AddSingleton<IVehicleService>(new StubVehicleService());
                 services.AddSingleton<IClientAdministrationService>(new StubClientRoster());
@@ -1338,6 +1631,29 @@ public class DeliveryScreenTests
     private static DateTimeOffset Local(int year, int month, int day) =>
         new DateTimeOffset(new DateTime(year, month, day, 12, 0, 0, DateTimeKind.Local)).ToUniversalTime();
 
+    /// <summary>The language every screen here renders in, which is what its dates are formatted by.</summary>
+    private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");
+
+    /// <summary>
+    /// One bound of a window as the board writes it: local time, in the reader's own culture.
+    /// Composed rather than written out, so the case says what shape the cell takes and does not
+    /// also pin a date format that would fail on a machine in another zone.
+    /// </summary>
+    private static string Moment(DateTimeOffset instant) =>
+        instant.ToLocalTime().ToString("g", Ukrainian);
+
+    /// <summary>The far bound of a same-day window, which needs only its time.</summary>
+    private static string Time(DateTimeOffset instant) =>
+        instant.ToLocalTime().ToString("t", Ukrainian);
+
+    /// <summary>
+    /// A cell's words, with the whitespace its markup was indented with collapsed: what is under
+    /// test is what the cell says, not how the Razor file is laid out.
+    /// </summary>
+    private static string Words(string html) => Regex
+        .Replace(SharedMarkup.TextOf(html), @"\s+", " ", RegexOptions.None, TimeSpan.FromSeconds(5))
+        .Trim();
+
     /// <summary>One dispatch row, with every field a filter or an ordering reads.</summary>
     private static DeliverySummary Row(
         int id = 1,
@@ -1346,7 +1662,9 @@ public class DeliveryScreenTests
         string? notes = "Подзвонити",
         DeliveryStatus status = DeliveryStatus.Pending,
         DateTimeOffset? created = null,
-        bool overdue = false) =>
+        bool overdue = false,
+        DateTimeOffset? windowEarliest = null,
+        DateTimeOffset? windowLatest = null) =>
         new(
             id,
             assigned ? new DeliveryParty(1, "Тарас Шевченко") : null,
@@ -1356,8 +1674,8 @@ public class DeliveryScreenTests
             details,
             12.5m,
             notes,
-            null,
-            null,
+            windowEarliest,
+            windowLatest,
             status,
             created ?? Noon,
             overdue);
@@ -1377,11 +1695,21 @@ public class DeliveryScreenTests
     }
 
     /// <summary>
-    /// Three deliveries for the dispatch board: one with both parties, one with neither, and one
-    /// that is overdue. Writes are not exercised — static rendering dispatches no events — so they
-    /// answer rather than record.
+    /// The deliveries the two screens read. Writes are not exercised — static rendering dispatches
+    /// no events — so they answer rather than record.
     /// </summary>
-    private sealed class StubDeliveryService(IReadOnlyList<AssignedDeliverySummary>? assigned = null)
+    /// <param name="assigned">
+    /// What the own-deliveries screen reads. Null is none, which is that screen's empty state.
+    /// </param>
+    /// <param name="board">
+    /// What the dispatch board reads. Null is the pair below - one delivery with both parties and a
+    /// window that has only its far bound, one with neither party and no window at all. A caller
+    /// hands in its own to render a board that is empty, or one whose windows take a shape the pair
+    /// does not carry.
+    /// </param>
+    private sealed class StubDeliveryService(
+        IReadOnlyList<AssignedDeliverySummary>? assigned = null,
+        IReadOnlyList<DeliverySummary>? board = null)
         : IDeliveryService
     {
         /// <summary>What the own-deliveries screen renders when it has rows.</summary>
@@ -1436,7 +1764,7 @@ public class DeliveryScreenTests
         public Task<IReadOnlyList<DeliverySummary>> ListAsync(
             ListDeliveriesQuery query,
             CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<DeliverySummary>>(Board);
+            Task.FromResult(board ?? Board);
 
         public Task<IReadOnlyList<AssignedDeliverySummary>> ListMineAsync(
             ListDeliveriesQuery query,

@@ -1,0 +1,27 @@
+/*
+    The dispatch board's own cell, scoped to the screen that writes the class rather than published
+    from the shared table: `dt-table-window` is this board's column and no other consumer's, and the
+    overdue badge it holds is `_theme.scss`'s vocabulary, which a shared component has no business
+    reaching into.
+
+    `white-space`, `display` and `width` are geometry and outside NFR-29's scan; the one gap here is
+    a token.
+*/
+
+td.dt-table-window {
+    white-space: nowrap;
+}
+
+/*
+    The badge takes the line under the hours rather than sitting beside them: it is a mark on the
+    window, and a marker on the same line would compete with the figures it qualifies. A block so it
+    breaks the line, shrink-wrapped so the block is only as wide as the word.
+
+    ::deep, because DtBadge renders this element and it therefore carries that component's scope,
+    not this screen's. The cell is ours, so it anchors the selector.
+*/
+td.dt-table-window ::deep .dt-badge {
+    display: flex;
+    width: fit-content;
+    margin-top: var(--dt-space-1);
+}
