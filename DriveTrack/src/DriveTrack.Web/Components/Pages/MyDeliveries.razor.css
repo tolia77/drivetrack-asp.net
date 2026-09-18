@@ -1,0 +1,171 @@
+/*
+    The own-deliveries screen's own cells, and the one thing it asks of the table it does not own:
+    below the phone breakpoint the rows stop being rows and become cards.
+
+    That is the whole of the disagreement between the two drawings this screen was designed from. A
+    driver's was drawn at 390px as a list of cards and a client's at 1440px as a table, and the
+    difference is the viewport rather than the role - a nine-column table is unusable on a phone
+    whoever is holding it. One table that collapses at the edge answers both drawings, and keeps the
+    truncation note, the empty state and the loading skeleton that only DtDataTable supplies.
+
+    The window cell's own rules are not here: `dt-table-window` is shared with the dispatch board and
+    lives in `_theme.scss` with the rest of the shared vocabulary. What this file releases is the
+    part of it a card layout cannot keep.
+
+    NFR-29: every palette value here is a `--dt-*` reference. What is literal is geometry the palette
+    does not name - the grid's two tracks and the breakpoint itself, which a media query cannot read
+    from a custom property at all.
+*/
+
+/*
+    The merged package cell: what is being moved, under it how heavy it is, and under that whatever
+    the client asked for. Three lines rather than one, because they are three facts about the parcel
+    and a reader scanning the column reads the description first. Blocks rather than separators, so a
+    row carrying only one of the three renders that one alone.
+
+    The per-cell label is excluded by hand: it is a block only below the breakpoint, and it is
+    clipped to a pixel either way, so letting this rule reach it would only fight the rule below.
+*/
+td.dt-my-delivery-package > span:not(.dt-my-delivery-label) {
+    display: block;
+}
+
+/*
+    The name of the cell, carried by the cell rather than by a column heading.
+
+    Not rendered at all above the breakpoint: up there the `<th>` names the column, the cell is
+    announced under it, and a second name inside every cell would be that name read twice on every
+    row. Below the breakpoint the head is gone and this is what replaces it - see the media query.
+*/
+.dt-my-delivery-label {
+    display: none;
+}
+
+/*
+    Below the breakpoint, the stacked layout.
+
+    Stated desktop-first with the phone as the exception, because that is the direction `_theme.scss`
+    states the shell in and the two have to switch on the same edge. The theme writes that edge as
+    `$dt-breakpoint-phone-max`; this file is plain CSS rather than Sass and cannot read a Sass
+    variable, and a custom property is not legal in a media query either, so the figure is written
+    out - as `Home.razor.css` writes it, and deliberately not approximated as `min-width: 641px`,
+    which would leave a sliver of widths where the shell is a sidebar and the rows are already cards.
+
+    ::deep throughout: the table, its head and its rows are DtDataTable's elements and carry that
+    component's scope. `.dt-my-deliveries` is this screen's wrapper, so it anchors every selector -
+    which is also what keeps these rules off the other tables in the product.
+*/
+@media (max-width: 640.98px) {
+    /*
+        The head is dropped rather than hidden, and both halves of that matter.
+
+        Dropped, because a `<thead>` clipped to a pixel keeps its two sort buttons focusable: a
+        keyboard user would tab through two controls they cannot see before reaching the first card.
+        Sorting is a desktop affordance here, said plainly rather than left as an invisible one.
+
+        And because a table laid out as blocks is no longer a table to a screen reader - the implicit
+        table, row and cell roles go with the `display` they came from, so a head left in the
+        accessibility tree would name columns that no longer exist to be announced under. What
+        replaces it is the label inside each cell, revealed just below: the card reads as a run of
+        named values, which is what it now is.
+    */
+    .dt-my-deliveries ::deep thead {
+        display: none;
+    }
+
+    .dt-my-deliveries ::deep .dt-my-delivery-label {
+        display: inline;
+    }
+
+    /*
+        A table laid out as blocks. Every level of it, or a `display: block` row would have its cells
+        wrapped back into an anonymous table box and nothing would change.
+    */
+    .dt-my-deliveries ::deep table,
+    .dt-my-deliveries ::deep tbody,
+    .dt-my-deliveries ::deep tr,
+    .dt-my-deliveries ::deep td {
+        display: block;
+        width: 100%;
+    }
+
+    /*
+        The inner scroll goes with the table. DtDataTable caps its scroll box at 32rem so a long table
+        cannot push the page down, which is right for a table and wrong for this: on a 390px screen it
+        would put a 512px scrolling region inside a scrolling page, and escaping one nested scroller
+        is exactly what collapsing to cards is for. The page scrolls instead.
+    */
+    .dt-my-deliveries ::deep .dt-table-scroll {
+        max-height: none;
+    }
+
+    /*
+        One row, one card. The rule under it is the card's edge; the striping and the hover tint are
+        the themed framework's and carry over unchanged, which is what keeps one card distinguishable
+        from the next.
+    */
+    .dt-my-deliveries ::deep tr.dt-table-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: start;
+        gap: var(--dt-space-2);
+        padding: var(--dt-space-3);
+        border-bottom: var(--dt-border-width) solid var(--dt-border);
+    }
+
+    /*
+        Every cell is a line of the card, full width, with the padding given to the card instead. The
+        cell borders go with it: a card ruled between each of its own lines is five cards.
+    */
+    .dt-my-deliveries ::deep tr.dt-table-row td {
+        grid-column: 1 / -1;
+        padding: 0;
+        border: 0;
+    }
+
+    /*
+        The card's head is the two facts that say which delivery this is and where it has got to:
+        when it is due on the left, what state it is in on the right. Placed rather than ordered,
+        because the cells have to stay in the column order the headings are in - the pair is the
+        first and the fifth, and only an explicit placement can put them on one line without moving
+        them in the markup.
+
+        The window gives up its `nowrap` here. In a table it is a column that can be as wide as it
+        needs; in a `1fr` track beside the status it is not, and a two-bound window across midnight
+        is wider than a 390px card - so nowrap would either overflow the card or squeeze the status
+        out of the row beside it.
+    */
+    .dt-my-deliveries ::deep tr.dt-table-row td.dt-table-window {
+        grid-column: 1;
+        grid-row: 1;
+        white-space: normal;
+    }
+
+    .dt-my-deliveries ::deep tr.dt-table-row td.dt-my-delivery-status {
+        grid-column: 2;
+        grid-row: 1;
+        text-align: end;
+    }
+
+    /*
+        The row's actions, which on a desktop are one nowrapped line at the trailing edge and on a
+        card are a block of buttons a thumb has to be able to land on. Long enough a selector to take
+        the two properties back from DtDataTable's own rule, which is written for the table shape.
+    */
+    .dt-my-deliveries ::deep tr.dt-table-row td.dt-table-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--dt-space-2);
+        white-space: normal;
+        text-align: start;
+    }
+
+    /*
+        Every control in a card is at least `touch-target`: the two addresses, the history, the
+        capture and the proof. A driver is standing at a door holding a parcel, and a 36px control
+        is one a thumb misses - the same floor the capture screen is drawn to.
+    */
+    .dt-my-deliveries ::deep tr.dt-table-row .btn {
+        min-height: var(--dt-touch-target);
+    }
+}

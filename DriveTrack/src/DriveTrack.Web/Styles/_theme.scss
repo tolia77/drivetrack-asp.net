@@ -910,6 +910,28 @@ $dt-breakpoint-phone-max: $dt-breakpoint-phone - 0.02px;
     color: var(--dt-ink-muted);
 }
 
+// The delivery window's cell, on both screens that draw one. Here rather than in
+// either screen's scoped stylesheet because both draw the same column out of the
+// same requirement: `dt-table-window` is shared vocabulary, and the two copies it
+// used to have were byte for byte the same rule waiting to drift.
+//
+// A range is a single figure with a dash in it and must not be broken across two
+// lines, or the two bounds read as two separate times. A screen that stacks its
+// rows as cards releases this at its own breakpoint; a table column does not.
+td.dt-table-window {
+    white-space: nowrap;
+}
+
+// The overdue badge takes the line under the hours rather than sitting beside
+// them: it is a mark on the window, and a marker on the same line would compete
+// with the figures it qualifies. A block so it breaks the line, shrink-wrapped so
+// the block is only as wide as the word.
+td.dt-table-window .dt-badge {
+    display: flex;
+    width: fit-content;
+    margin-top: var(--dt-space-1);
+}
+
 // Available to a screen reader, absent from the page. The `clip-path` form rather
 // than the older negative-margin one: a `margin: -1px` is a literal visual value
 // and NFR-29 is right to refuse it, and `inset(50%)` says the same thing without

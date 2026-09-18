@@ -680,17 +680,10 @@
         return vehicles.FirstOrDefault(vehicle => vehicle.Id == vehicleId)?.CapacityKg;
     }
 
-    /// <summary>
-    /// What a cell shows where there is no value at all. An em dash rather than an empty cell: a
-    /// blank reads as a value that failed to render, and it carries no Latin letters for NFR-14's
-    /// scan to object to.
-    /// </summary>
-    private const string NoValue = "—";
-
     /// <summary>The capacity as the hint renders it, or a dash when there is none to show.</summary>
     private string CapacityText => SelectedCapacityKg is { } capacity
         ? capacity.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)
-        : NoValue;
+        : CellText.NoValue;
 
     protected override async Task OnInitializedAsync()
     {
@@ -799,55 +792,18 @@
     private static string Created(DeliverySummary delivery) =>
         delivery.CreatedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture);
 
-    /// <summary>What sits between the two bounds of a window that has both.</summary>
-    private const string WindowSeparator = " – ";
-
     /// <summary>
     /// The figures of a delivery window as the board's first column shows them (FR-100), in local
     /// time for the reason <see cref="Created" /> is.
     /// </summary>
     /// <remarks>
-    /// FR-100 lets either bound stand alone and lets both be absent, so all four shapes are answered
-    /// rather than assumed. A pair inside one local day says the date once and lets the two times
-    /// bound it, which is how a window is read aloud; a pair that crosses midnight carries the date
-    /// on both sides, or the second figure would silently claim the first one's day. A single bound
-    /// is the figure alone - the cell's markup puts the word in front of it that says which end it
-    /// is, because a separator with nothing on one side of it is not a range.
+    /// The reading itself is <see cref="CellText.Window" />'s, because the own-deliveries screen
+    /// renders the same window out of its own DTO and a second copy is the copy that drifts. What
+    /// stays here is which two fields of this row type the window is: the shared reading takes the
+    /// two bounds rather than a row, since the two screens' rows are different records.
     /// </remarks>
-    private static string Window(DeliverySummary delivery)
-    {
-        var earliest = delivery.WindowEarliestAt?.ToLocalTime();
-        var latest = delivery.WindowLatestAt?.ToLocalTime();
-
-        if (earliest is { } from && latest is { } to)
-        {
-            // The same local day, so the far bound needs only its time.
-            if (from.Date == to.Date)
-            {
-                return Moment(from)
-                    + WindowSeparator
-                    + to.ToString("t", System.Globalization.CultureInfo.CurrentCulture);
-            }
-
-            return Moment(from) + WindowSeparator + Moment(to);
-        }
-
-        if (earliest is { } only)
-        {
-            return Moment(only);
-        }
-
-        if (latest is { } bound)
-        {
-            return Moment(bound);
-        }
-
-        return NoValue;
-    }
-
-    /// <summary>One bound of a window, written out in full.</summary>
-    private static string Moment(DateTimeOffset instant) =>
-        instant.ToString("g", System.Globalization.CultureInfo.CurrentCulture);
+    private static string Window(DeliverySummary delivery) =>
+        CellText.Window(delivery.WindowEarliestAt, delivery.WindowLatestAt);
 
     /// <summary>
     /// One driver as the assignment picker names them: who they are, and how they are thought of

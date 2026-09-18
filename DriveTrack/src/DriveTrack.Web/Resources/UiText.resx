@@ -453,11 +453,23 @@
   <data name="Dropoff" xml:space="preserve">
     <value>Місце доставляння</value>
   </data>
+  <!-- One heading over what is being moved and how heavy it is: the own-deliveries screen shows
+       the two in one cell, so the pair needs a word that covers both rather than either column's
+       own name. -->
+  <data name="Package" xml:space="preserve">
+    <value>Вантаж</value>
+  </data>
   <data name="PackageDetails" xml:space="preserve">
     <value>Опис вантажу</value>
   </data>
   <data name="PackageWeightKg" xml:space="preserve">
     <value>Вага вантажу, кг</value>
+  </data>
+  <!-- The unit alone, for the merged package cell: that column's heading names the parcel rather
+       than the kilograms, so the figure carries its own unit on the line. No existing entry is the
+       bare unit - every other one is a field label with the unit after a comma. -->
+  <data name="WeightUnit" xml:space="preserve">
+    <value>кг</value>
   </data>
   <data name="DeliveryNotes" xml:space="preserve">
     <value>Примітки</value>

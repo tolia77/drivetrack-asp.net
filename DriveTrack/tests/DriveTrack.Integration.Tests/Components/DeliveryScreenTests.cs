@@ -15,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using DeliveryColumn = DriveTrack.Web.Components.Pages.Deliveries.DeliveryColumn;
 using DeliveryFilter = DriveTrack.Web.Components.Pages.Deliveries.DeliveryFilter;
 using DeliveryForm = DriveTrack.Web.Components.Pages.Deliveries.DeliveryForm;
+using MineColumn = DriveTrack.Web.Components.Pages.MyDeliveries.DeliveryColumn;
 using RequestForm = DriveTrack.Web.Components.Pages.MyDeliveries.RequestForm;
 
 namespace DriveTrack.Integration.Tests.Components;
@@ -92,6 +93,12 @@ public class DeliveryScreenTests
     /// <summary>One window cell, whatever shape of window it holds.</summary>
     private static readonly Regex WindowCell = new(
         @"<td\b[^>]*class=""[^""]*\bdt-table-window\b[^""]*""[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>One merged package cell, whichever of its two halves the row happens to carry.</summary>
+    private static readonly Regex PackageCell = new(
+        @"<td\b[^>]*class=""[^""]*\bdt-my-delivery-package\b[^""]*""[^>]*>(?<body>.*?)</td>",
         RegexOptions.Singleline | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(5));
 
@@ -1124,6 +1131,277 @@ public class DeliveryScreenTests
         Assert.Contains("У дорозі", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task The_own_deliveries_screen_is_the_six_columns_the_design_settles_on()
+    {
+        // The screen carried nine, and a nine-column table is unreadable on the phone half of its
+        // audience. Three of them went: the weight, which is the same parcel the details describe;
+        // the notes, which are a conversation about one delivery and belong to the timeline panel
+        // this screen already opens; and the overdue flag, which is derived from the window and is
+        // now a mark inside it.
+        //
+        // Asserted as the ordered list rather than as a count, because a count is satisfied by any
+        // six columns at all - and the order is the hierarchy the design is about: when it is due
+        // comes before where it is going.
+        var html = await RenderMyDeliveriesAsync(StubDeliveryService.Assigned);
+
+        var headings = HeaderCell.Matches(html)
+            .Select(cell => Words(cell.Groups["body"].Value))
+            .ToArray();
+
+        Assert.Equal(
+            ["Часове вікно", "Місце забирання", "Місце доставляння", "Вантаж", "Стан", "Дії"],
+            headings);
+
+        // And the overdue mark is inside the window rather than loose in a row that no longer has a
+        // column for it. The equal count is what rules out a second home for it elsewhere.
+        var windows = WindowCell.Matches(html);
+
+        Assert.NotEmpty(windows);
+
+        var marked = windows.Count(cell =>
+            cell.Groups["body"].Value.Contains("dt-badge--overdue", StringComparison.Ordinal));
+
+        Assert.NotEqual(0, marked);
+        Assert.Equal(marked, SharedMarkup.Occurrences(html, "dt-badge--overdue"));
+    }
+
+    [Fact]
+    public async Task The_merged_package_cell_carries_all_three_facts_about_the_parcel()
+    {
+        // Three columns became one, so the cell is the only place any of the three is now said - and
+        // the delivery notes are the one that had nowhere else to go at all. A client types them into
+        // the request form and the command stores them; DeliveryTimeline renders no notes field, so
+        // dropping this line would leave FR-107's instructions write-only and the driver standing at
+        // the door unable to read what the client asked for.
+        var html = await RenderMyDeliveriesAsync(
+            [OwnRow(details: "Одна палета", notes: "Зателефонувати перед прибуттям")]);
+
+        var package = PackageCell.Match(html);
+
+        Assert.True(package.Success, "The screen renders no package cell.");
+
+        var cell = package.Groups["body"].Value;
+
+        Assert.Contains("Одна палета", cell, StringComparison.Ordinal);
+        Assert.Contains("Зателефонувати перед прибуттям", cell, StringComparison.Ordinal);
+
+        // The weight with its unit on the line. The merged heading names the parcel rather than the
+        // kilograms, so a bare figure here would be a number under a word that does not explain it.
+        Assert.Contains(12.5m.ToString(Ukrainian) + " кг", Words(cell), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_request_action_stands_beside_the_heading_in_the_create_colour()
+    {
+        // FR-89's action is about the collection the heading names rather than about any row in it,
+        // so it belongs on that line - the shape the dispatch board's create already has. Loose in a
+        // paragraph under the title it read as a caption, and it wore the edit colour while the
+        // board's create wore the create one, which said the two were different kinds of act.
+        var html = await RenderMyDeliveriesAsync(role: UserRole.Client);
+
+        var head = PageHead.Match(html);
+
+        Assert.True(head.Success, "The screen has no heading row.");
+        Assert.Contains("<h1", head.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("dt-delivery-request", head.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("btn-primary", head.Groups["body"].Value, StringComparison.Ordinal);
+
+        // A driver is offered nothing here, so their head is the heading alone rather than a
+        // heading row with a hole where an action was styled away.
+        var driver = PageHead.Match(await RenderMyDeliveriesAsync());
+
+        Assert.True(driver.Success, "The screen has no heading row for a driver.");
+        Assert.DoesNotContain("dt-delivery-request", driver.Groups["body"].Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_own_deliveries_window_column_orders_by_when_a_delivery_is_first_due()
+    {
+        // The column the screen opens on, and the one ordering that has to read the direction. A
+        // delivery keeps its place by its near bound; one given only a far bound is due at that
+        // bound rather than being windowless; and one promised no window at all is neither the
+        // earliest thing on the list nor the latest, so it sits at the far end whichever way the
+        // column points.
+        //
+        // Asserted on the ordering rather than through the markup for the reason the dispatch
+        // board's is: this harness renders HTML and presses nothing, so a screen rendered fresh is
+        // always ascending and the reversal is unreachable from the page.
+        var rows = new[]
+        {
+            OwnRow(id: 1, windowEarliest: Local(2026, 9, 18), windowLatest: Local(2026, 9, 19)),
+            OwnRow(id: 2),
+            OwnRow(id: 3, windowLatest: Local(2026, 9, 16)),
+            OwnRow(id: 4, windowEarliest: Local(2026, 9, 17)),
+        };
+
+        Assert.Equal(
+            [3, 4, 1, 2],
+            Web.Components.Pages.MyDeliveries
+                .Sort(rows, MineColumn.Window, descending: false)
+                .Select(row => row.Id)
+                .ToArray());
+
+        Assert.Equal(
+            [1, 4, 3, 2],
+            Web.Components.Pages.MyDeliveries
+                .Sort(rows, MineColumn.Window, descending: true)
+                .Select(row => row.Id)
+                .ToArray());
+    }
+
+    [Fact]
+    public void The_own_deliveries_status_column_orders_by_the_lifecycle_rather_than_the_label()
+    {
+        // Sorting a status column by its words would put "Доставлено" before "Очікує" for no reason
+        // a driver or a client could name. The lifecycle has an order and the enum is written in it.
+        var rows = new[]
+        {
+            OwnRow(id: 1, status: DeliveryStatus.Delivered),
+            OwnRow(id: 2, status: DeliveryStatus.Pending),
+            OwnRow(id: 3, status: DeliveryStatus.InTransit),
+        };
+
+        Assert.Equal(
+            [DeliveryStatus.Pending, DeliveryStatus.InTransit, DeliveryStatus.Delivered],
+            Web.Components.Pages.MyDeliveries
+                .Sort(rows, MineColumn.Status, descending: false)
+                .Select(row => row.Status)
+                .ToArray());
+    }
+
+    [Fact]
+    public async Task The_screen_hands_the_table_its_rows_already_in_order()
+    {
+        // The wiring, which the two orderings above cannot see. They call `Sort` directly, so binding
+        // the table back to the unfetched list would leave both of them green while the screen drew
+        // the rows in whatever order the service happened to return them - and the comparer would be
+        // perfect and reach nothing.
+        //
+        // The rows go in deliberately out of window order, and each is told apart by its own package
+        // description, because ids are not rendered.
+        var html = await RenderMyDeliveriesAsync(
+        [
+            OwnRow(id: 1, details: "Третя", windowLatest: Local(2026, 9, 19)),
+            OwnRow(id: 2, details: "Перша", windowLatest: Local(2026, 9, 16)),
+            OwnRow(id: 3, details: "Друга", windowLatest: Local(2026, 9, 17)),
+        ]);
+
+        var rows = PackageCell.Matches(html)
+            .Select(cell => cell.Groups["body"].Value)
+            .ToArray();
+
+        Assert.Equal(3, rows.Length);
+        Assert.Contains("Перша", rows[0], StringComparison.Ordinal);
+        Assert.Contains("Друга", rows[1], StringComparison.Ordinal);
+        Assert.Contains("Третя", rows[2], StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [MemberData(nameof(WindowShapes))]
+    public async Task The_own_deliveries_window_cell_says_which_bounds_it_has(
+        DateTimeOffset? earliest,
+        DateTimeOffset? latest,
+        string expected)
+    {
+        // The same four shapes the dispatch board's cell is asserted on, on this screen's render.
+        // The reading is shared now - one `CellText.Window` for both - but the words that make a
+        // single bound directional are in each screen's own markup, so a screen that lost them, or
+        // crossed them, would render a bound with nothing saying which end it is while the board
+        // stayed right.
+        var html = await RenderMyDeliveriesAsync([OwnRow(windowEarliest: earliest, windowLatest: latest)]);
+
+        var cell = WindowCell.Match(html);
+
+        Assert.True(cell.Success, "The screen renders no window cell.");
+
+        // The cell leads with its own name: the label that stands in for the column heading once the
+        // head is dropped below the breakpoint, and which is therefore in the markup at every width.
+        Assert.Equal("Часове вікно " + expected, Words(cell.Groups["body"].Value));
+    }
+
+    [Fact]
+    public async Task Two_of_the_own_deliveries_headings_are_sort_controls_and_one_claims_a_direction()
+    {
+        // Rendered rather than reasoned about. Deleting the buttons, the `aria-sort` attributes and
+        // the glyphs leaves the ordering cases green - they reach `Sort` directly - and leaves the
+        // six-heading case green too, because it strips tags to read the words.
+        var html = await RenderMyDeliveriesAsync(StubDeliveryService.Assigned);
+
+        var sortable = HeaderCell.Matches(html)
+            .Count(cell => cell.Groups["body"].Value.Contains("<button", StringComparison.Ordinal));
+
+        // Two, and the other four headings are labels: an address and a package description are text
+        // nobody compares across these rows, and the actions column names no value at all.
+        Assert.Equal(2, sortable);
+        Assert.Contains("dt-my-delivery-sort-window", html, StringComparison.Ordinal);
+        Assert.Contains("dt-my-delivery-sort-status", html, StringComparison.Ordinal);
+
+        // Exactly one claims a direction and the other claims none, so a screen reader is told which
+        // column reordered the rows rather than hearing them silently rearrange.
+        Assert.Equal(1, SharedMarkup.Occurrences(html, @"aria-sort=""ascending"""));
+        Assert.Equal(1, SharedMarkup.Occurrences(html, @"aria-sort=""none"""));
+
+        // And it is the window that claims it: a driver's and a client's question is what is due
+        // next, and counting one ascending heading says a column is sorted without saying which.
+        var claiming = SortedHeader.Match(html);
+
+        Assert.True(claiming.Success, "No heading claims a sort direction.");
+        Assert.Contains("Часове вікно", claiming.Groups["body"].Value, StringComparison.Ordinal);
+
+        // The sighted half of the same fact, asserted on the drawn path rather than the enum member:
+        // the sorted heading wears a chevron pointing the way the rows went, the other the stacked
+        // pair that means "this sorts".
+        Assert.Equal(1, SharedMarkup.Occurrences(html, AscendingGlyph));
+        Assert.Equal(1, SharedMarkup.Occurrences(html, SortGlyph));
+        Assert.Equal(0, SharedMarkup.Occurrences(html, DescendingGlyph));
+    }
+
+    [Fact]
+    public void The_own_deliveries_sorted_heading_draws_a_different_glyph_for_each_direction()
+    {
+        // The arm the page cannot show, for the reason the dispatch board's cannot: a screen renders
+        // fresh and therefore ascending, so the case above can only ever see two of the three glyphs
+        // - and a version that answered the same chevron for both directions would render perfectly
+        // and satisfy every assertion the markup can make about itself.
+        const MineColumn sorted = MineColumn.Window;
+
+        Assert.Equal(
+            IconName.SortAscending,
+            Web.Components.Pages.MyDeliveries.GlyphFor(sorted, sorted, descending: false));
+
+        Assert.Equal(
+            IconName.SortDescending,
+            Web.Components.Pages.MyDeliveries.GlyphFor(sorted, sorted, descending: true));
+
+        Assert.Equal(
+            IconName.Sort,
+            Web.Components.Pages.MyDeliveries.GlyphFor(MineColumn.Status, sorted, descending: false));
+
+        Assert.Equal(
+            IconName.Sort,
+            Web.Components.Pages.MyDeliveries.GlyphFor(MineColumn.Status, sorted, descending: true));
+    }
+
+    [Fact]
+    public void Every_column_the_own_deliveries_headings_offer_has_an_ordering()
+    {
+        // The switch is total over the enum, so a column added without an ordering throws here
+        // rather than quietly rendering the rows in whatever order the service returned them.
+        // Walked rather than listed as theory data, so a column added later is covered without
+        // anyone remembering to add a row - and because the enum is internal, which a public theory
+        // parameter cannot be.
+        var rows = new[] { OwnRow(id: 1), OwnRow(id: 2, windowLatest: Local(2026, 9, 16)) };
+        var columns = Enum.GetValues<MineColumn>();
+
+        Assert.NotEmpty(columns);
+
+        foreach (var column in columns)
+        {
+            Assert.Equal(2, Web.Components.Pages.MyDeliveries.Sort(rows, column, descending: false).Count);
+        }
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -1679,6 +1957,30 @@ public class DeliveryScreenTests
             status,
             created ?? Noon,
             overdue);
+
+    /// <summary>
+    /// One own-deliveries row. The counterparties are absent because the type has nowhere to put
+    /// them, which is the whole of FR-27 and FR-96 at this tier.
+    /// </summary>
+    private static AssignedDeliverySummary OwnRow(
+        int id = 1,
+        string details = "Одна палета",
+        string? notes = null,
+        DeliveryStatus status = DeliveryStatus.Pending,
+        DateTimeOffset? windowEarliest = null,
+        DateTimeOffset? windowLatest = null) =>
+        new(
+            id,
+            new LocationView(new MapLocation(50.4501, 30.5234), null),
+            new LocationView(new MapLocation(49.8397, 24.0297), "Львів, площа Ринок"),
+            details,
+            12.5m,
+            notes,
+            windowEarliest,
+            windowLatest,
+            status,
+            Noon,
+            false);
 
     /// <summary>A signed-in caller of a chosen role.</summary>
     private sealed class StubCaller(UserRole role) : ICurrentUser

@@ -448,8 +448,14 @@
   <data name="Dropoff" xml:space="preserve">
     <value>Drop-off point</value>
   </data>
+  <data name="Package" xml:space="preserve">
+    <value>Package</value>
+  </data>
   <data name="PackageDetails" xml:space="preserve">
     <value>Package details</value>
+  </data>
+  <data name="WeightUnit" xml:space="preserve">
+    <value>kg</value>
   </data>
   <data name="PackageWeightKg" xml:space="preserve">
     <value>Package weight, kg</value>
