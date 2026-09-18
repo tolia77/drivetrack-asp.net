@@ -11,17 +11,30 @@
    an `else` at markup level reads to NFR-14's scan as a rendered English word. *@
 
 <li class="@ChatViews.LineClass(Message!.SenderUserId, ViewerUserId)">
-    @* AD-20: the account is gone and the line is not. *@
-    @if (Message.SenderUserId is null)
-    {
-        <span class="dt-chat-sender">@Localizer["ChatUnknownSender"]</span>
-    }
-    @if (Message.SenderUserId is not null)
-    {
-        <span class="dt-chat-sender">@Message.SenderName</span>
-    }
-    <span class="dt-chat-time">@Time(Message.SentAt)</span>
-    <p class="dt-chat-text">@Message.Text</p>
+    <p class="dt-bubble__text">@Message.Text</p>
+
+    @* Under the text rather than above it, which is the shape a conversation is read in: the
+       message is what a reader is scanning for, and who said it and when is what they check
+       afterwards. *@
+    <span class="dt-bubble__meta">
+        @* Own lines say "you" rather than the reader's own name. A conversation with two
+           participants has one name worth printing, and printing both makes the reader look for the
+           difference between them on every line. *@
+        @if (IsOwn)
+        {
+            <span class="dt-bubble__who">@Localizer["ChatYou"]</span>
+        }
+        @* AD-20: the account is gone and the line is not. *@
+        @if (!IsOwn && Message.SenderUserId is null)
+        {
+            <span class="dt-bubble__who">@Localizer["ChatUnknownSender"]</span>
+        }
+        @if (!IsOwn && Message.SenderUserId is not null)
+        {
+            <span class="dt-bubble__who">@Message.SenderName</span>
+        }
+        <span class="dt-bubble__when">@Time(Message.SentAt)</span>
+    </span>
 </li>
 
 @code {
@@ -37,6 +50,12 @@
     [Parameter]
     [EditorRequired]
     public int ViewerUserId { get; set; }
+
+    /// <summary>
+    /// Whether this line is the reader's own. Read through the same comparison the class is - a
+    /// deleted sender is nobody's own line, because null never equals a viewer's id.
+    /// </summary>
+    private bool IsOwn => Message!.SenderUserId == ViewerUserId;
 
     /// <summary>
     /// The instant a line was sent, in the culture the application runs in (NFR-15).

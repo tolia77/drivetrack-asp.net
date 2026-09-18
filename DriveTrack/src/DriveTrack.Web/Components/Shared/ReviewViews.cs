@@ -2,7 +2,7 @@ using System.Globalization;
 using DriveTrack.Domain.Identity;
 using DriveTrack.Domain.Reviews;
 
-namespace DriveTrack.Web.Components.Pages;
+namespace DriveTrack.Web.Components.Shared;
 
 /// <summary>
 /// The decisions the reviews screen and the driver roster take about a rating, lifted out of

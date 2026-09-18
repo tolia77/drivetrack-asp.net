@@ -1,0 +1,60 @@
+@* StatusLabel: the one shape the two closed status vocabularies wear (FR-18, FR-109, FR-117).
+
+   A fill, a shape and a word. The shape is the part that earns the component: the design states
+   that the green and the red "differ by shape and word; they are not colour-blind safe on hue
+   alone", so every face carries a `::before` glyph drawn in `_theme.scss` as well as its tint. A
+   screen that wrote `<span class="dt-status dt-status--delivered">` by hand would get the shape
+   too - which is exactly why the class must not be spelled on a screen: the day a sixth face
+   arrives, one component knows about it and nine screens do not.
+
+   The word is the consumer's, and it stays there: the two faces of this label are
+   DeliveryStatusLabel and ShiftStateLabel, each of which owns its own literal localizer keys so
+   LocalizationTests can see them. This renders whatever they hand it, and decides only how it
+   looks.
+
+   The modifier is a total switch rather than a chain of @@if blocks, and that is the matrix row
+   this closes: the label used to be four independent arms, so a status nobody had written an arm
+   for rendered an empty span onto a table and a timeline. A face with no class now fails loudly
+   here instead. *@
+
+<span class="dt-status @Modifier @Class">@ChildContent</span>
+
+@code {
+    /// <summary>Which face to wear. A closed enum, so a typo is a build error.</summary>
+    [Parameter]
+    [EditorRequired]
+    public DtStatusFace Face { get; set; }
+
+    /// <summary>
+    /// The screen's own hook on this label, so a test can name one outcome among two. A hook only:
+    /// a class passed in here carries this component's scope attribute rather than the screen's, so
+    /// a screen-scoped rule written against it would match nothing at all. What the label looks like
+    /// is <see cref="Face"/>'s to decide and this component's to draw.
+    /// </summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>The word, already localized by the component that owns the vocabulary.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The modifier class the face wears.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A face with no class. Total over the enum like <c>NavDestinations.For</c> and
+    /// <c>ReviewViews.ClassFor</c>: a seventh face added without a decision about how it looks
+    /// fails here rather than rendering an unlabelled, unshaped span.
+    /// </exception>
+    private string Modifier => Face switch
+    {
+        DtStatusFace.Pending => "dt-status--pending",
+        DtStatusFace.Transit => "dt-status--transit",
+        DtStatusFace.Delivered => "dt-status--delivered",
+        DtStatusFace.Failed => "dt-status--failed",
+        DtStatusFace.Running => "dt-status--running",
+        DtStatusFace.Finished => "dt-status--finished",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(Face),
+            Face,
+            "No status class is defined for this face."),
+    };
+}

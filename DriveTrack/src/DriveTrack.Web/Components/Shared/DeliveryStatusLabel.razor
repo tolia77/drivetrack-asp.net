@@ -1,0 +1,63 @@
+@* FR-30's four statuses, named once.
+
+   Before this component the same four keys were written out on the dispatch board, on the
+   own-deliveries screen and would have been again on every timeline entry - three copies of one
+   vocabulary, and the kind of duplication where the third copy is the one that goes stale.
+
+   One of StatusLabel's two faces. The chrome - the fill, the shape and the border - belongs to
+   DtStatusLabel, which every status vocabulary in the product shares; what belongs here is the
+   closed set and its words.
+
+   The face is a total switch rather than a fifth @@if block, and that is the difference from what
+   this file used to be: the four arms below decide the word, and a status nobody wrote an arm for
+   used to render an empty, unclassed span onto a delivery table and a timeline line. It now fails
+   loudly, in the same shape AD-10's own Delivery.NextStatuses fails.
+
+   The words stay independent @@if blocks with their own literal localizer keys: an `else` at markup
+   level reads to NFR-14's source scan as a rendered English word, and a key composed at run time
+   ("Status" + Status) is a key the closed-catalogue test cannot see. *@
+@inject IStringLocalizer<UiText> Localizer
+
+<DtStatusLabel Face="@Face">
+    @if (Status == DeliveryStatus.Pending)
+    {
+        @Localizer["StatusPending"]
+    }
+    @if (Status == DeliveryStatus.InTransit)
+    {
+        @Localizer["StatusInTransit"]
+    }
+    @if (Status == DeliveryStatus.Delivered)
+    {
+        @Localizer["StatusDelivered"]
+    }
+    @if (Status == DeliveryStatus.Failed)
+    {
+        @Localizer["StatusFailed"]
+    }
+</DtStatusLabel>
+
+@code {
+    /// <summary>The status to label. A closed enum, so a typo is a build error.</summary>
+    [Parameter]
+    [EditorRequired]
+    public DeliveryStatus Status { get; set; }
+
+    /// <summary>The face the shared label wears for this status.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A status with no face. Total over the enum like <c>Delivery.NextStatuses</c>: a fifth status
+    /// added without a decision about how it is labelled fails here rather than rendering nothing
+    /// at all, which is what a table full of blank status cells used to look like.
+    /// </exception>
+    private DtStatusFace Face => Status switch
+    {
+        DeliveryStatus.Pending => DtStatusFace.Pending,
+        DeliveryStatus.InTransit => DtStatusFace.Transit,
+        DeliveryStatus.Delivered => DtStatusFace.Delivered,
+        DeliveryStatus.Failed => DtStatusFace.Failed,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(Status),
+            Status,
+            "No status label is defined for this delivery status."),
+    };
+}

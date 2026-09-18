@@ -15,7 +15,7 @@
    framework's own variables, so `table-striped` is already wearing the palette. *@
 
 <div class="dt-table-scroll">
-    <table class="table table-striped table-hover">
+    <table class="table table-sm table-striped table-hover dt-type-table">
         <thead class="dt-table-head">
             <tr>
                 @HeaderTemplate
@@ -24,23 +24,40 @@
         <tbody>
             @if (IsLoading)
             {
+                @* Bars where the values will be, and a sentence saying so. The bars alone are a
+                   shape that means "loading" to a sighted reader and nothing at all to a screen
+                   reader, which is why the status row below is not optional - and why the bars are
+                   hidden from assistive technology rather than read out as empty cells. *@
+                @foreach (var line in SkeletonRows)
+                {
+                    <tr class="dt-table-skeleton" aria-hidden="true">
+                        <td colspan="99">
+                            <span class="dt-skeleton"></span>
+                        </td>
+                    </tr>
+                }
+
                 <tr class="dt-table-status">
                     @* colspan is deliberately larger than any header this component will be given:
                        the column count is the consumer's HeaderTemplate to know, not ours, and a
                        browser clamps an over-wide span to the row's actual width. *@
-                    @* role="status" belongs on the cell, not on the spinner: a live region has to
-                       contain the text it announces, and the spinner itself is decoration that
-                       assistive technology should skip. *@
-                    <td colspan="99" role="status">
-                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    @* role="status" belongs on the cell, not on the bars: a live region has to
+                       contain the text it announces, and the bars are decoration. *@
+                    <td colspan="99" class="dt-table-state" role="status">
                         @Localizer["Loading"]
                     </td>
                 </tr>
             }
             @if (!IsLoading && !HasItems)
             {
+                @* An icon, one sentence and the next action. The sentence is the screen's, because
+                   "no deliveries match these filters" and "there are no records" are different
+                   claims and only the screen knows which is true; the action is the screen's for
+                   the same reason - the way out of an empty filtered list is to clear the filters,
+                   and the way out of an empty roster is to create something. *@
                 <tr class="dt-table-empty">
-                    <td colspan="99">
+                    <td colspan="99" class="dt-table-state">
+                        <Icon Name="IconName.NotFound" />
                         @if (EmptyText is null)
                         {
                             <span>@Localizer["TableEmpty"]</span>
@@ -48,6 +65,10 @@
                         @if (EmptyText is not null)
                         {
                             <span>@EmptyText</span>
+                        }
+                        @if (EmptyAction is not null)
+                        {
+                            <span class="dt-table-next">@EmptyAction</span>
                         }
                     </td>
                 </tr>
@@ -64,6 +85,17 @@
         </tbody>
     </table>
 </div>
+
+@* The note the fetched page was cut off, under the table it is about rather than above it: it is a
+   fact about what is on screen, and a reader who has not looked at the rows yet has nothing to
+   apply it to. Never a count and never "N of M" - the query returns no total, so the honest claim
+   is which page this is. *@
+@if (IsTruncated && Note is not null)
+{
+    <p class="dt-table-note dt-type-small" role="status">
+        <Icon Name="IconName.Warning" />@Note
+    </p>
+}
 
 @code {
     /// <summary>
@@ -98,6 +130,39 @@
     /// </summary>
     [Parameter]
     public string? EmptyText { get; set; }
+
+    /// <summary>
+    /// The way out of an empty table, rendered under the sentence: Clear filters when filters
+    /// caused the emptiness, or the screen's create action when nothing has been made yet. Null
+    /// renders nothing, because a table that is empty for a role with no actions should show none.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? EmptyAction { get; set; }
+
+    /// <summary>
+    /// True when the fetched page came back full, so there may be rows the screen is not showing.
+    /// The screen decides, because only it knows which query it asked and what limit that query
+    /// has; the table decides what saying so looks like.
+    /// </summary>
+    [Parameter]
+    public bool IsTruncated { get; set; }
+
+    /// <summary>
+    /// What to say when it was cut off, in the screen's own words - a fleet, a list of deliveries
+    /// and a log of notification attempts are three different things to be missing some of. Bound
+    /// unconditionally rather than only when <see cref="IsTruncated"/> is true, so the sentence is
+    /// a literal localizer lookup in the screen's markup and stays visible to the closed-catalogue
+    /// test.
+    /// </summary>
+    [Parameter]
+    public string? Note { get; set; }
+
+    /// <summary>
+    /// How many bars the loading state draws. Two: enough for the shape of a table to be legible
+    /// before the rows arrive, few enough that the page does not jump when the real rows replace
+    /// them. A range rather than a repeat count because Razor iterates, it does not loop.
+    /// </summary>
+    private static readonly int[] SkeletonRows = [1, 2];
 
     private bool HasItems => Items is { Count: > 0 };
 

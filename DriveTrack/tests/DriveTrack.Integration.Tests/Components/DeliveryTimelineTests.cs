@@ -81,11 +81,21 @@ public class DeliveryTimelineTests
     }
 
     [Fact]
-    public async Task A_disclosed_actor_shows_the_name()
+    public async Task A_disclosed_actor_shows_the_name_and_the_role_badge_beside_it()
     {
         var html = await RenderAsync([Change("Тарас Шевченко", UserRole.Dispatcher)]);
 
         Assert.Contains("Тарас Шевченко", html, StringComparison.Ordinal);
+
+        // The role rides along even when the name was disclosed, which is the half a guard used to
+        // suppress: "Тарас Шевченко" alone says who moved the delivery and not what they are, and a
+        // reader comparing a driver's move with a dispatcher's has nothing to compare. A Badge
+        // rather than a StatusLabel, because a claim about a person never wears the chrome a
+        // delivery's status does.
+        var actor = SharedMarkup.ElementWithClass(html, "div", "dt-timeline-meta");
+
+        Assert.Contains("dt-badge--role", actor, StringComparison.Ordinal);
+        Assert.Contains("Диспетчер", SharedMarkup.TextOf(actor), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -214,7 +224,7 @@ public class DeliveryTimelineTests
 
         foreach (var status in statuses)
         {
-            var html = await ComponentRenderer.RenderAsync<Web.Components.Pages.DeliveryStatusLabel>(
+            var html = await ComponentRenderer.RenderAsync<Web.Components.Shared.DeliveryStatusLabel>(
                 new Dictionary<string, object?> { ["Status"] = status });
 
             var label = SharedMarkup.TextOf(html);

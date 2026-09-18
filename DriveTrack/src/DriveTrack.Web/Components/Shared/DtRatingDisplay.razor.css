@@ -1,0 +1,13 @@
+/*
+    The glyph row only. The four band colours are app-level in `_theme.scss` rather than here,
+    because the reviews screen and the driver roster render the same judgement - one from a single
+    verdict and one from an average of many - and a scoped copy is where the two start disagreeing.
+
+    The glyphs inherit the band's colour through `currentColor`, so this file names no palette value
+    at all; the gap is the one in every icon-and-text pair, which is why it is the same token
+    `Icon.razor.css` uses.
+*/
+
+.dt-rating__stars {
+    margin-inline-end: var(--dt-space-1);
+}

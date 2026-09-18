@@ -1,0 +1,63 @@
+/*
+    ChatBubble (FR-73, FR-76). Scoped to this component rather than to the screen around it, and
+    that is a fix as well as a move: a `.razor.css` is compiled against the component that owns the
+    markup, so the bubble rules living in `Chat.razor.css` were compiled with the screen's scope
+    attribute and matched nothing at all - the <li> is written here.
+
+    Every palette value is a `--dt-*` token. `max-width` and `align-self` are geometry and outside
+    NFR-29's scan; they are also half the distinction between the two sides, which is deliberate:
+    the side, the fill and the border each say whose message this is, so none of them is the only
+    signal.
+*/
+
+.dt-bubble {
+    max-width: 85%;
+    padding: var(--dt-space-2) var(--dt-space-3);
+    border-radius: var(--dt-radius-lg);
+}
+
+/* Received: on the card surface with an edge, aligned to the leading side. */
+.dt-bubble--other {
+    align-self: flex-start;
+    border: var(--dt-border-width) solid var(--dt-border);
+    background-color: var(--dt-chat-other-bg);
+    color: var(--dt-ink);
+}
+
+/*
+    Sent: the brand fill, aligned to the trailing side. No border - the fill is its own edge, and a
+    bordered filled bubble beside an unfilled bordered one reads as two kinds of border rather than
+    as two sides of a conversation.
+*/
+.dt-bubble--own {
+    align-self: flex-end;
+    background-color: var(--dt-chat-own-bg);
+    color: var(--dt-ink-inverse);
+}
+
+/* Wrapped and preserved: a message typed over several lines reads as it was written. */
+.dt-bubble__text {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/*
+    Who and when, under the text. `color: inherit` with a reduced opacity rather than `ink-muted`:
+    the meta line sits on two different fills, and a muted grey chosen for the white one is
+    unreadable on the teal.
+*/
+.dt-bubble__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dt-space-2);
+    margin-top: var(--dt-space-1);
+    color: inherit;
+    opacity: 0.8;
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
+}
+
+.dt-bubble__who {
+    font-weight: var(--dt-label-font-weight);
+}

@@ -59,11 +59,28 @@ public sealed record ChatThreadSummaryView(int DriverId, string DriverName);
 /// </summary>
 internal static class ChatViews
 {
-    /// <summary>The class a line that is not the viewer's own carries.</summary>
-    internal const string LineClassName = "dt-chat-line";
+    /// <summary>The class every bubble in the conversation carries.</summary>
+    /// <remarks>
+    /// The names are the design system's ChatBubble, and they live here rather than in the markup
+    /// for the reason <c>ReviewViews</c>' rating classes do: which side of the conversation a line
+    /// belongs to is a decision, and a decision written into a <c>class="@@(...)"</c> expression is
+    /// a decision no test in this solution can reach.
+    /// </remarks>
+    internal const string LineClassName = "dt-bubble";
 
-    /// <summary>The class an own line carries in addition, so the distinction is not colour alone.</summary>
-    internal const string OwnLineClassName = "dt-chat-line-own";
+    /// <summary>
+    /// The class an own line carries in addition: the viewer's own message, drawn on the brand fill
+    /// and aligned to the trailing edge.
+    /// </summary>
+    internal const string OwnLineClassName = "dt-bubble--own";
+
+    /// <summary>
+    /// The class a received line carries in addition. Stated rather than left as the absence of
+    /// <see cref="OwnLineClassName"/>, so the two sides are two named things: the distinction is
+    /// carried by the side, the fill and the border together, and none of the three is the only
+    /// signal - which a rule written as "not own" could not be checked for.
+    /// </summary>
+    internal const string OtherLineClassName = "dt-bubble--other";
 
     /// <summary>
     /// Whether this caller is one of chat's two participants (FR-68, FR-69). A client and an
@@ -123,5 +140,5 @@ internal static class ChatViews
     internal static string LineClass(int? senderUserId, int viewerUserId) =>
         senderUserId == viewerUserId
             ? LineClassName + " " + OwnLineClassName
-            : LineClassName;
+            : LineClassName + " " + OtherLineClassName;
 }

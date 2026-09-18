@@ -681,6 +681,9 @@
   <data name="ChatUnknownSender" xml:space="preserve">
     <value>Видалений користувач</value>
   </data>
+  <data name="ChatYou" xml:space="preserve">
+    <value>Ви</value>
+  </data>
   <data name="ChatMessagePlaceholder" xml:space="preserve">
     <value>Напишіть повідомлення</value>
   </data>

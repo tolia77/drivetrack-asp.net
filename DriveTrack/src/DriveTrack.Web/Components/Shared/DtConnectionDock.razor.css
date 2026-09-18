@@ -1,0 +1,86 @@
+/*
+    NFR-29: every palette value is a `--dt-*` token, and so is the depth - `z-dock` is the step the
+    palette declares for exactly this, above the navigation and above a dialog, because a circuit
+    that has failed is the one thing that outranks whatever is on screen.
+
+    The figures that stay literal are geometry: the dock's width bound, its offset from the bottom
+    edge and the dot's box. `color-scheme: light only` stays with them: the app ships one light
+    theme (NFR-21), and this element must not be repainted by a user-agent dark preference.
+*/
+
+.dt-dock {
+    color-scheme: light only;
+    display: none;
+    position: fixed;
+    left: 50%;
+    bottom: var(--dt-space-4);
+    transform: translateX(-50%);
+    box-sizing: border-box;
+    max-width: 92vw;
+    z-index: var(--dt-z-dock);
+
+    align-items: center;
+    gap: var(--dt-space-3);
+    padding: var(--dt-space-3) var(--dt-space-4);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-nav-bg);
+    color: var(--dt-ink-inverse);
+    box-shadow: var(--dt-shadow-raised);
+    font-size: var(--dt-body-font-size);
+    line-height: var(--dt-body-line-height);
+}
+
+/*
+    The framework reveals the bar by writing `display: block` straight onto the element, and an
+    inline declaration outranks every non-important author rule no matter how specific the selector
+    is - so specificity cannot win this one back and `!important` is the only thing that can.
+
+    It is scoped to the reveal rather than to `[style]` at large, because the framework's own dismiss
+    handler writes `display: none` onto the same attribute: matching any inline style would force the
+    dock back open the moment a reader closed it.
+*/
+.dt-dock[style*="block"] {
+    display: flex !important;
+}
+
+/*
+    The mark. Amber rather than red, and the only place on this surface the palette has a colour
+    that holds: `focus-ring-on-dark` is the step declared for the dark navigation and for this dock,
+    and it clears 7:1 on `nav-bg`.
+*/
+.dt-dock__dot {
+    flex: none;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    background-color: var(--dt-focus-ring-on-dark);
+}
+
+.dt-dock__text {
+    flex: 1;
+}
+
+.dt-dock__action,
+.dt-dock__dismiss {
+    flex: none;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--dt-ink-inverse);
+    text-decoration: underline;
+}
+
+.dt-dock__dismiss {
+    cursor: pointer;
+    text-decoration: none;
+    /* A dismissal a thumb has to find on a phone, which is what the touch target is declared for. */
+    min-width: var(--dt-touch-target);
+    min-height: var(--dt-touch-target);
+}
+
+/* The ring that can be seen on this surface, for the reason `_theme.scss` states for the navigation. */
+.dt-dock__action:focus-visible,
+.dt-dock__dismiss:focus-visible {
+    outline: var(--dt-border-width-focus) solid var(--dt-focus-ring-on-dark);
+    outline-offset: var(--dt-border-width-focus);
+}

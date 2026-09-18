@@ -1,0 +1,13 @@
+/*
+    AddressPicker's match list. Everything else this column renders is a Bootstrap control already
+    wearing the palette through the bridge; what the framework has no shape for is the list of
+    answers a search came back with, which the design floats over the map beneath it.
+
+    NFR-29: the elevation is `shadow-raised`, which is the step the palette declares for a floating
+    piece - the sticky table header, the address match list and the connection dock - and the
+    literal it replaces would have been the one place a fourth elevation could appear.
+*/
+
+.dt-addr-matches {
+    box-shadow: var(--dt-shadow-raised);
+}

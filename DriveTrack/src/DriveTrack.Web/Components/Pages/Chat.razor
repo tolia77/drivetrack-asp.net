@@ -30,7 +30,7 @@
 
 <PageTitle>@Localizer["ChatTitle"]</PageTitle>
 
-<h1>
+<h1 class="dt-type-h1">
     <Icon Name="IconName.Chat" />@Localizer["ChatTitle"]
 </h1>
 
@@ -61,7 +61,7 @@
         <section class="dt-chat-thread-panel">
             @* The header names who the caller is talking to, which is a different person on each
                side of the same conversation. *@
-            <h2 class="dt-chat-header">
+            <h2 class="dt-chat-header dt-type-h2">
                 @if (ChatViews.NamesTheDispatchDesk(_role))
                 {
                     <span>@Localizer["ChatDispatchDesk"]</span>

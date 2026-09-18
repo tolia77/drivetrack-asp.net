@@ -39,59 +39,45 @@
        ordering would be a second answer to "what happened when". *@
     @foreach (var entry in _entries)
     {
-        <li class="dt-timeline-entry">
-            <div class="dt-timeline-meta">
-                <span class="dt-timeline-when">@Occurred(entry)</span>
+        @* One shared entry per line: the dot's glyph, the two StatusLabels and the note box are
+           the same on every timeline, and the only thing this screen knows that the component
+           cannot is who the actor may be named as. That is the fragment below. *@
+        <DtTimelineEntry PreviousStatus="entry.PreviousStatus"
+                         NewStatus="entry.NewStatus"
+                         When="@Occurred(entry)"
+                         Note="@entry.Note">
+            <Actor>
+                @* AD-17: the name when this viewer may be told it, the role badge either way. The
+                   service decided which; a null name here means "withheld", never "missing" - the
+                   column forbids the second reading, and a client who may not be told who drove
+                   still reads that a driver did.
 
-                @* AD-17: the name when this viewer may be told it, the role when they may not.
-                   The service decided which; a null name here means "withheld", never "missing" -
-                   the column forbids the second reading. *@
+                   The role is a Badge rather than a StatusLabel, and that is the rule the design
+                   states outright: a claim about a person is never dressed in the chrome a
+                   delivery's status wears. Every role wears the same badge, because roles are not
+                   ranked and a colour apiece would rank them. *@
                 @if (entry.ActorName is not null)
                 {
                     <span class="dt-timeline-actor">@entry.ActorName</span>
                 }
-                @if (entry.ActorName is null && entry.ActorRole == UserRole.Admin)
+                @if (entry.ActorRole == UserRole.Admin)
                 {
-                    <span class="dt-timeline-actor">@Localizer["RoleAdmin"]</span>
+                    <DtBadge Variant="DtBadgeVariant.Role">@Localizer["RoleAdmin"]</DtBadge>
                 }
-                @if (entry.ActorName is null && entry.ActorRole == UserRole.Dispatcher)
+                @if (entry.ActorRole == UserRole.Dispatcher)
                 {
-                    <span class="dt-timeline-actor">@Localizer["RoleDispatcher"]</span>
+                    <DtBadge Variant="DtBadgeVariant.Role">@Localizer["RoleDispatcher"]</DtBadge>
                 }
-                @if (entry.ActorName is null && entry.ActorRole == UserRole.Driver)
+                @if (entry.ActorRole == UserRole.Driver)
                 {
-                    <span class="dt-timeline-actor">@Localizer["RoleDriver"]</span>
+                    <DtBadge Variant="DtBadgeVariant.Role">@Localizer["RoleDriver"]</DtBadge>
                 }
-                @if (entry.ActorName is null && entry.ActorRole == UserRole.Client)
+                @if (entry.ActorRole == UserRole.Client)
                 {
-                    <span class="dt-timeline-actor">@Localizer["RoleClient"]</span>
+                    <DtBadge Variant="DtBadgeVariant.Role">@Localizer["RoleClient"]</DtBadge>
                 }
-            </div>
-
-            <div class="dt-timeline-change">
-                @* Both statuses, so the line reads as a move rather than as a destination. A
-                   note-only entry has neither and renders nothing here (FR-107). *@
-                @if (entry.PreviousStatus is { } previous)
-                {
-                    <DeliveryStatusLabel Status="previous" />
-                }
-                @if (entry.PreviousStatus is not null && entry.NewStatus is not null)
-                {
-                    <span class="dt-timeline-arrow" aria-hidden="true">→</span>
-                }
-                @if (entry.NewStatus is { } next)
-                {
-                    <DeliveryStatusLabel Status="next" />
-                }
-            </div>
-
-            @* FR-106: a note rides on the entry it explains, whether or not that entry moved
-               anything. *@
-            @if (entry.Note is not null)
-            {
-                <p class="dt-timeline-note">@entry.Note</p>
-            }
-        </li>
+            </Actor>
+        </DtTimelineEntry>
     }
 </ol>
 
@@ -120,7 +106,7 @@
 <div class="dt-timeline-actions">
     @if (Offered.Count > 0)
     {
-        <span class="dt-timeline-actions-label">@Localizer["ChangeStatus"]</span>
+        <h3 class="dt-type-h3 dt-timeline-actions-label">@Localizer["ChangeStatus"]</h3>
     }
     @* One button per legal move, and none at all from Delivered, which is terminal. A delivery in a
        status the caller may not advance simply offers nothing to press. *@

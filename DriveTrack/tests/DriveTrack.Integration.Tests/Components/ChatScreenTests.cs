@@ -96,11 +96,15 @@ public class ChatScreenTests
             ChatViews.LineClassName + " " + ChatViews.OwnLineClassName,
             ChatViews.LineClass(senderUserId: 3, viewerUserId: 3));
 
-        Assert.Equal(ChatViews.LineClassName, ChatViews.LineClass(senderUserId: 4, viewerUserId: 3));
+        Assert.Equal(
+            ChatViews.LineClassName + " " + ChatViews.OtherLineClassName,
+            ChatViews.LineClass(senderUserId: 4, viewerUserId: 3));
 
         // AD-20: a deleted sender is nobody's own line. Null comparing equal to a viewer's id would
         // mark every unattributed line in the conversation as the reader's own.
-        Assert.Equal(ChatViews.LineClassName, ChatViews.LineClass(senderUserId: null, viewerUserId: 3));
+        Assert.Equal(
+            ChatViews.LineClassName + " " + ChatViews.OtherLineClassName,
+            ChatViews.LineClass(senderUserId: null, viewerUserId: 3));
     }
 
     [Fact]
@@ -277,13 +281,21 @@ public class ChatScreenTests
     }
 
     [Fact]
-    public async Task The_readers_own_line_is_set_apart_when_it_is_rendered()
+    public async Task The_readers_own_line_is_set_apart_and_names_them_as_themselves()
     {
         var html = await RenderLineAsync(
             new ChatMessageView(2, 3, "Петро Шевченко", DateTimeOffset.UnixEpoch, "Виїхав."),
             viewerUserId: 3);
 
         Assert.Contains(ChatViews.OwnLineClassName, html, StringComparison.Ordinal);
+
+        // And it says "you" rather than the reader's own name. A conversation with two participants
+        // has one name worth printing, and printing both makes a reader look for the difference
+        // between them on every line. Rendered rather than read out of the file: the catalogue check
+        // scans source text, so a component that stopped taking this branch would still contain the
+        // key and every other assertion here would still pass.
+        Assert.Contains(Ukrainian("ChatYou"), html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Петро Шевченко", html, StringComparison.Ordinal);
     }
 
     [Fact]

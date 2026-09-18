@@ -34,7 +34,7 @@
 
 <PageTitle>@Localizer["MyDeliveriesTitle"]</PageTitle>
 
-<h1>
+<h1 class="dt-type-h1">
     <Icon Name="IconName.Deliveries" />@Localizer["MyDeliveriesTitle"]
 </h1>
 
@@ -49,12 +49,9 @@
     </p>
 }
 
-@if (IsTruncated)
-{
-    <div class="alert alert-warning" role="status">@Localizer["DeliveriesTruncated"]</div>
-}
-
 <DtDataTable TItem="AssignedDeliverySummary"
+             IsTruncated="IsTruncated"
+             Note="@Localizer["DeliveriesTruncated"]"
              Items="_deliveries"
              IsLoading="_loading"
              EmptyText="@Localizer["MyDeliveriesEmpty"]">
@@ -67,7 +64,7 @@
         <th scope="col">@Localizer["WindowLatestAt"]</th>
         <th scope="col">@Localizer["Status"]</th>
         <th scope="col">@Localizer["Overdue"]</th>
-        <th scope="col">@Localizer["Actions"]</th>
+        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="delivery">
         @* FR-94: the address when one has been resolved, the coordinates when none has. Nothing on
@@ -100,7 +97,7 @@
         <td>
             @if (delivery.IsOverdue)
             {
-                <span class="badge text-bg-danger">@Localizer["Overdue"]</span>
+                <DtBadge Variant="DtBadgeVariant.Overdue">@Localizer["Overdue"]</DtBadge>
             }
         </td>
         <td>

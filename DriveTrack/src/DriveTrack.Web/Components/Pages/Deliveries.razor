@@ -24,7 +24,7 @@
 
 <PageTitle>@Localizer["DeliveriesTitle"]</PageTitle>
 
-<h1>
+<h1 class="dt-type-h1">
     <Icon Name="IconName.Deliveries" />@Localizer["DeliveriesTitle"]
 </h1>
 
@@ -37,11 +37,6 @@
 @* NFR-27 keeps paging, and this screen asks for the first page and filters it in the browser - so
    past a full page the rest is neither shown nor findable. Saying so is the difference between a
    limit and a screen that quietly lies about how much work there is. *@
-@if (IsTruncated)
-{
-    <div class="alert alert-warning" role="status">@Localizer["DeliveriesTruncated"]</div>
-}
-
 <div class="row g-4 align-items-end mb-4">
     <div class="col-sm-auto">
         <button type="button" class="btn btn-primary dt-delivery-create" @onclick="OpenCreateAsync">
@@ -93,7 +88,7 @@
     </div>
     <div class="col-sm">
         <label class="form-label" for="delivery-filter-status">@Localizer["Status"]</label>
-        <select id="delivery-filter-status" class="form-select" @bind="_filter.Status">
+        <DtSelect Id="delivery-filter-status" @bind-Value="_filter.Status">
             <option value="">@Localizer["FilterAll"]</option>
             @* The value is the enum member rendered, not a literal beside it: AD-21 makes the member
                name the wire form, and writing it out here would be a second copy to keep in step. *@
@@ -101,7 +96,7 @@
             <option value="@DeliveryStatus.InTransit">@Localizer["StatusInTransit"]</option>
             <option value="@DeliveryStatus.Delivered">@Localizer["StatusDelivered"]</option>
             <option value="@DeliveryStatus.Failed">@Localizer["StatusFailed"]</option>
-        </select>
+        </DtSelect>
     </div>
 </div>
 
@@ -126,9 +121,24 @@
 </div>
 
 <DtDataTable TItem="DeliverySummary"
+             IsTruncated="IsTruncated"
+             Note="@Localizer["DeliveriesTruncated"]"
              Items="Visible"
              IsLoading="_loading"
              EmptyText="@Localizer["DeliveriesEmpty"]">
+    @* The way out of an empty list, under the sentence that says it is empty - and only when there
+       is a way out to offer. An empty board has two causes: filters that match none of the fetched
+       rows, and a fetch that came back with nothing. Clearing helps with the first and does nothing
+       at all about the second, so the action is offered only when something is actually set to be
+       cleared; an unfiltered empty board says it is empty and stops there. *@
+    <EmptyAction>
+        @if (IsFiltered)
+        {
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ResetFilters">
+                <Icon Name="IconName.Close" />@Localizer["ResetFilters"]
+            </button>
+        }
+    </EmptyAction>
     <HeaderTemplate>
         @* DtDataTable carries no sorting of its own - it renders whatever rows it is given - so the
            sort controls belong to the consumer, and a heading is the control. The handlers are
@@ -142,50 +152,50 @@
            for the same reason the handlers are. *@
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Driver)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Driver)">
-                @Localizer["Driver"]
+                @Localizer["Driver"]<Icon Name="IconName.Sort" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Client)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Client)">
-                @Localizer["Client"]
+                @Localizer["Client"]<Icon Name="IconName.Sort" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Pickup)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Pickup)">
-                @Localizer["Pickup"]
+                @Localizer["Pickup"]<Icon Name="IconName.Sort" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Dropoff)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Dropoff)">
-                @Localizer["Dropoff"]
+                @Localizer["Dropoff"]<Icon Name="IconName.Sort" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.PackageDetails)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.PackageDetails)">
-                @Localizer["PackageDetails"]
+                @Localizer["PackageDetails"]<Icon Name="IconName.Sort" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.DeliveryNotes)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.DeliveryNotes)">
-                @Localizer["DeliveryNotes"]
+                @Localizer["DeliveryNotes"]<Icon Name="IconName.Sort" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Status)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Status)">
-                @Localizer["Status"]
+                @Localizer["Status"]<Icon Name="IconName.Sort" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.CreatedAt)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.CreatedAt)">
-                @Localizer["CreatedAt"]
+                @Localizer["CreatedAt"]<Icon Name="IconName.Sort" />
             </button>
         </th>
         <th scope="col" aria-sort="@SortState(DeliveryColumn.Overdue)">
             <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Overdue)">
-                @Localizer["Overdue"]
+                @Localizer["Overdue"]<Icon Name="IconName.Sort" />
             </button>
         </th>
-        <th scope="col">@Localizer["Actions"]</th>
+        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="delivery">
         <td>
@@ -237,7 +247,7 @@
                show when a delivery is on time, and a badge only where there is something to say. *@
             @if (delivery.IsOverdue)
             {
-                <span class="badge text-bg-danger">@Localizer["Overdue"]</span>
+                <DtBadge Variant="DtBadgeVariant.Overdue">@Localizer["Overdue"]</DtBadge>
             }
         </td>
         <td>
@@ -377,7 +387,7 @@
                edit it is also how they unassign, which AD-23 carries as a present null. *@
             <div class="mb-4">
                 <label class="form-label" for="delivery-driver">@Localizer["Driver"]</label>
-                <select id="delivery-driver" class="form-select" @bind="_form.DriverId">
+                <DtSelect Id="delivery-driver" @bind-Value="_form.DriverId">
                     <option value="">@Localizer["NoDriver"]</option>
                     @* FR-98: the standing travels with the name, because this is the moment a
                        dispatcher chooses who carries a parcel. Built in C# rather than as three
@@ -386,25 +396,25 @@
                     {
                         <option value="@driver.Id.Value">@DriverOption(driver)</option>
                     }
-                </select>
+                </DtSelect>
             </div>
             <div class="mb-4">
                 <label class="form-label" for="delivery-client">@Localizer["Client"]</label>
-                <select id="delivery-client" class="form-select" @bind="_form.ClientId">
+                <DtSelect Id="delivery-client" @bind-Value="_form.ClientId">
                     <option value="">@Localizer["NoClient"]</option>
                     @foreach (var client in _clients)
                     {
                         <option value="@client.ClientId.Value">@client.FirstName @client.LastName</option>
                     }
-                </select>
+                </DtSelect>
             </div>
         </EditForm>
     </ChildContent>
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would dispatch a second write, and nothing downstream would recognise it as a repeat. *@
-        <button type="submit" form="delivery-form" class="btn btn-secondary" disabled="@_saving">
-            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        <button type="submit" form="delivery-form" class="dt-delivery-save @SaveVariant" disabled="@_saving">
+            <Icon Name="@SaveGlyph" />@Localizer["Save"]
         </button>
         <button type="button" class="btn btn-outline-secondary" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
@@ -497,6 +507,32 @@
     /// own (DW-41), so a search that succeeds cannot clear a refusal still on screen.
     /// </summary>
     private IReadOnlyList<ScreenFailure> _failures = [];
+
+    /// <summary>
+    /// The save action's variant, which follows the mode the dialog is in: creating a record is a
+    /// create action and takes the create colour, and changing one that already exists is an edit.
+    /// <para>
+    /// One dialog serves both modes, so the button is the only thing on screen that can say which
+    /// one the reader is in - and AD-28 gives the two actions different colours precisely so that
+    /// it does. Resolved here rather than as a ternary in the attribute, for the reason
+    /// <c>DtDialog</c> resolves its panel class into a property.
+    /// </para>
+    /// <para>
+    /// Only the variant: the hook stays written out on the button itself, so the source still shows
+    /// which control this is - and it is the hook a test names, because asserting the mode by the
+    /// variant would be a test that passes the day somebody paints a delete button teal.
+    /// </para>
+    /// </summary>
+    private string SaveVariant => _form.Id is null
+        ? "btn btn-primary"
+        : "btn btn-secondary";
+
+    /// <summary>
+    /// The glyph beside it, following the same mode: the create mark when the dialog is making a
+    /// record and the confirm mark when it is saving changes to one. The icon and the colour move
+    /// together, because colour is never allowed to be the only signal.
+    /// </summary>
+    private IconName SaveGlyph => _form.Id is null ? IconName.Create : IconName.Confirm;
 
     private DeliveryForm _form = new();
     private DeliverySummary? _pendingDeletion;
@@ -773,6 +809,26 @@
         _sortDescending = _sortColumn == column && !_sortDescending;
         _sortColumn = column;
     }
+
+    /// <summary>
+    /// True when the dispatcher has narrowed the fetched page at all, which is the only state
+    /// "clear the filters" is an answer to. A blank box is not a filter, which is the same reading
+    /// <see cref="Contains" /> gives a blank needle.
+    /// </summary>
+    private bool IsFiltered =>
+        Narrows(_filter.Driver)
+        || Narrows(_filter.Client)
+        || Narrows(_filter.Pickup)
+        || Narrows(_filter.Dropoff)
+        || Narrows(_filter.PackageDetails)
+        || Narrows(_filter.DeliveryNotes)
+        || _filter.Status is not null
+        || _filter.CreatedFrom is not null
+        || _filter.CreatedTo is not null
+        || _filter.OverdueOnly;
+
+    /// <summary>True when a text box holds something the rows are actually narrowed by.</summary>
+    private static bool Narrows(string? value) => !string.IsNullOrWhiteSpace(value);
 
     private void ResetFilters() => _filter = new DeliveryFilter();
 

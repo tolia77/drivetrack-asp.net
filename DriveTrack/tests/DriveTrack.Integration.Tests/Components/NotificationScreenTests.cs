@@ -165,8 +165,11 @@ public class NotificationScreenTests
 
         Assert.Equal(rows, SharedMarkup.Occurrences(html, "dt-table-row"));
 
-        // alert-warning is this banner alone: the failure banner above it is alert-danger.
-        Assert.Equal(banners, SharedMarkup.Occurrences(html, "alert-warning"));
+        // The note now belongs to the table rather than sitting above it: it is a fact about what
+        // is on screen, and a reader who has not looked at the rows yet has nothing to apply it to.
+        // `dt-table-note` is the shared table's own hook, so this reads the one element that can
+        // carry the claim rather than any warning-coloured box on the page.
+        Assert.Equal(banners, SharedMarkup.Occurrences(html, "dt-table-note"));
 
         if (banners == 0)
         {
@@ -174,7 +177,7 @@ public class NotificationScreenTests
         }
 
         // NFR-14: the sentence is the catalogue's, not a key that resolved to its own name.
-        var text = SharedMarkup.TextOf(SharedMarkup.ElementWithClass(html, "div", "alert-warning"));
+        var text = SharedMarkup.TextOf(SharedMarkup.ElementWithClass(html, "p", "dt-table-note"));
 
         Assert.True(SharedMarkup.IsUkrainian(text), $"The truncation banner reads '{text}'.");
         Assert.False(SharedMarkup.HasLatinWord(text), $"The truncation banner reads '{text}'.");

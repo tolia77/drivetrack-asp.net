@@ -17,9 +17,15 @@
    rather than called inside the @@foreach, for the reason the banner resolves its label into a
    local - a call in markup reads as rendered text to that same scan. *@
 
+@* The warning mark travels with the sentence, for the reason every status label carries a shape:
+   the only thing separating a refused field from a hint underneath the same box is the colour, and
+   colour is never allowed to be the only signal. The glyph is decoration and the text carries the
+   meaning, so it is hidden from assistive technology like every other icon in the set. *@
 @foreach (var failure in Claimed)
 {
-    <div class="form-text text-danger" role="alert">@Errors[failure.MessageKey]</div>
+    <div class="form-text dt-field-error" role="alert">
+        <Icon Name="IconName.Warning" />@Errors[failure.MessageKey]
+    </div>
 }
 
 @code {

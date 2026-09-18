@@ -1,14 +1,22 @@
 @inherits LayoutComponentBase
-@inject IStringLocalizer<UiText> Localizer
+
+@* NavigationShell: the frame every screen is drawn in.
+
+   Two elements and nothing between them - the navigation and the screen - because the scaffold's
+   third, an empty white bar across the top of the content, said nothing and took a row of a phone's
+   screen to say it. The account actions it was built to hold live in the navigation's own pinned
+   foot instead, where the design puts them.
+
+   The connection dock sits outside the page rather than inside it: it is fixed to the viewport and
+   belongs to the circuit rather than to any screen, and a circuit failure has to be able to show
+   itself over whatever the layout happens to be rendering. *@
 
 <div class="page">
     <div class="sidebar">
         <NavMenu />
     </div>
 
-    <main>
-        <div class="top-row px-5"></div>
-
+    <main class="dt-main">
         <article class="content px-5">
             @* FR-13: every screen's failures pass through the one boundary. *@
             <SessionExpiryBoundary>
@@ -18,8 +26,4 @@
     </main>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
-    @Localizer["CircuitError"]
-    <a href="." class="reload">@Localizer["Reload"]</a>
-    <span class="dismiss">🗙</span>
-</div>
+<DtConnectionDock />

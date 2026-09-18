@@ -70,10 +70,13 @@ public class ShiftScreenTests
         Assert.Contains("Тарас Шевченко", html, StringComparison.Ordinal);
         Assert.Contains("Олег Коваль", html, StringComparison.Ordinal);
 
-        // AD-28 and NFR-29: the two states are themed Bootstrap badges, so there is no colour in the
-        // markup for the design-token gate to find.
-        Assert.Contains("badge text-bg-success", html, StringComparison.Ordinal);
-        Assert.Contains("badge text-bg-secondary", html, StringComparison.Ordinal);
+        // AD-28 and NFR-29: the two states are StatusLabels, so there is no colour in the markup for
+        // the design-token gate to find - and no Bootstrap badge either. The shape as well as the
+        // fill comes from `.dt-status--*` in the theme, which is what makes the two states tell
+        // themselves apart for a reader who cannot see the difference between green and grey.
+        Assert.Contains("dt-status dt-status--running", html, StringComparison.Ordinal);
+        Assert.Contains("dt-status dt-status--finished", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("text-bg-", html, StringComparison.Ordinal);
 
         // And the words are the shift's rather than the driver's. A row in a history labelled "на
         // зміні" would be a present-tense claim about where somebody is now, which for every

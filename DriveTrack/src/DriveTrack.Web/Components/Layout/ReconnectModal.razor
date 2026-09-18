@@ -2,14 +2,23 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<UiText> Localizer
 
+@* ConnectionDock's second half: what the circuit says while it is trying to come back, and what it
+   says once it has given up.
+
+   Two shapes in one element, because the framework owns the element and reveals it by class. While
+   it is retrying this is a dock - a bar at the foot of the screen, over nothing, so a reader can go
+   on reading what they typed. Once it has given up it is a dialog, because by then there is nothing
+   left on the page worth reading and the only thing to do is reload.
+
+   The scaffold's 80px expanding-rings animation is gone: in a dock it is larger than the sentence
+   beside it, and a mark that says "working" is a dot. The dot is `focus-ring-on-dark`, which is the
+   one step in the palette declared to hold on this surface. *@
+
 <script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
 
 <dialog id="components-reconnect-modal" data-nosnippet>
     <div class="components-reconnect-container">
-        <div class="components-rejoining-animation" aria-hidden="true">
-            <div></div>
-            <div></div>
-        </div>
+        <span class="components-reconnect-dot" aria-hidden="true"></span>
         <p class="components-reconnect-first-attempt-visible">
             @Localizer["ReconnectRejoining"]
         </p>

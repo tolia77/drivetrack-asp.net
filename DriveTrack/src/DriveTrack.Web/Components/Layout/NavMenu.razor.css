@@ -7,8 +7,13 @@
 .navbar-toggler {
     appearance: none;
     cursor: pointer;
-    width: 3.5rem;
-    height: 2.5rem;
+    /*
+        A hit area a thumb finds on a phone, which is the one screen this control exists for:
+        `touch-target` is the floor the design puts on every target below the breakpoint, and the
+        toggler is the first thing a driver presses.
+    */
+    width: var(--dt-touch-target);
+    height: var(--dt-touch-target);
     color: var(--dt-ink-inverse);
     position: absolute;
     top: 0.5rem;
@@ -34,7 +39,7 @@
         linear-gradient(currentColor, currentColor);
     background-repeat: no-repeat;
     background-size: 1.25rem 2px;
-    background-position: center 0.75rem, center 1.25rem, center 1.75rem;
+    background-position: center 0.9rem, center 1.35rem, center 1.8rem;
 }
 
 .navbar-toggler:checked {
@@ -73,11 +78,11 @@
     padding-bottom: var(--dt-space-2);
 }
 
-    .nav-item:first-of-type {
+    .nav-destinations .nav-item:first-of-type {
         padding-top: var(--dt-space-4);
     }
 
-    .nav-item:last-of-type {
+    .nav-foot .nav-item:last-of-type {
         padding-bottom: var(--dt-space-4);
     }
 
@@ -92,7 +97,11 @@
         border-radius: var(--dt-radius-sm);
         padding: var(--dt-space-2) var(--dt-space-3);
         line-height: var(--dt-body-line-height);
-        height: 3rem;
+        /*
+            `touch-target` rather than a figure of its own: the links are the whole of the phone
+            menu, and the floor the design puts under a target on a phone is the same floor here.
+        */
+        min-height: var(--dt-touch-target);
         display: flex;
         align-items: center;
         width: 100%;
@@ -123,18 +132,52 @@
 .nav-item ::deep .nav-language {
     display: flex;
     gap: var(--dt-space-2);
+    /*
+        One control with two settings, so it wears one track rather than reading as two
+        destinations: the pill is the design's single-control language switcher, and the edge is the
+        one the palette declares for a control on the navigation surface.
+    */
+    padding: var(--dt-space-1);
+    border: var(--dt-border-width) solid var(--dt-nav-control-border);
+    border-radius: var(--dt-radius-pill);
+    background-color: var(--dt-nav-hover-bg);
 }
 
     .nav-item ::deep .nav-language .nav-link {
-        height: auto;
+        min-height: var(--dt-control-height);
         width: auto;
         flex: 1 1 0;
         justify-content: center;
+        border-radius: var(--dt-radius-pill);
+        font-size: var(--dt-label-font-size);
+        font-weight: var(--dt-label-font-weight);
     }
 
 .nav-item ::deep .nav-link:hover {
     background-color: var(--dt-nav-hover-bg);
     color: var(--dt-ink-inverse);
+}
+
+/*
+    The shell is a column that fills the frame, so the foot below can be pushed to the bottom of it
+    rather than left under the last link.
+*/
+.nav-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+/*
+    The pinned foot (NFR-25). `margin-top: auto` is what pins it: a client has four destinations and
+    an administrator ten, and without this the sign-out and the language switcher would land in a
+    different place on every role's screen. The rule above it is decorative, which is why it is
+    `nav-divider` rather than a control's edge.
+*/
+.nav-foot {
+    margin-top: auto;
+    border-top: var(--dt-border-width) solid var(--dt-nav-divider);
+    padding-top: var(--dt-space-2);
 }
 
 .nav-scrollable {

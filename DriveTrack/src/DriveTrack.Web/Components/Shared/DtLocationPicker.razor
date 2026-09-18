@@ -26,7 +26,7 @@
 @* No `for` on the map's label below: a map is a region rather than a labelable control, and a `for`
    pointing at one would be an association a browser ignores. DtMap carries its own aria-label. The
    search box here is an input and has one. *@
-<label class="form-label" for="@BoxId">@Localizer["AddressSearch"]</label>
+<label class="form-label dt-type-label" for="@BoxId">@Localizer["AddressSearch"]</label>
 <div class="input-group">
     <input id="@BoxId" class="form-control"
            @bind="Search.Query"
@@ -52,7 +52,7 @@
 }
 @if (Search.Matches.Count > 0)
 {
-    <ul class="list-group mb-2">
+    <ul class="list-group mb-2 dt-addr-matches">
         @foreach (var match in Search.Matches)
         {
             <li class="list-group-item">
@@ -62,7 +62,7 @@
         }
     </ul>
 }
-<label class="form-label">@Label</label>
+<label class="form-label dt-type-label">@Label</label>
 @* The search row above is a sibling of <DtMap>, never a child of it: Leaflet builds its own DOM
    inside that container, outside Blazor's diff, so anything rendered inside would be wiped on the
    first pan. It is the structural rule this file exists to keep - the box and the map are two

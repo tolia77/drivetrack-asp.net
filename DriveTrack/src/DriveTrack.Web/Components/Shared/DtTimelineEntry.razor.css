@@ -1,0 +1,79 @@
+/*
+    NFR-29: every palette value here is a `--dt-*` token. The dot's box is geometry - a circle sized
+    against the text beside it - and is outside the scan, as the status shapes in `_theme.scss` are.
+*/
+
+/*
+    A rule between entries rather than a card around each one: the timeline is one sequence, and a
+    card per line would read as a set of unrelated notices.
+*/
+.dt-timeline-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--dt-space-3);
+    padding: var(--dt-space-3);
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
+}
+
+/*
+    The dot. Muted rather than coloured by outcome: the StatusLabels beside it already carry the
+    delivery's colour, and a second coloured mark on the same line would be two things saying the
+    same thing in two different hues.
+*/
+.dt-timeline-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: var(--dt-control-height-sm);
+    height: var(--dt-control-height-sm);
+    border: var(--dt-border-width) solid var(--dt-border);
+    border-radius: 50%;
+    background-color: var(--dt-surface-card);
+    color: var(--dt-ink-muted);
+}
+
+.dt-timeline-line {
+    display: flex;
+    flex-direction: column;
+    gap: var(--dt-space-1);
+    min-width: 0;
+}
+
+/* Who and when: quieter than the change itself, because the change is what a reader scans for. */
+.dt-timeline-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dt-space-2);
+    color: var(--dt-ink-muted);
+    font-size: var(--dt-small-font-size);
+    line-height: var(--dt-small-line-height);
+}
+
+.dt-timeline-change {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--dt-space-2);
+}
+
+.dt-timeline-arrow {
+    color: var(--dt-ink-muted);
+}
+
+/*
+    The note sits in its own box on the page surface, so a sentence somebody typed is visibly a
+    quotation rather than another of the line's own facts.
+*/
+.dt-timeline-note {
+    margin: var(--dt-space-1) 0 0;
+    padding: var(--dt-space-2) var(--dt-space-3);
+    border-radius: var(--dt-radius-sm);
+    background-color: var(--dt-surface-page);
+    color: var(--dt-ink);
+    font-size: var(--dt-body-font-size);
+    line-height: var(--dt-body-line-height);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

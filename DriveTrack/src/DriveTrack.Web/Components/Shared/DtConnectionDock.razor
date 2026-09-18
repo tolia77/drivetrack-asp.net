@@ -1,0 +1,33 @@
+@inject IStringLocalizer<UiText> Localizer
+
+@* ConnectionDock: what a Blazor Server screen says when the circuit is in trouble.
+
+   Two elements and two moments. This is the first: the bar the framework reveals when something on
+   the circuit failed - a dock at the bottom of the screen carrying an amber mark, one sentence and
+   the way out. The second is ReconnectModal, which is the give-up state and is a dialog because by
+   then there is nothing left to read the page for.
+
+   The id is the framework's and is not ours to rename: `blazor.web.js` finds this element by it and
+   sets `display: block` when a circuit error reaches the browser. Everything else here - the class,
+   the mark, the dismissal - is the design's.
+
+   The dock deliberately does not cover the page. A reader whose save failed still needs to see what
+   they typed, and a modal over it would be the product taking the screen away at the one moment its
+   contents cannot be recovered any other way.
+
+   `role="alert"`, and nothing beside it: the bar appears with no other visible change, so a reader
+   who cannot see it is otherwise told nothing at all, and what it announces is that the screen has
+   stopped working. One role rather than `status` with `aria-live="assertive"` over the top - status
+   already implies polite, so the pair said two different things about the same element. *@
+
+<div id="blazor-error-ui" class="dt-dock" role="alert" data-nosnippet>
+    <span class="dt-dock__dot" aria-hidden="true"></span>
+    <span class="dt-dock__text">@Localizer["CircuitError"]</span>
+    <a href="." class="reload dt-dock__action">@Localizer["Reload"]</a>
+    @* The framework's own dismissal, kept by its class. The glyph is the icon set's rather than the
+       scaffold's ✕ character: NFR-24 has one Close mark, and a second one drawn from a font the
+       reader may not have is a mark that is sometimes a box. *@
+    <button type="button" class="dismiss dt-dock__dismiss" aria-label="@Localizer["Close"]">
+        <Icon Name="IconName.Close" />
+    </button>
+</div>

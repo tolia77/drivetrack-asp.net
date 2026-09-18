@@ -19,8 +19,23 @@
         aria-modal="true"
         aria-labelledby="@_titleId">
     <div class="dt-dialog-panel">
-        <h2 id="@_titleId" class="dt-dialog-title">@Title</h2>
+        @* The head, and the Close that is always in it. A dialog opened with showModal() is
+           dismissed with Escape and by the backdrop already, but neither is visible: on a phone
+           there is no backdrop to reach and no Escape key to press, so the one way out that is
+           always on screen is this button. It is deliberately not the same hook as the foot's
+           default close - the foot's appears only when a screen supplied no actions of its own,
+           and a test that could not tell the two apart would pass on a dialog with no way out. *@
+        <div class="dt-dialog-head">
+            <h2 id="@_titleId" class="dt-dialog-title dt-type-h2">@Title</h2>
 
+            <button type="button" class="btn btn-link dt-dialog-dismiss"
+                    aria-label="@Localizer["Close"]" @onclick="CloseAsync">
+                <Icon Name="IconName.Close" />
+            </button>
+        </div>
+
+        @* The body scrolls and the head and foot do not, so a long form on a short screen still
+           shows its title and its actions rather than pushing them past the edge. *@
         <div class="dt-dialog-body">
             @ChildContent
         </div>

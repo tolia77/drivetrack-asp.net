@@ -7,16 +7,29 @@
     Anything Leaflet's own chrome needs belongs in its vendored stylesheet, which is served
     unmodified from wwwroot/lib/leaflet/.
 
-    The height is a literal because a map has to be given one: a div with no content has no height,
-    and Leaflet measures the element it is handed. Height is geometry and outside NFR-29's scan.
+    The height has to be stated because a div with no content has no height and Leaflet measures the
+    element it is handed - and it is `map-height`, which is the figure the design publishes for a
+    map in a picker and in the proof view. A literal here would be the one place the two could
+    disagree.
 */
 
 .dt-map {
     width: 100%;
-    height: 20rem;
-    border: var(--dt-border-width) solid var(--dt-border);
+    height: var(--dt-map-height);
+    border: var(--dt-border-width) solid var(--dt-border-control);
     border-radius: var(--dt-radius-md);
     /* Tiles are square and the container is not, so the corners have to clip. */
     overflow: hidden;
     background-color: var(--dt-surface-sunken);
+}
+
+/*
+    The picker says so with the cursor: this map is a control, not a picture.
+
+    An attribute rather than a second class, and the reason is the class name itself: `dt-map` is
+    the hook the suite counts maps by, and any modifier spelled `dt-map-*` is a substring of it -
+    so a picker would have been counted twice by every assertion that counts maps at all.
+*/
+.dt-map[data-picker] {
+    cursor: crosshair;
 }

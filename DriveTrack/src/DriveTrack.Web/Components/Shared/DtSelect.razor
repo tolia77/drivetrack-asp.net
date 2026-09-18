@@ -1,0 +1,72 @@
+@typeparam TValue
+
+@* Select: a native <select> wearing the field frame.
+
+   Native rather than a listbox built out of divs, and that is the whole design decision: a phone
+   renders a native select as the platform's own wheel or sheet, which is a control every driver
+   already knows and which no amount of JavaScript reproduces on a cold morning with gloves on.
+
+   What the component adds over `<select class="form-select" @@bind="...">` is the class - one place
+   that decides what a select looks like - and the empty-choice contract in its specification: the
+   driver and client pickers always offer the empty option, and a picker with nothing to pick is
+   disabled with its reason as its only option rather than left as an empty box.
+
+   The binding is written out rather than delegated to `@@bind`, because a component cannot forward
+   one: `@@bind-Value` on the consumer becomes Value plus ValueChanged here, and this is the half
+   that turns a change event back into a TValue. What the browser's answer means is DtSelectBinding's
+   to say - lifted out of the handler because a static render dispatches no events, so a rule written
+   here is a rule no test in this solution can reach. *@
+
+<select id="@Id"
+        class="form-select dt-select @Class"
+        disabled="@Disabled"
+        value="@BindConverter.FormatValue(Value)"
+        @onchange="ChangedAsync">
+    @ChildContent
+</select>
+
+@code {
+    /// <summary>The control's id, so the field's own label can point at it.</summary>
+    [Parameter]
+    public string? Id { get; set; }
+
+    /// <summary>The screen's own hook on this control.</summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>
+    /// True when there is nothing to pick. The reason belongs in the only option and the next step
+    /// in the hint beneath, so a disabled select still says why it is disabled.
+    /// </summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>The selected value.</summary>
+    [Parameter]
+    public TValue? Value { get; set; }
+
+    /// <summary>Raised with the new value whenever the reader picks a different option.</summary>
+    [Parameter]
+    public EventCallback<TValue?> ValueChanged { get; set; }
+
+    /// <summary>The options, supplied by the screen that knows what there is to choose from.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private async Task ChangedAsync(ChangeEventArgs args)
+    {
+        if (!DtSelectBinding.TryRead<TValue>(args.Value as string, out var picked))
+        {
+            // Nothing the model can hold, so the model keeps what it had - and the control has to
+            // be told, or it goes on showing an option the model does not hold. Re-rendering is
+            // what puts the bound value back into the box.
+            StateHasChanged();
+
+            return;
+        }
+
+        Value = picked;
+
+        await ValueChanged.InvokeAsync(picked);
+    }
+}

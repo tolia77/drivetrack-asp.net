@@ -3,13 +3,16 @@
     than widening the page. On a phone that is the difference between a horizontal scrollbar on the
     table and a horizontal scrollbar on the whole screen.
 
-    `overflow`, `max-height`, `position` and `top` are geometry and outside NFR-29's scan; the
-    header's colours are not, and are tokens.
+    `overflow`, `max-height` and `position` are geometry and outside NFR-29's scan; the header's
+    colours, the sticky header's depth and every gap in this file are not, and are tokens.
 */
 
 .dt-table-scroll {
     overflow: auto;
     max-height: 32rem;
+    border: var(--dt-border-width) solid var(--dt-border);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-surface-card);
 }
 
 /*
@@ -17,19 +20,93 @@
     the consuming component's scope, not this one's. The thead is ours, so it anchors the selector.
 
     The opaque background is load-bearing rather than decorative: a sticky header is painted over
-    the rows scrolling beneath it, and a transparent one shows them through the column names.
+    the rows scrolling beneath it, and a transparent one shows them through the column names. The
+    depth is `z-sticky`, which is the step the palette declares for exactly this.
 */
 .dt-table-head ::deep th {
     position: sticky;
     top: 0;
+    z-index: var(--dt-z-sticky);
     background-color: var(--dt-surface-card);
     border-bottom: var(--dt-border-width) solid var(--dt-border);
+    font-size: var(--dt-label-font-size);
+    line-height: var(--dt-label-line-height);
+    font-weight: var(--dt-label-font-weight);
 }
 
-/* The two status rows are a statement, not data: centred and quietened so they do not read as a row. */
-.dt-table-status td,
-.dt-table-empty td {
+/*
+    A sortable column is a button in its header cell, and it inherits the header's own type rather
+    than a link's: the word is the column name whether or not it can be sorted by, so it must not
+    change size or colour when a column becomes sortable.
+*/
+.dt-table-head ::deep th button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--dt-space-1);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    /* The family is the document's; only the size, weight and leading have to be taken back
+       from the button reset, so the column name reads as a column name rather than as a link. */
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    text-decoration: none;
+}
+
+/*
+    The column the rows are actually in order by, picked out in the brand colour. `aria-sort` is on
+    every sortable header - `SortState` answers "none" for the columns the rows are not ordered by
+    rather than dropping the attribute - so the inactive value has to be excluded by hand, or the
+    brand colour would pick out every column name at once and so pick out nothing.
+*/
+.dt-table-head ::deep th[aria-sort]:not([aria-sort="none"]) button {
+    color: var(--dt-brand);
+}
+
+/* The last cell is the row's actions, and it keeps its width even for a role that has none. */
+.dt-table-head ::deep th.dt-table-actions {
+    width: 1%;
+    white-space: nowrap;
+}
+
+/*
+    The rows the table draws itself. All three are a statement rather than data: centred and
+    quietened so they do not read as a record somebody could act on.
+*/
+.dt-table-state {
     color: var(--dt-ink-muted);
     text-align: center;
     padding: var(--dt-space-5);
+}
+
+/* The next action sits under the sentence rather than beside it, so it reads as the answer to it. */
+.dt-table-next {
+    display: block;
+    margin-top: var(--dt-space-3);
+}
+
+/*
+    The loading bars. One per row, full width of the cell, because the component does not know the
+    consumer's columns - a bar per column would be this file guessing at a shape only the screen
+    knows. The pulse and the fill are `dt-skeleton`'s, in `_theme.scss`, because a bar standing in
+    for a value that has not arrived is the same fact on every screen.
+*/
+.dt-table-skeleton td {
+    padding: var(--dt-space-2);
+}
+
+/*
+    The truncation note. `warning-subtle` rather than a failure tint: a page that was cut off is a
+    limit the reader can work around by narrowing the filters, not something that went wrong.
+*/
+.dt-table-note {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: var(--dt-space-2) var(--dt-space-3);
+    border-radius: var(--dt-radius-sm);
+    background-color: var(--dt-warning-subtle);
+    color: var(--dt-warning-text);
 }

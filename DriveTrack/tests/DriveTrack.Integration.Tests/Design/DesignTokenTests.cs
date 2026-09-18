@@ -704,6 +704,128 @@ public class DesignTokenTests
         return match.Groups["body"].Value;
     }
 
+    /// <summary>
+    /// The dimensions the palette publishes for a component to reach for, and the figure each one
+    /// carries. Read from the token file rather than restated, so the guard cannot drift from the
+    /// values it is guarding.
+    /// </summary>
+    private static readonly string[] PublishedDimensions =
+    [
+        "control-height",
+        "control-height-sm",
+        "touch-target",
+        "nav-width",
+        "dialog-narrow",
+        "dialog-wide",
+        "map-height",
+    ];
+
+    [Fact]
+    public void Every_class_the_theme_publishes_has_a_consumer()
+    {
+        // The other half of AD-28, and the half a palette quietly fails at. `_theme.scss` carries
+        // the vocabulary that is the same fact on more than one screen - the status labels, the
+        // rating bands, the badges, the nine type styles - and a class in it that nothing renders
+        // is a palette documenting a product the screens do not show. Spec A published all of this
+        // ahead of its consumers on purpose; this is what stops the next one being published and
+        // forgotten.
+        var theme = Preprocess(File.ReadAllText(Path.Combine(StylesDirectory, "_theme.scss")));
+
+        var published = Regex.Matches(
+                theme,
+                @"\.(?<name>dt-[a-z0-9-]+)",
+                RegexOptions.None,
+                TimeSpan.FromSeconds(5))
+            .Select(match => match.Groups["name"].Value)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.NotEmpty(published);
+
+        // Markup and the view classes beside it: a class name a component composes in C# -
+        // `ReviewViews.ClassFor`, `ChatViews.LineClass`, `DtStatusLabel`'s own switch - is as much a
+        // consumer as one written into an attribute, and is where the interesting ones live.
+        var consumers = string.Join(
+            "\n",
+            ProjectFiles()
+                .Where(path => path.EndsWith(".razor", StringComparison.OrdinalIgnoreCase)
+                    || path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                .Select(File.ReadAllText));
+
+        var unconsumed = published
+            .Where(name => !consumers.Contains(name, StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Empty(unconsumed);
+    }
+
+    [Fact]
+    public void No_component_states_a_dimension_the_palette_publishes_as_a_literal()
+    {
+        // The dimensions are tokens for the same reason the colours are: a sidebar written as
+        // `250px` in one stylesheet and `nav-width` in another is two answers to how wide the
+        // navigation is, and the one that is wrong is whichever was edited second. NFR-29's scan
+        // deliberately does not read `width` or `height` - they are geometry - so a figure the
+        // palette has already named needs this guard rather than that one.
+        var offenders = new List<string>();
+
+        var tokens = File.ReadAllText(Path.Combine(StylesDirectory, "_tokens.scss"));
+
+        foreach (var dimension in PublishedDimensions)
+        {
+            var declaration = Regex.Match(
+                tokens,
+                @"\$dt-" + Regex.Escape(dimension) + @"\s*:\s*(?<value>[^;]+);",
+                RegexOptions.None,
+                TimeSpan.FromSeconds(5));
+
+            Assert.True(declaration.Success, $"_tokens.scss no longer declares $dt-{dimension}.");
+
+            var figure = declaration.Groups["value"].Value.Trim();
+
+            // Bounded on both sides so `2.75rem` is not found inside `12.75rem`, and so the
+            // declaration in the token file itself - the one place the figure belongs - is the only
+            // occurrence that does not count.
+            var literal = new Regex(
+                @"(?<![\w.$-])" + Regex.Escape(figure) + @"(?![\w-])",
+                RegexOptions.None,
+                TimeSpan.FromSeconds(5));
+
+            foreach (var path in ScopedStylesheets().Concat(ProjectStylesheets()))
+            {
+                if (literal.IsMatch(Preprocess(File.ReadAllText(path))))
+                {
+                    offenders.Add($"{Path.GetFileName(path)}: {figure} is $dt-{dimension}");
+                }
+            }
+        }
+
+        // The four depths, which are not lengths and cannot be found by their figures: `20` and
+        // `1030` occur in too many honest places to search for. A z-index is instead required to
+        // resolve to one of the steps, which is the same claim from the other side.
+        foreach (var path in ScopedStylesheets().Concat(ProjectStylesheets()))
+        {
+            foreach (Match declaration in Regex.Matches(
+                         Preprocess(File.ReadAllText(path)),
+                         @"z-index\s*:\s*(?<value>[^;}]+)",
+                         RegexOptions.None,
+                         TimeSpan.FromSeconds(5)))
+            {
+                var value = declaration.Groups["value"].Value.Trim();
+
+                if (value.Contains("var(--dt-z-", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                offenders.Add($"{Path.GetFileName(path)}: z-index: {value}");
+            }
+        }
+
+        Assert.Empty(offenders);
+    }
+
     [Fact]
     public void The_token_map_has_entries()
     {

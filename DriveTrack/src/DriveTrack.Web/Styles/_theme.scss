@@ -245,6 +245,10 @@ h1:focus {
     font-weight: var(--dt-small-font-weight);
 }
 
+// Plates, licence numbers and IDs: strings a reader compares character by
+// character, which a proportional font makes harder than it needs to be. One
+// class for the one idea - a second name for it is two places to change the
+// day the mono face does.
 .dt-type-code {
     font-family: var(--dt-font-mono);
     font-size: var(--dt-code-font-size);
@@ -469,13 +473,6 @@ h1:focus {
     .dt-skeleton {
         animation: none;
     }
-}
-
-// Plates, licence numbers and IDs: strings a reader compares character by
-// character, which a proportional font makes harder than it needs to be.
-.dt-mono {
-    font-family: var(--dt-font-mono);
-    font-size: var(--dt-code-font-size);
 }
 
 .dt-muted {

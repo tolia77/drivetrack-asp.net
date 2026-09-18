@@ -1,0 +1,59 @@
+@* Card: the white container content sits in on the tinted page.
+
+   Collections go in DtDataTable; everything else goes in one of these. The head is optional because
+   a card is sometimes just a surface - the profile screen's three panels each have a title and an
+   action, and a summary block on a phone has neither. What is not optional is that the title is an
+   <h2>: the screen owns the one <h1>, and a card that titled itself with a <div> would leave a
+   reader moving by heading with nothing to move to.
+
+   No coloured side stripe and no nesting. Both are stated in the component's specification rather
+   than left to taste, because both are what a screen reaches for when it wants one card to matter
+   more than another - and a card that matters more is a card with a title that says so. *@
+
+<div class="dt-card @Class">
+    @if (Title is not null)
+    {
+        <div class="dt-card__head">
+            <h2 class="dt-card__title dt-type-h2">@Title</h2>
+            @Actions
+        </div>
+    }
+
+    <div class="dt-card__body dt-type-body">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// The card's heading, already localized by the screen. Null renders no head at all rather than
+    /// an empty bar: a card with nothing to say about itself is a surface, not a titled panel.
+    /// </summary>
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>
+    /// The actions on the record this card holds, rendered beside the title. Ignored without a
+    /// <see cref="Title"/>, which is deliberate: an action with no heading beside it has nothing
+    /// naming what it acts on.
+    /// </summary>
+    /// <remarks>
+    /// A few, and they wrap: the profile screen's one card carries edit, change password and change
+    /// email, which are three ways of changing the one record rather than three cards' worth of
+    /// work. What the head will not carry is a row long enough to compete with the title it sits
+    /// beside - at which point the extra actions belong in the body with what they act on.
+    /// </remarks>
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    /// <summary>The card's contents.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// The screen's own hook on this card, so a test can name one panel among three. Classes only -
+    /// a card is not a place to put a style, and NFR-29 would catch it if it were.
+    /// </summary>
+    [Parameter]
+    public string? Class { get; set; }
+}

@@ -1,15 +1,17 @@
 /*
-    FR-86 and NFR-29 together. Every palette value is a token; the two figures that are not are
-    geometry, and NFR-29's scan deliberately does not read `width` or `max-width`.
+    FR-86 and NFR-29 together. Every palette value is a token, and so are the two widths: the design
+    publishes `dialog-narrow` for a form and `dialog-wide` for a dialog holding two map columns, and
+    a panel that restated either figure would be a second place to change it.
 
-    The pair is what makes the dialog fit a phone: `width` keeps it inside the viewport with a
-    margin either side, and `max-width` stops it stretching into a line nobody can read on a
-    desktop. A single value could do one or the other, not both.
+    `width` is the pair's other half and stays a viewport figure, because it is geometry: it keeps
+    the panel inside a phone's screen with a margin either side, which no token can know about. The
+    max-width then stops it stretching into a line nobody can read on a desktop. A single value
+    could do one or the other, not both.
 */
 
 .dt-dialog {
     width: 92vw;
-    max-width: 32rem;
+    max-width: var(--dt-dialog-narrow);
     /* The panel owns the padding, so the surface can run edge to edge if a screen wants it to. */
     padding: 0;
     border: var(--dt-border-width) solid var(--dt-border);
@@ -22,10 +24,10 @@
 /*
     The opt-in wide panel. Same `width` as the default, so a phone is unaffected and the dialog
     still sits inside the viewport; only the desktop ceiling moves, far enough for two map columns
-    to be worth looking at. Geometry again, which is why neither figure is a token.
+    to be worth looking at.
 */
 .dt-dialog-wide {
-    max-width: 64rem;
+    max-width: var(--dt-dialog-wide);
 }
 
 /*
@@ -37,31 +39,89 @@
     background-color: var(--dt-backdrop);
 }
 
+/*
+    Three bands, and the middle one takes the slack: the panel is bounded by the viewport rather
+    than by its contents, so a form longer than the screen scrolls inside its own body instead of
+    growing a dialog whose actions are off the bottom of the page.
+*/
 .dt-dialog-panel {
     display: flex;
     flex-direction: column;
-    gap: var(--dt-space-4);
-    padding: var(--dt-space-5);
+    max-height: 86vh;
+}
+
+.dt-dialog-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--dt-space-3);
+    padding: var(--dt-space-5) var(--dt-space-5) var(--dt-space-4);
+    border-bottom: var(--dt-border-width) solid var(--dt-border);
 }
 
 .dt-dialog-title {
     margin: 0;
-    font-size: var(--dt-h2-font-size);
-    font-weight: var(--dt-h2-font-weight);
-    line-height: var(--dt-h2-line-height);
+}
+
+/*
+    A hit area a thumb can find, which is what `touch-target` is declared for. The button carries
+    only a glyph, so without a floor it would be as small as the glyph is.
+*/
+.dt-dialog-dismiss {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--dt-touch-target);
+    min-height: var(--dt-touch-target);
+    padding: 0;
+    color: var(--dt-ink-muted);
 }
 
 .dt-dialog-body {
+    overflow-y: auto;
+    padding: var(--dt-space-5);
     color: var(--dt-ink);
 }
 
 /*
-    Wrapping rather than scrolling: on a narrow viewport two or three actions stack instead of
-    being pushed off the edge of the panel.
+    The foot. Reversed on purpose: every dialog in this product writes its primary action first,
+    because that is the order the markup reads in and the order a keyboard reaches them in, and the
+    design puts Cancel to the left of the primary action on screen. `row-reverse` with the row
+    packed at the start is what gives both - the pair sits at the trailing edge, with the primary
+    action outermost.
+
+    Wrapping rather than scrolling: on a narrow viewport three actions stack instead of being pushed
+    off the edge of the panel.
 */
 .dt-dialog-actions {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    flex-direction: row-reverse;
+    flex-wrap: wrap-reverse;
+    justify-content: flex-start;
     gap: var(--dt-space-2);
+    padding: var(--dt-space-4) var(--dt-space-5) var(--dt-space-5);
+    border-top: var(--dt-border-width) solid var(--dt-border);
+}
+
+/*
+    On a phone the actions stretch to the full width instead of huddling at one edge: a thumb
+    reaches a full-width button wherever the hand is holding the device.
+
+    A column rather than full-width flex items in the reversed row above: a row-reverse that wraps
+    reverse puts each action on its own line and stacks the lines bottom-up, which would leave the
+    primary action last on screen while it stays first in the DOM and first for a keyboard - the
+    meaningful-sequence failure WCAG 1.3.2 is about. In a column the actions read in the order they
+    are written, and `stretch` gives the full width the reversed row was being asked for.
+*/
+@media (max-width: 640.98px) {
+    .dt-dialog-actions {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: stretch;
+    }
+
+    .dt-dialog-actions ::deep .btn {
+        justify-content: center;
+    }
 }

@@ -179,7 +179,7 @@ public class ScreenFailureTests
                 ["Failures"] = (IReadOnlyList<ScreenFailure>)[new ScreenFailure(field, key)],
             });
 
-        Assert.DoesNotContain("<strong>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong", html, StringComparison.Ordinal);
 
         var text = SharedMarkup.TextOf(SharedMarkup.ElementWithClass(html, "div", "alert-danger"));
 
@@ -203,8 +203,14 @@ public class ScreenFailureTests
                 ],
             });
 
-        Assert.Equal(2, SharedMarkup.Occurrences(html, "alert alert-danger"));
-        Assert.Equal(2, SharedMarkup.Occurrences(html, "<strong>"));
+        // One banner carrying two labelled lines, rather than two banners. The claim is unchanged -
+        // two refusals, two field names, so a client knows which box each is about - and the count
+        // that carries it moved from the boxes to the lines inside the one box.
+        Assert.Equal(1, SharedMarkup.Occurrences(html, "alert alert-danger"));
+        Assert.Equal(2, SharedMarkup.Occurrences(html, "dt-banner__item"));
+        // `<strong` rather than `<strong>`: the banner carries a scoped stylesheet now, so every
+        // element it renders is written with the scope attribute on it.
+        Assert.Equal(2, SharedMarkup.Occurrences(html, "<strong"));
 
         var text = SharedMarkup.TextOf(html);
 
@@ -231,7 +237,7 @@ public class ScreenFailureTests
 
         Assert.False(SharedMarkup.HasLatinWord(text), text);
         Assert.True(SharedMarkup.IsUkrainian(text), text);
-        Assert.DoesNotContain("<strong>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong", html, StringComparison.Ordinal);
     }
 
     [Fact]

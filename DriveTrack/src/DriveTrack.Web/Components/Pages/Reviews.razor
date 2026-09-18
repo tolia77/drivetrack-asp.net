@@ -28,7 +28,7 @@
 
 <PageTitle>@Localizer["ReviewsTitle"]</PageTitle>
 
-<h1>
+<h1 class="dt-type-h1">
     <Icon Name="IconName.Reviews" />@Localizer["ReviewsTitle"]
 </h1>
 
@@ -78,15 +78,16 @@
             <th scope="col">@Localizer["ReviewRating"]</th>
             <th scope="col">@Localizer["ReviewText"]</th>
             <th scope="col">@Localizer["CreatedAt"]</th>
-            <th scope="col">@Localizer["Actions"]</th>
+            <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
         </HeaderTemplate>
         <RowTemplate Context="review">
             <td>@review.DeliveryId</td>
             <td>
-                @* AD-18: the band is Domain's reading of the number and the class is only what that
-                   band looks like. No threshold here, and no colour - the `dt-rating--*` modifier
-                   resolves to a --dt-rating-* token in _theme.scss (AD-28, NFR-29). *@
-                <span class="@ReviewViews.ClassFor(review.Band)">@ReviewViews.Format(review.Rating)</span>
+                @* AD-18: the band is Domain's own reading of the number, carried on the row, and
+                   the shared display is only what that band looks like. No threshold here, and no
+                   colour - the `dt-rating--*` modifier resolves to a --dt-rating-* token in
+                   _theme.scss (AD-28, NFR-29). *@
+                <DtRatingDisplay Rating="review.Rating" Band="review.Band" />
             </td>
             <td>@review.Text</td>
             <td>@Moment(review.CreatedAt)</td>
@@ -127,7 +128,7 @@
                width for whoever is reading. *@
             @if (_moderates)
             {
-                <th scope="col">@Localizer["Actions"]</th>
+                <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
             }
         </HeaderTemplate>
         <RowTemplate Context="review">
@@ -153,7 +154,7 @@
                 }
             </td>
             <td>
-                <span class="@ReviewViews.ClassFor(review.Band)">@ReviewViews.Format(review.Rating)</span>
+                <DtRatingDisplay Rating="review.Rating" Band="review.Band" />
             </td>
             <td>@review.Text</td>
             <td>@Moment(review.CreatedAt)</td>
@@ -208,12 +209,12 @@
         {
             <div class="mb-4">
                 <label class="form-label" for="review-delivery">@Localizer["ReviewDelivery"]</label>
-                <select id="review-delivery" class="form-select" @bind="_form.DeliveryId">
+                <DtSelect Id="review-delivery" @bind-Value="_form.DeliveryId">
                     @foreach (var delivery in _reviewable)
                     {
                         <option value="@delivery.Id">@Localizer["ReviewDelivery"] @delivery.Id</option>
                     }
-                </select>
+                </DtSelect>
                 @* FR-62's two halves, said once: only a finished delivery, and only one review
                    each. The list above is already narrowed to both, so this explains why a client
                    who expected to see a parcel here does not. *@
@@ -225,12 +226,12 @@
             <label class="form-label" for="review-rating">@Localizer["ReviewRating"]</label>
             @* The options are the scale's own values, so the control cannot offer a number the
                column would refuse (FR-67, AD-18). It opens on RatingScale.Default. *@
-            <select id="review-rating" class="form-select" @bind="_form.Rating">
+            <DtSelect Id="review-rating" @bind-Value="_form.Rating">
                 @foreach (var value in Scale)
                 {
                     <option value="@value">@value</option>
                 }
-            </select>
+            </DtSelect>
             <DtFieldError Field="Rating" Failures="_failures" />
         </div>
 
@@ -245,9 +246,9 @@
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would post the same verdict twice. *@
-        <button type="button" class="btn btn-secondary dt-review-save" disabled="@_saving"
+        <button type="button" class="dt-review-save @SaveVariant" disabled="@_saving"
                 @onclick="SaveAsync">
-            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+            <Icon Name="@SaveGlyph" />@Localizer["Save"]
         </button>
         <button type="button" class="btn btn-outline-secondary dt-review-cancel" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
@@ -288,6 +289,32 @@
     private IReadOnlyList<ReviewSummary>? _all;
     private IReadOnlyList<AssignedDeliverySummary> _reviewable = [];
     private IReadOnlyList<ScreenFailure> _failures = [];
+
+    /// <summary>
+    /// The save action's variant, which follows the mode the dialog is in: creating a record is a
+    /// create action and takes the create colour, and changing one that already exists is an edit.
+    /// <para>
+    /// One dialog serves both modes, so the button is the only thing on screen that can say which
+    /// one the reader is in - and AD-28 gives the two actions different colours precisely so that
+    /// it does. Resolved here rather than as a ternary in the attribute, for the reason
+    /// <c>DtDialog</c> resolves its panel class into a property.
+    /// </para>
+    /// <para>
+    /// Only the variant: the hook stays written out on the button itself, so the source still shows
+    /// which control this is - and it is the hook a test names, because asserting the mode by the
+    /// variant would be a test that passes the day somebody paints a delete button teal.
+    /// </para>
+    /// </summary>
+    private string SaveVariant => _editingId is null
+        ? "btn btn-primary"
+        : "btn btn-secondary";
+
+    /// <summary>
+    /// The glyph beside it, following the same mode: the create mark when the dialog is making a
+    /// record and the confirm mark when it is saving changes to one. The icon and the colour move
+    /// together, because colour is never allowed to be the only signal.
+    /// </summary>
+    private IconName SaveGlyph => _editingId is null ? IconName.Create : IconName.Confirm;
 
     private int? _editingId;
     private int? _pendingDelete;

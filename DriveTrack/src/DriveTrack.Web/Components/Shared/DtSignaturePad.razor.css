@@ -31,3 +31,11 @@
     /* A drag on a canvas otherwise selects the surrounding text on a desktop. */
     user-select: none;
 }
+
+/*
+    Clear sits below the pad, reachable with a thumb: the pad is used on a phone at a doorstep, and
+    a mis-drawn signature has to be as easy to undo as it was to make.
+*/
+.dt-signature-clear {
+    min-height: var(--dt-touch-target);
+}

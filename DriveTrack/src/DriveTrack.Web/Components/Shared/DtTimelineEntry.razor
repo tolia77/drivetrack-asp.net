@@ -1,0 +1,98 @@
+@* TimelineEntry: one line of a delivery's append-only history (FR-105 to FR-108).
+
+   A status change, a note, or both. The dot's glyph is the entry's own summary - Confirm for a
+   delivery that arrived, Warning for one that did not, Edit for any other move, Chat for a line
+   that only says something - so a reader scanning the column sees the shape of the history before
+   reading a word of it.
+
+   Entries are never edited or deleted, so there are no row actions here and there is no place to
+   put one: that is the component saying what the record is, not an omission.
+
+   The two statuses render as StatusLabels rather than as words, and both of them render, so the
+   line reads as a move rather than as a destination. A note-only entry has neither and draws no
+   arrow between nothing and nothing. *@
+
+<li class="dt-timeline-entry">
+    <span class="dt-timeline-dot" aria-hidden="true">
+        <Icon Name="@Glyph" />
+    </span>
+
+    <div class="dt-timeline-line">
+        @if (PreviousStatus is not null || NewStatus is not null)
+        {
+            <div class="dt-timeline-change">
+                @if (PreviousStatus is { } previous)
+                {
+                    <DeliveryStatusLabel Status="previous" />
+                }
+                @if (PreviousStatus is not null && NewStatus is not null)
+                {
+                    <span class="dt-timeline-arrow" aria-hidden="true">→</span>
+                }
+                @if (NewStatus is { } next)
+                {
+                    <DeliveryStatusLabel Status="next" />
+                }
+            </div>
+        }
+
+        <div class="dt-timeline-meta">
+            @Actor
+            <span class="dt-timeline-when">@When</span>
+        </div>
+
+        @* FR-106: a note rides on the entry it explains, whether or not that entry moved anything. *@
+        @if (Note is not null)
+        {
+            <p class="dt-timeline-note">@Note</p>
+        }
+    </div>
+</li>
+
+@code {
+    /// <summary>Where the delivery was before this entry, or null when the entry moved nothing.</summary>
+    [Parameter]
+    public DeliveryStatus? PreviousStatus { get; set; }
+
+    /// <summary>Where it went, or null when the entry moved nothing.</summary>
+    [Parameter]
+    public DeliveryStatus? NewStatus { get; set; }
+
+    /// <summary>
+    /// Who did it: the name when this viewer may be told it, the role badge either way. Supplied by
+    /// the screen rather than assembled here, because the role words are literal localizer keys and
+    /// LocalizationTests can only see the ones written in markup.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? Actor { get; set; }
+
+    /// <summary>When it happened, already formatted in the culture the screen is running in.</summary>
+    [Parameter]
+    public string? When { get; set; }
+
+    /// <summary>What was said about it, or null.</summary>
+    [Parameter]
+    public string? Note { get; set; }
+
+    /// <summary>
+    /// The dot's glyph, read off what the entry did rather than passed in: the mapping is the same
+    /// on every timeline, and a parameter would be an invitation for one screen to disagree.
+    /// </summary>
+    /// <remarks>
+    /// Read off both ends rather than off the destination alone. An entry that records where a
+    /// delivery came from and not where it went still moved a status, and switching on
+    /// <see cref="NewStatus"/> by itself drew it with the "somebody spoke" glyph - a move filed
+    /// under conversation.
+    /// </remarks>
+    private IconName Glyph => (PreviousStatus, NewStatus) switch
+    {
+        (_, DeliveryStatus.Delivered) => IconName.Confirm,
+        (_, DeliveryStatus.Failed) => IconName.Warning,
+
+        // Nothing moved at either end: this is somebody speaking, which is the chat glyph.
+        (null, null) => IconName.Chat,
+
+        // Any other move: something changed, and the entry says what.
+        _ => IconName.Edit,
+    };
+}

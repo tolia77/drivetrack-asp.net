@@ -20,12 +20,12 @@
         }
         @if (notice == SessionExpiry.ExpiredNoticeKey)
         {
-            <div class="alert alert-warning" role="alert">@Localizer["SessionExpired"]</div>
+            <DtFailureBanner Message="@Localizer["SessionExpired"]" Variant="DtBannerVariant.Warning" />
             <a class="btn btn-primary" href="/sign-in">@Localizer["SignIn"]</a>
         }
         @if (notice == SessionExpiry.UnexpectedNoticeKey)
         {
-            <div class="alert alert-danger" role="alert">@Localizer["CircuitError"]</div>
+            <DtFailureBanner Message="@Localizer["CircuitError"]" />
         }
     </ErrorContent>
 </ErrorBoundary>

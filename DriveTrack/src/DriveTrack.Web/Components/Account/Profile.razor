@@ -24,7 +24,7 @@
 
 <PageTitle>@Localizer["ProfileTitle"]</PageTitle>
 
-<h1>@Localizer["ProfileTitle"]</h1>
+<h1 class="dt-type-h1">@Localizer["ProfileTitle"]</h1>
 
 @* Rendered at page level as well as inside each dialog: a refusal the user can act on has to be
    visible whether the dialog is still open or has already been dismissed. *@
@@ -37,65 +37,71 @@
 
 @if (_profile is not null)
 {
-    <dl class="row">
-        <dt class="col-sm-4">@Localizer["FirstName"]</dt>
-        <dd class="col-sm-8">@_profile.FirstName</dd>
+    @* One Card: the record, its three actions in the head beside the title, and the facts in the
+       body. The screen's own <h1> names the screen ("my profile"); the card names the record it
+       holds, which is why the two are not the same word. *@
+    <DtCard Title="@Localizer["Profile"]" Class="dt-profile-card">
+        <Actions>
+            <button type="button" class="btn btn-secondary btn-sm dt-profile-edit" @onclick="ShowEditAsync">
+                <Icon Name="IconName.Edit" />@Localizer["Edit"]
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm dt-profile-password" @onclick="ShowPasswordAsync">
+                <Icon Name="IconName.Edit" />@Localizer["ChangePassword"]
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm dt-profile-email" @onclick="ShowEmailAsync">
+                <Icon Name="IconName.Edit" />@Localizer["ChangeEmail"]
+            </button>
+        </Actions>
+        <ChildContent>
+        <dl class="row">
+            <dt class="col-sm-4">@Localizer["FirstName"]</dt>
+            <dd class="col-sm-8">@_profile.FirstName</dd>
 
-        <dt class="col-sm-4">@Localizer["LastName"]</dt>
-        <dd class="col-sm-8">@_profile.LastName</dd>
+            <dt class="col-sm-4">@Localizer["LastName"]</dt>
+            <dd class="col-sm-8">@_profile.LastName</dd>
 
-        <dt class="col-sm-4">@Localizer["Email"]</dt>
-        <dd class="col-sm-8">@_profile.Email</dd>
+            <dt class="col-sm-4">@Localizer["Email"]</dt>
+            <dd class="col-sm-8">@_profile.Email</dd>
 
-        @* DR-3 gives no role but a client a row to keep a number in, so the row appears exactly
-           when there is one to show. *@
-        @if (_profile.PhoneNumber is not null)
-        {
-            <dt class="col-sm-4">@Localizer["PhoneNumber"]</dt>
-            <dd class="col-sm-8">@_profile.PhoneNumber</dd>
-        }
-
-        <dt class="col-sm-4">@Localizer["Role"]</dt>
-        <dd class="col-sm-8">
-            @* One branch per role rather than a composed key: a key built at run time is a key no
-               test can see, and the catalogue is closed against the keys components ask for in
-               both directions. *@
-            @if (_profile.Role == UserRole.Admin)
+            @* DR-3 gives no role but a client a row to keep a number in, so the row appears exactly
+               when there is one to show. *@
+            @if (_profile.PhoneNumber is not null)
             {
-                <span>@Localizer["RoleAdmin"]</span>
+                <dt class="col-sm-4">@Localizer["PhoneNumber"]</dt>
+                <dd class="col-sm-8">@_profile.PhoneNumber</dd>
             }
-            @if (_profile.Role == UserRole.Dispatcher)
-            {
-                <span>@Localizer["RoleDispatcher"]</span>
-            }
-            @if (_profile.Role == UserRole.Driver)
-            {
-                <span>@Localizer["RoleDriver"]</span>
-            }
-            @if (_profile.Role == UserRole.Client)
-            {
-                <span>@Localizer["RoleClient"]</span>
-            }
-        </dd>
 
-        @if (_profile.LicenseNumber is not null)
-        {
-            <dt class="col-sm-4">@Localizer["LicenseNumber"]</dt>
-            <dd class="col-sm-8">@_profile.LicenseNumber</dd>
-        }
-    </dl>
+            <dt class="col-sm-4">@Localizer["Role"]</dt>
+            <dd class="col-sm-8">
+                @* One branch per role rather than a composed key: a key built at run time is a key no
+                   test can see, and the catalogue is closed against the keys components ask for in
+                   both directions. *@
+                @if (_profile.Role == UserRole.Admin)
+                {
+                    <DtBadge Variant="DtBadgeVariant.Role">@Localizer["RoleAdmin"]</DtBadge>
+                }
+                @if (_profile.Role == UserRole.Dispatcher)
+                {
+                    <DtBadge Variant="DtBadgeVariant.Role">@Localizer["RoleDispatcher"]</DtBadge>
+                }
+                @if (_profile.Role == UserRole.Driver)
+                {
+                    <DtBadge Variant="DtBadgeVariant.Role">@Localizer["RoleDriver"]</DtBadge>
+                }
+                @if (_profile.Role == UserRole.Client)
+                {
+                    <DtBadge Variant="DtBadgeVariant.Role">@Localizer["RoleClient"]</DtBadge>
+                }
+            </dd>
 
-    <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-secondary dt-profile-edit" @onclick="ShowEditAsync">
-            <Icon Name="IconName.Edit" />@Localizer["Edit"]
-        </button>
-        <button type="button" class="btn btn-outline-secondary dt-profile-password" @onclick="ShowPasswordAsync">
-            <Icon Name="IconName.Edit" />@Localizer["ChangePassword"]
-        </button>
-        <button type="button" class="btn btn-outline-secondary dt-profile-email" @onclick="ShowEmailAsync">
-            <Icon Name="IconName.Edit" />@Localizer["ChangeEmail"]
-        </button>
-    </div>
+            @if (_profile.LicenseNumber is not null)
+            {
+                <dt class="col-sm-4">@Localizer["LicenseNumber"]</dt>
+                <dd class="col-sm-8 dt-type-code">@_profile.LicenseNumber</dd>
+            }
+        </dl>
+        </ChildContent>
+    </DtCard>
 }
 
 <DtDialog @ref="_editDialog" Title="@Localizer["EditProfileTitle"]" OnClosed="ClearFailures">

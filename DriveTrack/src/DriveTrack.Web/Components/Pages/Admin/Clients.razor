@@ -18,7 +18,7 @@
 
 <PageTitle>@Localizer["ClientsTitle"]</PageTitle>
 
-<h1>@Localizer["ClientsTitle"]</h1>
+<h1 class="dt-type-h1">@Localizer["ClientsTitle"]</h1>
 
 @* What the dialog's boxes have not claimed: a delete refusal, and AUTH_EMAIL_ALREADY_IN_USE, which
    is a 409 naming no field. *@
@@ -30,7 +30,7 @@
         <th scope="col">@Localizer["LastName"]</th>
         <th scope="col">@Localizer["Email"]</th>
         <th scope="col">@Localizer["PhoneNumber"]</th>
-        <th scope="col">@Localizer["Actions"]</th>
+        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="client">
         <td>@client.FirstName</td>

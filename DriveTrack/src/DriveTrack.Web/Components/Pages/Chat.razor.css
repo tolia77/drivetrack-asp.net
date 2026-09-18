@@ -64,42 +64,9 @@
 }
 
 /*
-    One line. `align-self` is what distinguishes it from an own message below - the surface colour
-    and the border do the rest, and none of the three is the only signal, because colour alone is
-    not a distinction everyone can see.
+    The bubbles themselves are ChatLine's, in `ChatLine.razor.css`: a scoped stylesheet only reaches
+    the markup its own component writes, and the <li> is written there.
 */
-.dt-chat-line {
-    align-self: flex-start;
-    max-width: 85%;
-    padding: var(--dt-space-2) var(--dt-space-3);
-    border: var(--dt-border-width) solid var(--dt-border);
-    border-radius: var(--dt-radius-md);
-    background-color: var(--dt-surface-sunken);
-    color: var(--dt-ink);
-}
-
-.dt-chat-line-own {
-    align-self: flex-end;
-    border-color: var(--dt-border-control);
-    background-color: var(--dt-surface-card);
-}
-
-.dt-chat-sender {
-    font-weight: var(--dt-label-font-weight);
-}
-
-.dt-chat-time {
-    margin-left: var(--dt-space-2);
-    color: var(--dt-ink-muted);
-    font-size: var(--dt-small-font-size);
-}
-
-/* Wrapped and preserved: a message typed over several lines reads as it was written. */
-.dt-chat-text {
-    margin: 0;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-}
 
 .dt-chat-empty {
     margin: 0;

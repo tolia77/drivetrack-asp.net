@@ -8,6 +8,7 @@ using DriveTrack.Domain.Identity;
 using DriveTrack.Domain.Reviews;
 using DriveTrack.Integration.Tests.Support;
 using DriveTrack.Web.Components.Pages;
+using DriveTrack.Web.Components.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using ReviewsScreen = DriveTrack.Web.Components.Pages.Reviews;
 

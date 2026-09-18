@@ -1,0 +1,56 @@
+@* Badge: a small marker for a fact next to a value.
+
+   A pill with no border, which is the whole of its contract with StatusLabel: the two vocabularies
+   are read side by side on a delivery row - a status and an overdue mark - and the design keeps
+   them apart by shape rather than by hue, so a badge never takes square corners and a status label
+   never loses them.
+
+   The overdue face carries the warning mark as well as the tint, for the reason every status label
+   carries a shape: colour is never the only signal. The role face carries nothing but its word,
+   because a role is not a warning. *@
+
+<span class="dt-badge @Modifier @Class">
+    @if (Variant == DtBadgeVariant.Overdue)
+    {
+        <Icon Name="IconName.Warning" />
+    }
+    @ChildContent
+</span>
+
+@code {
+    /// <summary>Which of the three looks to wear.</summary>
+    [Parameter]
+    public DtBadgeVariant Variant { get; set; }
+
+    /// <summary>
+    /// The screen's own class on this badge: a hook a test can name, or <c>dt-muted</c> for the
+    /// off state of a pair - which is how the design draws "off duty" beside "on duty" without
+    /// giving the absence of something a colour of its own.
+    /// </summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>The fact, already localized by the screen that states it.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// The modifier class the variant wears. <see cref="DtBadgeVariant.Neutral"/> adds none: the
+    /// base class is already the neutral pill, and an empty modifier keeps the rendered attribute
+    /// identical to what a screen would have written by hand.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A variant with no class. Total over the enum, so a fourth added without a decision about how
+    /// it looks fails here rather than rendering as a neutral pill and being mistaken for one.
+    /// </exception>
+    private string Modifier => Variant switch
+    {
+        DtBadgeVariant.Neutral => string.Empty,
+        DtBadgeVariant.Overdue => "dt-badge--overdue",
+        DtBadgeVariant.Role => "dt-badge--role",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(Variant),
+            Variant,
+            "No badge class is defined for this variant."),
+    };
+}

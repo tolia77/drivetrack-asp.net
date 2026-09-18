@@ -23,7 +23,7 @@
 
 <PageTitle>@Localizer["DriversTitle"]</PageTitle>
 
-<h1>
+<h1 class="dt-type-h1">
     <Icon Name="IconName.Drivers" />@Localizer["DriversTitle"]
 </h1>
 
@@ -57,7 +57,7 @@
         <th scope="col">@Localizer["LicenseNumber"]</th>
         <th scope="col">@Localizer["Vehicle"]</th>
         <th scope="col">@Localizer["Rating"]</th>
-        <th scope="col">@Localizer["Actions"]</th>
+        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="driver">
         <td>@driver.FirstName</td>
@@ -76,19 +76,12 @@
         </td>
         <td>
             @* FR-98: the aggregate, derived on demand and never stored. Null and zero are different
-               claims - nobody has said anything, versus everybody said the worst thing - so a
-               driver with no reviews gets the "no value" text rather than a number. The class comes
-               from Domain's band through ReviewViews - a `dt-rating--*` modifier whose one rule in
-               _theme.scss resolves to a --dt-rating-* token; no threshold and no colour is written
-               here (AD-18, AD-28). *@
-            @if (driver.Rating is null)
-            {
-                <span class="@ReviewViews.NoRatingClass">@Localizer["NoRating"]</span>
-            }
-            @if (driver.Rating is not null)
-            {
-                <span class="@ReviewViews.ClassFor(driver.Rating.Value)">@ReviewViews.Format(driver.Rating.Value)</span>
-            }
+               claims - nobody has said anything, versus everybody said the worst thing - and the
+               shared display is what keeps the two apart: a driver with no reviews gets words and
+               no stars rather than a number, and wears none of the three band colours, because the
+               absence of a verdict is not a verdict. The band is Domain's reading of the number,
+               through ReviewViews; no threshold and no colour is written here (AD-18, AD-28). *@
+            <DtRatingDisplay Rating="driver.Rating" />
         </td>
         <td>
             @* The handler is built in code rather than written as a lambda here: a `=>` inside an
@@ -170,21 +163,21 @@
                    empty option is an explicit "no vehicle" - which is how a dispatcher releases an
                    assignment. The original had no such choice, so an assigned vehicle stayed
                    assigned for good. *@
-                <select id="driver-vehicle" class="form-select" @bind="_form.VehicleId">
+                <DtSelect Id="driver-vehicle" @bind-Value="_form.VehicleId">
                     <option value="">@Localizer["NoVehicle"]</option>
                     @foreach (var vehicle in _vehicleChoices)
                     {
                         <option value="@vehicle.Id">@vehicle.Model — @vehicle.LicensePlate</option>
                     }
-                </select>
+                </DtSelect>
             </div>
         </EditForm>
     </ChildContent>
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would create a second account from the same form. *@
-        <button type="submit" form="driver-form" class="btn btn-secondary" disabled="@_saving">
-            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        <button type="submit" form="driver-form" class="dt-driver-save @SaveVariant" disabled="@_saving">
+            <Icon Name="@SaveGlyph" />@Localizer["Save"]
         </button>
         <button type="button" class="btn btn-outline-secondary" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
@@ -224,6 +217,32 @@
     private IReadOnlyList<DriverSummary> _drivers = [];
     private IReadOnlyList<VehicleChoice> _vehicleChoices = [];
     private IReadOnlyList<ScreenFailure> _failures = [];
+    /// <summary>
+    /// The save action's variant, which follows the mode the dialog is in: creating a record is a
+    /// create action and takes the create colour, and changing one that already exists is an edit.
+    /// <para>
+    /// One dialog serves both modes, so the button is the only thing on screen that can say which
+    /// one the reader is in - and AD-28 gives the two actions different colours precisely so that
+    /// it does. Resolved here rather than as a ternary in the attribute, for the reason
+    /// <c>DtDialog</c> resolves its panel class into a property.
+    /// </para>
+    /// <para>
+    /// Only the variant: the hook stays written out on the button itself, so the source still shows
+    /// which control this is - and it is the hook a test names, because asserting the mode by the
+    /// variant would be a test that passes the day somebody paints a delete button teal.
+    /// </para>
+    /// </summary>
+    private string SaveVariant => _form.Id is null
+        ? "btn btn-primary"
+        : "btn btn-secondary";
+
+    /// <summary>
+    /// The glyph beside it, following the same mode: the create mark when the dialog is making a
+    /// record and the confirm mark when it is saving changes to one. The icon and the colour move
+    /// together, because colour is never allowed to be the only signal.
+    /// </summary>
+    private IconName SaveGlyph => _form.Id is null ? IconName.Create : IconName.Confirm;
+
     private DriverForm _form = new();
     private DriverSummary? _pendingDeletion;
     private DtDialog? _formDialog;

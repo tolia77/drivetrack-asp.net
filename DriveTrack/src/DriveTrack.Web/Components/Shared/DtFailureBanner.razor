@@ -21,16 +21,71 @@
    render, and every 403, 404 and 409 that names no field at all. Subtracting rather than hiding is
    what keeps FR-83 true when a form later drops an input. *@
 
-@foreach (var failure in Unclaimed)
-{
-    var label = Label(failure);
+@* One banner rather than one per refusal. Eight rules keyed COMMON_VALIDATION_FAILED used to
+   stack eight identical red boxes down a dialog, which is how a reader learns to stop reading them;
+   the area is marked once, and what was refused is a list inside it.
 
-    <div class="alert alert-danger" role="alert">
-        @if (label is not null)
-        {
-            <strong>@label</strong><text>: </text>
-        }
-        @Errors[failure.MessageKey]
+   The screen's own sentence and the unclaimed refusals are two independent blocks rather than two
+   readings of one. They used to be alternatives, and the alternative silently won: a screen binding
+   both lost every real refusal the moment it had a sentence to show, which is the FR-83 guarantee
+   turned upside down. Neither can now destroy the other, and a screen carrying both marks two
+   areas because it has two different things to say. *@
+@if (Message is not null)
+{
+    <div class="@BannerClass" role="@BannerRole">
+        <span class="dt-banner__icon" aria-hidden="true">
+            <Icon Name="@MessageGlyph" />
+        </span>
+        <div class="dt-banner__body dt-type-body">
+            <p class="dt-banner__title">@Message</p>
+        </div>
+    </div>
+}
+@if (Unclaimed.Count > 0)
+{
+    @* One source of truth for the face: the refusal list is always a refusal, so it asks
+       BannerClass for the danger face rather than restating the string BannerClass produces. *@
+    <div class="@RefusalClass" role="alert">
+        @* The kind is carried by a solid disc with an inverse glyph rather than by the tint alone:
+           the fill marks the area and the disc says what kind of area it is, which is the rule that
+           colour never works by itself. Forbidden for a refusal of the caller, NotFound for a
+           record that is gone, and the warning mark for everything else. *@
+        <span class="dt-banner__icon" aria-hidden="true">
+            <Icon Name="@RefusalGlyph" />
+        </span>
+
+        <div class="dt-banner__body dt-type-body">
+            @* One refusal is a sentence; several are a list. A single-item list reads as though the
+               product expected more to go wrong than did. *@
+            @if (Lines.Count == 1)
+            {
+                @foreach (var line in Lines)
+                {
+                    <p class="dt-banner__title">
+                        @if (line.Label is not null)
+                        {
+                            <strong>@line.Label</strong><text>: </text>
+                        }
+                        @line.Message
+                    </p>
+                }
+            }
+            @if (Lines.Count > 1)
+            {
+                <ul class="dt-banner__list">
+                    @foreach (var line in Lines)
+                    {
+                        <li class="dt-banner__item">
+                            @if (line.Label is not null)
+                            {
+                                <strong>@line.Label</strong><text>: </text>
+                            }
+                            @line.Message
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
     </div>
 }
 
@@ -52,6 +107,112 @@
 
     /// <summary>The refusals no field on the screen claimed (FR-83).</summary>
     private IReadOnlyList<ScreenFailure> Unclaimed => FailureKeys.Unclaimed(Failures, InlineFields);
+
+    /// <summary>One refusal as the banner reads it: the field's name, and the sentence.</summary>
+    /// <param name="Label">The localized field name, or null when there is none worth printing.</param>
+    /// <param name="Message">The localized explanation.</param>
+    private sealed record BannerLine(string? Label, string Message);
+
+    /// <summary>
+    /// The refusals, resolved to the words that will be printed.
+    /// <para>
+    /// Resolved here rather than inside the loop in markup, and the reason is NFR-14's source scan
+    /// rather than tidiness: a `var label = Label(failure);` written between two tags is a text node
+    /// as far as that scan can tell, and it reads as three rendered English words. The pair comes
+    /// out of C# already assembled, so the markup holds nothing but two property reads.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<BannerLine> Lines =>
+    [
+        .. Unclaimed.Select(failure => new BannerLine(Label(failure), Errors[failure.MessageKey].Value)),
+    ];
+
+    /// <summary>
+    /// A sentence the screen already has, shown instead of the refusal list. This is the half of
+    /// the design's specification <see cref="Failures"/> cannot express: a warning that a rule
+    /// stopped the action, or a confirmation of something that left the screen looking unchanged,
+    /// is not a <c>ScreenFailure</c> and has no message key of its own.
+    /// </summary>
+    /// <remarks>
+    /// It does not replace the refusal list. Both render when both are given: dropping the
+    /// unclaimed refusals because a screen also had a sentence to show would lose real refusals
+    /// with nothing on the page saying so, which is exactly what FR-83 exists to prevent.
+    /// </remarks>
+    [Parameter]
+    public string? Message { get; set; }
+
+    /// <summary>
+    /// Which face to wear. Only read alongside <see cref="Message"/>: a refusal list is a refusal,
+    /// and dressing one as a success would be the banner disagreeing with its own contents.
+    /// </summary>
+    [Parameter]
+    public DtBannerVariant Variant { get; set; }
+
+    /// <summary>
+    /// The classes a refusal list wears: always the danger face, read off <see cref="BannerClass"/>
+    /// rather than written out again, so the two places a red banner is drawn cannot disagree.
+    /// </summary>
+    private static string RefusalClass => ClassFor(DtBannerVariant.Danger);
+
+    /// <summary>The Bootstrap alert and the design's banner classes for the chosen face.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A variant with no class. Total over the enum, so a fourth added without a decision about how
+    /// it looks fails here rather than rendering as a refusal.
+    /// </exception>
+    private string BannerClass => ClassFor(Variant);
+
+    /// <inheritdoc cref="BannerClass" />
+    /// <param name="variant">The face to dress the banner in.</param>
+    private static string ClassFor(DtBannerVariant variant) => variant switch
+    {
+        DtBannerVariant.Danger => "alert alert-danger dt-banner",
+        DtBannerVariant.Warning => "alert alert-warning dt-banner dt-banner--warning",
+        DtBannerVariant.Success => "alert alert-success dt-banner dt-banner--success",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(variant),
+            variant,
+            "No banner class is defined for this variant."),
+    };
+
+    /// <summary>
+    /// <c>alert</c> for a refusal, <c>status</c> for the other two. A warning the reader can act on
+    /// and a confirmation both interrupt nothing; a refusal is the one that has to.
+    /// </summary>
+    private string BannerRole => Variant == DtBannerVariant.Danger ? "alert" : "status";
+
+    /// <summary>
+    /// The glyph in the screen's own banner: Confirm for a confirmation, and the warning mark for
+    /// anything else. Read off the face rather than passed in - which is the design's rule, and a
+    /// rule a screen would only be able to disagree with.
+    /// </summary>
+    private IconName MessageGlyph =>
+        Variant == DtBannerVariant.Success ? IconName.Confirm : IconName.Warning;
+
+    /// <summary>
+    /// The glyph in the refusal list's disc. Forbidden when the caller was refused, NotFound when
+    /// the record is gone, and the warning mark for everything else.
+    /// </summary>
+    private IconName RefusalGlyph
+    {
+        get
+        {
+            foreach (var failure in Unclaimed)
+            {
+                if (failure.MessageKey.EndsWith("_FORBIDDEN", StringComparison.Ordinal)
+                    || failure.MessageKey.EndsWith("_UNAUTHENTICATED", StringComparison.Ordinal))
+                {
+                    return IconName.Forbidden;
+                }
+
+                if (failure.MessageKey.EndsWith("_NOT_FOUND", StringComparison.Ordinal))
+                {
+                    return IconName.NotFound;
+                }
+            }
+
+            return IconName.Warning;
+        }
+    }
 
     /// <summary>
     /// The localized name of the offending input, or null when there is none to show.

@@ -23,7 +23,14 @@ public class DataTableTests
         var html = await RenderAsync(isLoading: true, items: ThreeRows);
 
         Assert.Equal(1, SharedMarkup.Occurrences(html, "dt-table-status"));
-        Assert.Contains("spinner-border", html, StringComparison.Ordinal);
+
+        // Bars where the values will be, rather than a spinner: the design's loading state is a
+        // skeleton plus a status line, so the shape of the table is legible before its contents
+        // arrive. Both halves are asserted - the bars are nothing at all to a screen reader, and
+        // the sentence below is what that reader is told instead.
+        Assert.Equal(2, SharedMarkup.Occurrences(html, "dt-table-skeleton"));
+        Assert.Contains("dt-skeleton", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("spinner-border", html, StringComparison.Ordinal);
         Assert.Equal(0, SharedMarkup.Occurrences(html, "dt-table-empty"));
         Assert.Equal(0, SharedMarkup.Occurrences(html, "dt-table-row"));
 

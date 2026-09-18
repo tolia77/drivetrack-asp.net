@@ -220,7 +220,12 @@ public class FieldErrorTests
                 ],
             });
 
-        Assert.Equal(2, SharedMarkup.Occurrences(html, "alert alert-danger"));
+        // One banner, two lines in it. The area is marked once and what was refused is a list
+        // inside it: eight rules keyed alike used to stack eight identical red boxes down a dialog,
+        // which is how a reader learns to stop reading them. What must not change is that both
+        // refusals are still on the page, which is what the item count asserts.
+        Assert.Equal(1, SharedMarkup.Occurrences(html, "alert alert-danger"));
+        Assert.Equal(2, SharedMarkup.Occurrences(html, "dt-banner__item"));
     }
 
     [Fact]

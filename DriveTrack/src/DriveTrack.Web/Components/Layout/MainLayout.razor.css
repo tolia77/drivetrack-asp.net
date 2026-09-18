@@ -1,8 +1,11 @@
 /*
-    Retokenized under AD-28: every visual value here is a `--dt-*` reference published by
-    Styles/_theme.scss. Layout figures - the 641px breakpoint, the 250px sidebar, 100vh,
-    z-index - are deliberately left literal: they describe geometry, not the palette, and
-    DesignTokenTests scans only the visual properties.
+    The shell's geometry, and only its geometry: the navigation paints itself in NavMenu's own
+    stylesheet and the page's surface is `body`'s, in `_theme.scss`.
+
+    Every palette value here is a `--dt-*` reference, and so are the two figures that used to be
+    literals: the sidebar's width is `nav-width` and its depth is `z-nav`, both of which the design
+    publishes. What is left literal is geometry the palette does not name - `100vh`, the phone
+    breakpoint's `640.98px`, which a media query cannot read from a custom property at all.
 */
 
 .page {
@@ -13,46 +16,13 @@
 
 main {
     flex: 1;
+    /* Without this a wide table inside the screen widens the shell instead of scrolling (NFR-22). */
+    min-width: 0;
 }
 
 /* The dark navigation surface, flat rather than the scaffold's purple gradient. */
 .sidebar {
     background-color: var(--dt-nav-bg);
-}
-
-/* A white bar over the tinted page, separated by a hairline rather than a shadow. */
-.top-row {
-    background-color: var(--dt-surface-card);
-    border-bottom: var(--dt-border-width) solid var(--dt-border);
-    justify-content: flex-end;
-    height: 3.5rem;
-    display: flex;
-    align-items: center;
-}
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        white-space: nowrap;
-        margin-left: var(--dt-space-5);
-        text-decoration: none;
-    }
-
-    .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-        text-decoration: underline;
-    }
-
-    .top-row ::deep a:first-child {
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-@media (max-width: 640.98px) {
-    .top-row {
-        justify-content: space-between;
-    }
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        margin-left: 0;
-    }
 }
 
 @media (min-width: 641px) {
@@ -61,53 +31,15 @@ main {
     }
 
     .sidebar {
-        width: 250px;
+        width: var(--dt-nav-width);
         height: 100vh;
         position: sticky;
         top: 0;
+        z-index: var(--dt-z-nav);
     }
 
-    .top-row {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
-
-    .top-row.auth ::deep a:first-child {
-        flex: 1;
-        text-align: right;
-        width: 0;
-    }
-
-    .top-row, article {
+    article {
         padding-left: var(--dt-space-6) !important;
         padding-right: var(--dt-space-5) !important;
     }
 }
-
-/*
-    The circuit-failure bar. `color-scheme: light only` stays: the app ships one light theme
-    (NFR-21), and this element must not be repainted by a user-agent dark preference.
-*/
-#blazor-error-ui {
-    color-scheme: light only;
-    background-color: var(--dt-warning-subtle);
-    color: var(--dt-ink);
-    border-top: var(--dt-border-width) solid var(--dt-warning-mark);
-    box-shadow: var(--dt-shadow-raised);
-    bottom: 0;
-    box-sizing: border-box;
-    display: none;
-    left: 0;
-    padding: var(--dt-space-3) var(--dt-space-5);
-    position: fixed;
-    width: 100%;
-    z-index: 1000;
-}
-
-    #blazor-error-ui .dismiss {
-        cursor: pointer;
-        position: absolute;
-        right: 0.75rem;
-        top: 0.5rem;
-    }

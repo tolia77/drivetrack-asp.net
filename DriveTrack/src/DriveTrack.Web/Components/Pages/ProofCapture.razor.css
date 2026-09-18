@@ -23,3 +23,19 @@
     justify-content: flex-end;
     gap: var(--dt-space-2);
 }
+
+/*
+    FR-121 read as the design states it: the capture is drawn at 360px first, and every hit target
+    on it is at least `touch-target`. A driver is standing at a door holding a parcel, and a 36px
+    control is one a thumb misses.
+
+    ::deep, because two of these controls are the framework's own markup - InputFile renders the
+    <input> itself - and a scoped rule only reaches what its own component wrote.
+*/
+.dt-proof-form ::deep .form-control {
+    min-height: var(--dt-touch-target);
+}
+
+.dt-proof-actions ::deep .btn {
+    min-height: var(--dt-touch-target);
+}

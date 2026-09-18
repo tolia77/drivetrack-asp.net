@@ -723,7 +723,7 @@ public class DeliveryScreenTests
         Assert.Contains(PickerLabel, empty, StringComparison.Ordinal);
 
         var map = empty.IndexOf(@"class=""dt-map""", StringComparison.Ordinal);
-        var message = empty.IndexOf(@"class=""form-text text-danger""", StringComparison.Ordinal);
+        var message = empty.IndexOf(@"class=""form-text dt-field-error""", StringComparison.Ordinal);
 
         Assert.True(map >= 0, "The picker renders no map.");
         Assert.True(message > map, "The refusal about the point is not rendered beneath the map.");

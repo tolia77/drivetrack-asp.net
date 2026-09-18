@@ -1,0 +1,65 @@
+@inject IStringLocalizer<UiText> Localizer
+
+@* RatingDisplay: a 1-5 judgement in three bands, and a fourth state for nobody's judgement at all.
+
+   FR-98 and AD-18. The bands are Domain's - RatingScale.Band decides what "four and above" means -
+   and ReviewViews decides what each band looks like; this only assembles the three parts a reader
+   sees: the stars, the number, and the word when there is no number.
+
+   The stars repeat the number rather than replacing it. A rating drawn as five glyphs alone is a
+   rating nobody can read back precisely, so the figure is always beside them and the glyphs are
+   `aria-hidden` - a screen reader is told the number once, not five times.
+
+   Unrated is the state worth stating: a driver nobody has reviewed shows words, no stars and no
+   zero. Zero is a rating, and the worst one the scale has. The dashed muted edge that says so is in
+   `_theme.scss` under `dt-rating--unrated`, which is deliberately not one of the three bands. *@
+
+@if (Rating is not { } rating)
+{
+    <span class="@ReviewViews.NoRatingClass">@Localizer["NoRating"]</span>
+}
+@if (Rating is { } scored)
+{<span class="@BandClass(scored)"><span class="dt-rating__stars" aria-hidden="true">@Stars(scored)</span><span class="dt-visually-hidden">@Localizer["Rating"]</span>@ReviewViews.Format(scored)</span>}
+
+@code {
+    /// <summary>How many glyphs the scale has, filled and hollow together.</summary>
+    private const int Glyphs = 5;
+
+    private const char Filled = '★';
+    private const char Hollow = '☆';
+
+    /// <summary>
+    /// The score, or null for a driver nobody has reviewed. Nullable rather than a sentinel,
+    /// because every sentinel this could take - zero, minus one - is a number a reader would be
+    /// shown.
+    /// </summary>
+    [Parameter]
+    public double? Rating { get; set; }
+
+    /// <summary>
+    /// The band the server already reached, when it has one. The reviews screen carries it on every
+    /// row; the driver roster carries an average and no band, so this is optional and the band is
+    /// derived from the number when it is absent.
+    /// </summary>
+    [Parameter]
+    public RatingBand? Band { get; set; }
+
+    private string BandClass(double rating) =>
+        Band is { } band ? ReviewViews.ClassFor(band) : ReviewViews.ClassFor(rating);
+
+    /// <summary>
+    /// The glyph row for a score: one filled star per whole point, hollow after them.
+    /// <para>
+    /// Truncated rather than rounded, and that is the point: rounding up drew 4.5 through 4.99 as
+    /// five filled stars beside a number reading "4,6", which at a glance is indistinguishable from
+    /// a driver every review gave full marks. A partial rating must not draw a full row, so the row
+    /// counts the points the score has actually reached and the figure beside it carries the rest.
+    /// </para>
+    /// </summary>
+    private static string Stars(double rating)
+    {
+        var filled = (int)Math.Clamp(Math.Floor(ReviewViews.Rounded(rating)), 0, Glyphs);
+
+        return new string(Filled, filled) + new string(Hollow, Glyphs - filled);
+    }
+}

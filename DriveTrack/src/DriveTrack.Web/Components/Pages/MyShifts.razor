@@ -25,7 +25,7 @@
 
 <PageTitle>@Localizer["MyShiftsTitle"]</PageTitle>
 
-<h1>
+<h1 class="dt-type-h1">
     <Icon Name="IconName.Shifts" />@Localizer["MyShiftsTitle"]
 </h1>
 
@@ -44,11 +44,11 @@
         <span class="form-label d-block">@Localizer["ShiftState"]</span>
         @if (Open is not null)
         {
-            <span class="badge text-bg-success">@Localizer["ShiftOpen"]</span>
+            <DtBadge>@Localizer["ShiftOpen"]</DtBadge>
         }
         @if (Open is null)
         {
-            <span class="badge text-bg-secondary">@Localizer["ShiftClosed"]</span>
+            <DtBadge Class="dt-muted">@Localizer["ShiftClosed"]</DtBadge>
         }
     </div>
     @* Exactly one of the two, decided by the same predicate the badge above reads. Both are
@@ -76,12 +76,9 @@
 @* NFR-27 keeps paging, and this screen asks for the first page - so past a full page the rest of
    the driver's history is not shown. Saying so is the difference between a limit and a screen that
    quietly lies about how long somebody has worked. *@
-@if (IsTruncated)
-{
-    <div class="alert alert-warning" role="status">@Localizer["ListTruncated"]</div>
-}
-
 <DtDataTable TItem="ShiftSummary"
+             IsTruncated="IsTruncated"
+             Note="@Localizer["ListTruncated"]"
              Items="_shifts"
              IsLoading="_loading"
              EmptyText="@Localizer["ShiftsEmpty"]">
@@ -89,7 +86,7 @@
         <th scope="col">@Localizer["ShiftStartedAt"]</th>
         <th scope="col">@Localizer["ShiftEndedAt"]</th>
         <th scope="col">@Localizer["ShiftState"]</th>
-        <th scope="col">@Localizer["Actions"]</th>
+        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="shift">
         <td>@Moment(shift.StartedAt)</td>

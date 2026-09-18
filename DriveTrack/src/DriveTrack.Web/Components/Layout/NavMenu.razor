@@ -36,7 +36,8 @@
 <input type="checkbox" title="@Localizer["NavigationMenu"]" class="navbar-toggler" />
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
+    <nav class="nav flex-column nav-shell">
+        <div class="nav-destinations">
         @if (destinations.Contains(NavDestination.Home))
         {
             <div class="nav-item px-4">
@@ -154,8 +155,17 @@
             </div>
         }
 
-        @* The account actions are not destinations: they change who the caller is rather than where
+        </div>
+
+        @* The pinned foot. Every role has a different number of destinations - a client four, an
+           administrator ten - and without this the account actions would sit directly under the
+           last link and land somewhere different on every screen. `margin-top: auto` in the
+           stylesheet puts them at the bottom of the frame instead, so a short list and a long list
+           share one shape.
+
+           The account actions are not destinations: they change who the caller is rather than where
            they are, so they sit outside the destination table. *@
+        <div class="nav-foot">
         @if (isSignedIn)
         {
             <div class="nav-item px-4">
@@ -195,9 +205,17 @@
            Each language names itself in the catalogue's own words, so the two buttons read
            "Українська / Англійська" on a Ukrainian page and "Ukrainian / English" on an English
            one. aria-current marks the one already in force; it is not disabled, because a control
-           that vanishes from the tab order is a control a keyboard user cannot find again. *@
+           that vanishes from the tab order is a control a keyboard user cannot find again.
+
+           No radio semantics. These are submit buttons that navigate the moment they are pressed,
+           which is not what a radio group is: that pattern promises arrow-key selection between
+           options and a separate moment where the choice is committed, and neither exists here.
+           Claiming it would override the buttons' own role, suppress the form, and state the
+           current setting twice. aria-current is the single statement of which language is in
+           force, and it is the one this product can keep. *@
         <div class="nav-item px-4">
-            <form class="nav-language" method="post" action="/set-culture" aria-label="@Localizer["Language"]">
+            <form class="nav-language" method="post" action="/set-culture"
+                  aria-label="@Localizer["Language"]">
                 <AntiforgeryToken />
                 <input type="hidden" name="returnUrl" value="@ReturnUrl" />
                 <button class="nav-link btn btn-link" type="submit" name="culture" value="uk-UA"
@@ -205,6 +223,7 @@
                 <button class="nav-link btn btn-link" type="submit" name="culture" value="en-US"
                         aria-current="@(IsUkrainian ? null : "true")">@Localizer["LanguageEnglish"]</button>
             </form>
+        </div>
         </div>
     </nav>
 </div>

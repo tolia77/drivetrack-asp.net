@@ -24,7 +24,7 @@
 
 <PageTitle>@Localizer["NotificationsTitle"]</PageTitle>
 
-<h1>
+<h1 class="dt-type-h1">
     <Icon Name="IconName.Notifications" />@Localizer["NotificationsTitle"]
 </h1>
 
@@ -33,12 +33,9 @@
 @* NFR-27 keeps the original's paging, and this screen asks for the first page - so past a full page
    the older attempts are neither shown nor findable. Saying so is the difference between a limit and
    a screen that quietly lies about what the system has sent. *@
-@if (IsTruncated)
-{
-    <div class="alert alert-warning" role="status">@Localizer["NotificationsTruncated"]</div>
-}
-
 <DtDataTable TItem="NotificationAttemptSummary"
+             IsTruncated="IsTruncated"
+             Note="@Localizer["NotificationsTruncated"]"
              Items="_attempts"
              IsLoading="_isLoading"
              EmptyText="@Localizer["NotificationsEmpty"]">
@@ -63,16 +60,22 @@
         </td>
         <td class="dt-notification-recipient">@attempt.Recipient</td>
         <td>
-            @* A badge apiece rather than one element whose class is computed: AD-28's red is the
-               product's failure colour and the green beside it is its success colour, and both come
-               from the themed framework variables rather than from a rule written here. *@
+            @* Sent and Failed are a status, not a badge: a closed two-value vocabulary with an
+               outcome, which is the same shape a shift's running/finished is - so they wear the
+               shared StatusLabel and its delivered and failed faces, and the tint comes from the
+               palette's own status steps rather than from a rule written beside this table.
+
+               A label apiece rather than one element whose face is computed, for the reason every
+               other vocabulary on this product states: a key composed at run time is a key the
+               closed-catalogue test cannot see. The `dt-notification-*` classes stay as the hooks
+               the suite counts the two outcomes by. *@
             @if (attempt.Outcome == NotificationOutcome.Sent)
             {
-                <span class="badge text-bg-success dt-notification-sent">@Localizer["NotificationSent"]</span>
+                <DtStatusLabel Face="DtStatusFace.Delivered" Class="dt-notification-sent">@Localizer["NotificationSent"]</DtStatusLabel>
             }
             @if (attempt.Outcome == NotificationOutcome.Failed)
             {
-                <span class="badge text-bg-danger dt-notification-failed">@Localizer["NotificationFailed"]</span>
+                <DtStatusLabel Face="DtStatusFace.Failed" Class="dt-notification-failed">@Localizer["NotificationFailed"]</DtStatusLabel>
             }
         </td>
         @* Routed through a method rather than formatted in markup: NFR-14's scan strips a Razor

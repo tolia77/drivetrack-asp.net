@@ -1,0 +1,13 @@
+/*
+    The error half of the design's FormField: the sentence under the box that caused it.
+
+    `danger-text` rather than `danger`, and the difference is contrast: the saturated mark is for a
+    disc or an edge, and this is a sentence somebody has to read on `surface-card`. NFR-29 sees
+    `color` and `gap`; nothing here is geometry.
+*/
+
+.dt-field-error {
+    display: flex;
+    align-items: flex-start;
+    color: var(--dt-danger-text);
+}

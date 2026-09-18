@@ -12,40 +12,9 @@
 }
 
 /*
-    A rule between entries rather than around each one: the timeline is one sequence, and a card per
-    line would read as a set of unrelated notices.
+    An entry's own rules are DtTimelineEntry's, in its own stylesheet: a scoped `.razor.css` only
+    reaches the markup its component writes, and the <li> is written there.
 */
-.dt-timeline-entry {
-    padding: var(--dt-space-3);
-    border-bottom: var(--dt-border-width) solid var(--dt-border);
-}
-
-/* Who and when: quieter than the change itself, because the change is what a reader scans for. */
-.dt-timeline-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--dt-space-2);
-    color: var(--dt-ink-muted);
-    font-size: var(--dt-small-font-size);
-}
-
-.dt-timeline-change {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--dt-space-2);
-    font-weight: var(--dt-label-font-weight);
-}
-
-.dt-timeline-arrow {
-    color: var(--dt-ink-muted);
-}
-
-.dt-timeline-note {
-    margin: var(--dt-space-1) 0 0;
-    color: var(--dt-ink);
-    font-size: var(--dt-body-font-size);
-}
 
 /* The two empty-ish states - loading and nothing yet - read as a statement, not as an entry. */
 .dt-timeline-empty {
@@ -72,6 +41,14 @@
 }
 
 .dt-timeline-actions-label {
+    margin: 0;
     color: var(--dt-ink-muted);
-    font-size: var(--dt-body-font-size);
+}
+
+/*
+    The actor's name, inside the shared entry's meta line. Scoped here rather than there because the
+    span is this screen's markup: DtTimelineEntry is given the fragment and does not write it.
+*/
+.dt-timeline-actor {
+    font-weight: var(--dt-label-font-weight);
 }

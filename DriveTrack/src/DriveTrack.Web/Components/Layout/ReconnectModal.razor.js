@@ -10,10 +10,23 @@ resumeButton.addEventListener("click", resume);
 
 function handleReconnectStateChanged(event) {
     if (event.detail.state === "show") {
-        reconnectModal.showModal();
+        // `show()` rather than `showModal()`: while the circuit is only retrying this element is the
+        // ConnectionDock, and the design's one rule about the dock is that it never blocks the page.
+        // showModal() makes everything behind it inert, which would take the reader's half-typed
+        // form away at the one moment it cannot be recovered any other way.
+        //
+        // Close first: a retry after a give-up comes back through this branch with the dialog still
+        // open as a modal from the `failed` arm, and opening an open dialog throws InvalidStateError
+        // - which would kill the retry and leave the page blocked by the very modal this avoids.
+        reconnectModal.close();
+        reconnectModal.show();
     } else if (event.detail.state === "hide") {
         reconnectModal.close();
     } else if (event.detail.state === "failed") {
+        // Given up. Now it is a dialog: there is nothing left on the page worth reading, and
+        // reloading is the only thing left to do, so it is worth interrupting for.
+        reconnectModal.close();
+        reconnectModal.showModal();
         document.addEventListener("visibilitychange", retryWhenDocumentBecomesVisible);
     } else if (event.detail.state === "rejected") {
         location.reload();

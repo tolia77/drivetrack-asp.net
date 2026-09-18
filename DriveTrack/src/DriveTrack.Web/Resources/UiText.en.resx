@@ -637,6 +637,9 @@
   <data name="ChatUnknownSender" xml:space="preserve">
     <value>Deleted user</value>
   </data>
+  <data name="ChatYou" xml:space="preserve">
+    <value>You</value>
+  </data>
   <data name="ChatMessagePlaceholder" xml:space="preserve">
     <value>Write a message</value>
   </data>

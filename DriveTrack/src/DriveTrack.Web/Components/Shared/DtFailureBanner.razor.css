@@ -1,0 +1,79 @@
+/*
+    The disc-and-title shape (NFR-4, NFR-29). Every palette value is a `--dt-*` token; the disc's
+    box is geometry, sized against the text beside it so the mark follows the type scale.
+
+    No border and no side stripe. The tinted fill marks the area and the disc carries the kind,
+    which is what leaves the title and the text in `ink`: a saturated fill would have forced
+    light-on-red text, and a refusal is a sentence somebody has to read carefully.
+
+    `--bs-alert-border-color` is set to the fill rather than the rule being dropped: the class stays
+    Bootstrap's `.alert-*`, so the framework's own border still paints, and painting it in the fill
+    is how it disappears without a second source of truth for the shape.
+*/
+
+.dt-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--dt-space-3);
+    padding: var(--dt-space-4);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-danger-subtle);
+    --bs-alert-border-color: var(--dt-danger-subtle);
+    --bs-alert-color: var(--dt-ink);
+    color: var(--dt-ink);
+}
+
+.dt-banner--warning {
+    background-color: var(--dt-warning-subtle);
+    --bs-alert-border-color: var(--dt-warning-subtle);
+}
+
+.dt-banner--success {
+    background-color: var(--dt-success-subtle);
+    --bs-alert-border-color: var(--dt-success-subtle);
+}
+
+/*
+    The disc. Solid in the kind's own colour with an inverse glyph, which is the one place in a
+    banner a saturated colour is safe: nothing is read out of it.
+*/
+.dt-banner__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background-color: var(--dt-danger);
+    color: var(--dt-ink-inverse);
+}
+
+.dt-banner--warning .dt-banner__icon {
+    background-color: var(--dt-warning-mark);
+}
+
+.dt-banner--success .dt-banner__icon {
+    background-color: var(--dt-success);
+}
+
+.dt-banner__body {
+    min-width: 0;
+}
+
+.dt-banner__title {
+    margin: 0;
+}
+
+/*
+    The list of what was refused. Bullets kept: they are what makes three refusals read as three
+    rather than as one long sentence, and the indent is the marker's own rather than a second gap.
+*/
+.dt-banner__list {
+    margin: var(--dt-space-1) 0 0;
+    padding-inline-start: var(--dt-space-5);
+}
+
+.dt-banner__item + .dt-banner__item {
+    margin-top: var(--dt-space-1);
+}

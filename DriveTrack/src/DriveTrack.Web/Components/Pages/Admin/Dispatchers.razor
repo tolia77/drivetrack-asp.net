@@ -14,7 +14,7 @@
 
 <PageTitle>@Localizer["DispatchersTitle"]</PageTitle>
 
-<h1>@Localizer["DispatchersTitle"]</h1>
+<h1 class="dt-type-h1">@Localizer["DispatchersTitle"]</h1>
 
 @* One list for both dialogs, because they share _failures: a per-dialog list would leave a name
    refusal showing twice, inline in the dialog that raised it and again in the other's banner. The
@@ -33,7 +33,7 @@
         <th scope="col">@Localizer["FirstName"]</th>
         <th scope="col">@Localizer["LastName"]</th>
         <th scope="col">@Localizer["Email"]</th>
-        <th scope="col">@Localizer["Actions"]</th>
+        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="dispatcher">
         <td>@dispatcher.FirstName</td>

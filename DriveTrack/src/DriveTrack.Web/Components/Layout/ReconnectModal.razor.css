@@ -1,43 +1,47 @@
 /*
-    Retokenized under AD-28. The visibility machinery and the animations are behaviour and
-    are untouched; only the surface, the elevation, the spacing and the button's colours
-    were literals, and each is now a token reference.
+    ConnectionDock, in the element the framework owns (AD-28, NFR-29). Every palette value is a
+    `--dt-*` token and the depth is `z-dock`, which the palette declares for this and for the
+    circuit-failure bar and for nothing else: a connection that has gone is the one thing that
+    outranks whatever is on screen.
+
+    The literals left are geometry - the panel's width, the dot's box, the dock's offset from the
+    foot of the screen - and the transition timings, which are behaviour.
 */
 
+/*
+    The visibility machinery is the framework's and is untouched: Blazor writes the state onto the
+    element as a class, and these rules decide which sentence that state shows.
+*/
 .components-reconnect-first-attempt-visible,
 .components-reconnect-repeated-attempt-visible,
 .components-reconnect-failed-visible,
 .components-pause-visible,
 .components-resume-failed-visible,
-.components-rejoining-animation {
+.components-reconnect-dot {
     display: none;
 }
 
 #components-reconnect-modal.components-reconnect-show .components-reconnect-first-attempt-visible,
-#components-reconnect-modal.components-reconnect-show .components-rejoining-animation,
+#components-reconnect-modal.components-reconnect-show .components-reconnect-dot,
 #components-reconnect-modal.components-reconnect-paused .components-pause-visible,
 #components-reconnect-modal.components-reconnect-resume-failed .components-resume-failed-visible,
 #components-reconnect-modal.components-reconnect-retrying,
 #components-reconnect-modal.components-reconnect-retrying .components-reconnect-repeated-attempt-visible,
-#components-reconnect-modal.components-reconnect-retrying .components-rejoining-animation,
+#components-reconnect-modal.components-reconnect-retrying .components-reconnect-dot,
 #components-reconnect-modal.components-reconnect-failed,
 #components-reconnect-modal.components-reconnect-failed .components-reconnect-failed-visible {
     display: block;
 }
 
 
+/*
+    The give-up shape: a dialog, because there is nothing left on the page to read.
+*/
 #components-reconnect-modal {
     background-color: var(--dt-surface-card);
+    color: var(--dt-ink);
     width: 20rem;
-    /*
-        The scaffold's 20vh top offset became a spacing step: one scale owns every gap.
-
-        NOT a pure rename: this was `space-7` (3rem), and the new six-step scale stops at
-        `space-6` (2rem), so the offset is 1rem shorter than it was. Recorded rather than left
-        silent, because the rest of this sweep was mechanical and this is the one figure in the
-        file that moved. It is a top margin on a centred dialog, so the cost is that the panel
-        sits a little higher; the alternative was a seventh step existing for one declaration.
-    */
+    max-width: 92vw;
     margin: var(--dt-space-6) auto;
     padding: var(--dt-space-6);
     border: 0;
@@ -46,13 +50,11 @@
     opacity: 0;
     transition: display 0.5s allow-discrete, overlay 0.5s allow-discrete;
     animation: components-reconnect-modal-fadeOutOpacity 0.5s both;
-    &[open]
-
-{
-    animation: components-reconnect-modal-slideUp 1.5s cubic-bezier(.05, .89, .25, 1.02) 0.3s, components-reconnect-modal-fadeInOpacity 0.5s ease-in-out 0.3s;
-    animation-fill-mode: both;
 }
 
+#components-reconnect-modal[open] {
+    animation: components-reconnect-modal-fadeInOpacity 0.5s ease-in-out;
+    animation-fill-mode: both;
 }
 
 #components-reconnect-modal::backdrop {
@@ -61,14 +63,39 @@
     opacity: 1;
 }
 
-@keyframes components-reconnect-modal-slideUp {
-    0% {
-        transform: translateY(30px) scale(0.95);
-    }
+/*
+    The retrying shape: a dock. Same element, opened without the modal flag by the module beside
+    this file, so the page underneath stays readable and reachable - which is the one rule the
+    design states about it. Declared after the dialog rules so it wins on order rather than by
+    being written more specifically than it has to be.
+*/
+#components-reconnect-modal.components-reconnect-show,
+#components-reconnect-modal.components-reconnect-retrying {
+    position: fixed;
+    inset: auto auto var(--dt-space-4) 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: 92vw;
+    margin: 0;
+    padding: var(--dt-space-3) var(--dt-space-4);
+    border-radius: var(--dt-radius-md);
+    background-color: var(--dt-nav-bg);
+    color: var(--dt-ink-inverse);
+    box-shadow: var(--dt-shadow-raised);
+    z-index: var(--dt-z-dock);
+}
 
-    100% {
-        transform: translateY(0);
-    }
+/* No scrim while it is only a dock: a dimmed page is a page the product has taken away. */
+#components-reconnect-modal.components-reconnect-show::backdrop,
+#components-reconnect-modal.components-reconnect-retrying::backdrop {
+    background-color: transparent;
+}
+
+#components-reconnect-modal.components-reconnect-show .components-reconnect-container,
+#components-reconnect-modal.components-reconnect-retrying .components-reconnect-container {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--dt-space-3);
 }
 
 @keyframes components-reconnect-modal-fadeInOpacity {
@@ -103,13 +130,26 @@
     text-align: center;
 }
 
+/*
+    The mark that says the circuit is working on it. Amber, because it is the one step in the
+    palette that holds on `nav-bg` - the same reason the navigation's focus ring is that colour.
+*/
+.components-reconnect-dot {
+    flex: none;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    background-color: var(--dt-focus-ring-on-dark);
+}
+
 /* Retrying is a plain, non-destructive action, so it takes the edit accent. */
 #components-reconnect-modal button {
     border: 0;
     background-color: var(--dt-action-edit);
     color: var(--dt-ink-inverse);
-    padding: var(--dt-space-1) var(--dt-space-5);
+    padding: var(--dt-space-2) var(--dt-space-5);
     border-radius: var(--dt-radius-sm);
+    min-height: var(--dt-control-height);
 }
 
     #components-reconnect-modal button:hover {
@@ -119,55 +159,3 @@
     #components-reconnect-modal button:active {
         background-color: var(--dt-action-edit);
     }
-
-.components-rejoining-animation {
-    position: relative;
-    width: 80px;
-    height: 80px;
-}
-
-    .components-rejoining-animation div {
-        position: absolute;
-        border: var(--dt-border-width-focus) solid var(--dt-action-edit);
-        opacity: 1;
-        border-radius: var(--dt-radius-pill);
-        animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
-    }
-
-        .components-rejoining-animation div:nth-child(2) {
-            animation-delay: -0.5s;
-        }
-
-@keyframes components-rejoining-animation {
-    0% {
-        top: 40px;
-        left: 40px;
-        width: 0;
-        height: 0;
-        opacity: 0;
-    }
-
-    4.9% {
-        top: 40px;
-        left: 40px;
-        width: 0;
-        height: 0;
-        opacity: 0;
-    }
-
-    5% {
-        top: 40px;
-        left: 40px;
-        width: 0;
-        height: 0;
-        opacity: 1;
-    }
-
-    100% {
-        top: 0px;
-        left: 0px;
-        width: 80px;
-        height: 80px;
-        opacity: 0;
-    }
-}

@@ -21,7 +21,7 @@
 
 <PageTitle>@Localizer["VehiclesTitle"]</PageTitle>
 
-<h1>
+<h1 class="dt-type-h1">
     <Icon Name="IconName.Vehicles" />@Localizer["VehiclesTitle"]
 </h1>
 
@@ -51,12 +51,9 @@
 @* NFR-27 keeps the original's paging, and this screen asks for the first page and searches it
    in the browser - so past a full page the rest of the fleet is neither shown nor findable.
    Saying so is the difference between a limit and a screen that quietly lies about the fleet. *@
-@if (IsTruncated)
-{
-    <div class="alert alert-warning" role="status">@Localizer["ListTruncated"]</div>
-}
-
 <DtDataTable TItem="VehicleSummary"
+             IsTruncated="IsTruncated"
+             Note="@Localizer["ListTruncated"]"
              Items="Visible"
              IsLoading="_loading"
              EmptyText="@Localizer["VehiclesEmpty"]">
@@ -64,11 +61,13 @@
         <th scope="col">@Localizer["Model"]</th>
         <th scope="col">@Localizer["LicensePlate"]</th>
         <th scope="col">@Localizer["CapacityKg"]</th>
-        <th scope="col">@Localizer["Actions"]</th>
+        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
     </HeaderTemplate>
     <RowTemplate Context="vehicle">
         <td>@vehicle.Model</td>
-        <td>@vehicle.LicensePlate</td>
+        @* A plate is a string a reader compares character by character, which a proportional
+               font makes harder than it needs to be. *@
+        <td><span class="dt-type-code">@vehicle.LicensePlate</span></td>
         <td>@vehicle.CapacityKg</td>
         <td>
             @* The handlers are built in code rather than written as lambdas here: a `=>` inside an
@@ -144,8 +143,8 @@
     <Actions>
         @* Disabled while a save is in flight: the circuit yields at the await, so a second click
            would dispatch a second write before the first has answered. *@
-        <button type="submit" form="vehicle-form" class="btn btn-secondary" disabled="@_saving">
-            <Icon Name="IconName.Confirm" />@Localizer["Save"]
+        <button type="submit" form="vehicle-form" class="dt-vehicle-save @SaveVariant" disabled="@_saving">
+            <Icon Name="@SaveGlyph" />@Localizer["Save"]
         </button>
         <button type="button" class="btn btn-outline-secondary" @onclick="CloseFormAsync">
             <Icon Name="IconName.Close" />@Localizer["Cancel"]
@@ -182,6 +181,32 @@
 
     private IReadOnlyList<VehicleSummary> _vehicles = [];
     private IReadOnlyList<ScreenFailure> _failures = [];
+    /// <summary>
+    /// The save action's variant, which follows the mode the dialog is in: creating a record is a
+    /// create action and takes the create colour, and changing one that already exists is an edit.
+    /// <para>
+    /// One dialog serves both modes, so the button is the only thing on screen that can say which
+    /// one the reader is in - and AD-28 gives the two actions different colours precisely so that
+    /// it does. Resolved here rather than as a ternary in the attribute, for the reason
+    /// <c>DtDialog</c> resolves its panel class into a property.
+    /// </para>
+    /// <para>
+    /// Only the variant: the hook stays written out on the button itself, so the source still shows
+    /// which control this is - and it is the hook a test names, because asserting the mode by the
+    /// variant would be a test that passes the day somebody paints a delete button teal.
+    /// </para>
+    /// </summary>
+    private string SaveVariant => _form.Id is null
+        ? "btn btn-primary"
+        : "btn btn-secondary";
+
+    /// <summary>
+    /// The glyph beside it, following the same mode: the create mark when the dialog is making a
+    /// record and the confirm mark when it is saving changes to one. The icon and the colour move
+    /// together, because colour is never allowed to be the only signal.
+    /// </summary>
+    private IconName SaveGlyph => _form.Id is null ? IconName.Create : IconName.Confirm;
+
     private VehicleForm _form = new();
     private VehicleSummary? _pendingDeletion;
     private DtDialog? _formDialog;
