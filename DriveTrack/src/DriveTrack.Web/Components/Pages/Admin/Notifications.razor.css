@@ -1,13 +1,19 @@
 /*
-    The fleet screen's own cells, and the one thing it asks of the table it does not own: below the
-    phone breakpoint the rows stop being rows and become cards.
+    The notification log's own cells, and the one thing this screen asks of the table it does not
+    own: below the phone breakpoint the rows stop being rows and become cards.
 
-    Four columns - a model, a plate, a capacity and the row's two actions - read as a table on a
-    desktop and as a horizontal scroller on a 390px screen, where a reader is left dragging a row
-    sideways to find out what is in it. A table that collapses at that edge answers both, and keeps
-    the truncation note, the empty state and the loading skeleton that only DtDataTable supplies.
-    This screen was drawn from no design, so the collapse is the one `MyDeliveries.razor.css`
-    already settled rather than a shape invented here.
+    Six columns read as a table on a desktop and as a horizontal scroller on a 390px screen, where
+    a reader is left dragging a row sideways to find out what is in it. That is worst here: the
+    column a reader opens this screen for is the last one, the error, so the one value the page
+    exists to show is the one furthest off the edge. A
+    table that collapses at that edge answers it, and keeps the truncation note, the empty state
+    and the loading skeleton that only DtDataTable supplies. The shape is the one the fleet screens
+    settled rather than one invented here.
+
+    This screen's first stylesheet, and it carries only the collapse. No actions rules: the log is
+    read and nothing on it can be acted on, so the table has no actions column, no buttons in its
+    rows and no action beside its heading - and a floor written for controls that do not exist
+    would be a rule nothing matches.
 
     NFR-29: every palette value here is a `--dt-*` reference. What is literal is geometry the
     palette does not name - the breakpoint itself, which a media query cannot read from a custom
@@ -26,7 +32,7 @@
     component's scope. The rules that reach the table, the head and the rows do need one, and have
     one, because those elements are DtDataTable's.
 */
-.dt-vehicle-label {
+.dt-notification-label {
     display: none;
 }
 
@@ -41,10 +47,9 @@
     sliver of widths where the shell is a sidebar and the rows are already cards.
 
     ::deep on everything that reaches into the table: the table, its head and its rows are
-    DtDataTable's elements and carry that component's scope, and `.dt-vehicles` is this screen's
-    wrapper, so it anchors those selectors - which is also what keeps these rules off the other
-    tables in the product. The label and the heading row are this screen's own elements and are
-    anchored without one.
+    DtDataTable's elements and carry that component's scope, and `.dt-notifications` is this
+    screen's wrapper, so it anchors those selectors - which is also what keeps these rules off the
+    other tables in the product. The label is this screen's own element and is anchored without one.
 */
 @media (max-width: 640.98px) {
     /*
@@ -53,7 +58,7 @@
         - so a head left in the accessibility tree would name columns that no longer exist to be
         announced under. What replaces it is the label inside each cell, revealed just below.
     */
-    .dt-vehicles ::deep thead {
+    .dt-notifications ::deep thead {
         display: none;
     }
 
@@ -61,15 +66,14 @@
         And the label takes the heading's place, as something a reader can actually see. `display`
         alone would not do that: `dt-visually-hidden` also pulls the span out of the flow, shrinks
         it to a pixel, hides the overflow and masks what is left, so every one of those has to be
-        handed back here - or a card would show a bare capacity figure whose unit lived only in the
-        heading that has just been dropped.
+        handed back here - or a card would show a bare number with nothing saying it is the
+        delivery the attempt was about.
 
         A face of its own, so it reads as the name of the value rather than as a second value: the
         same quietened label ramp the column headings wear. Full width so it takes the line above
-        the value, in the actions cell as well - that one is a flex row, and without this the name
-        of the column would sit on the line beside the buttons it names.
+        the value.
     */
-    .dt-vehicles .dt-vehicle-label {
+    .dt-notifications .dt-notification-label {
         display: block;
         position: static;
         width: 100%;
@@ -88,10 +92,10 @@
         A table laid out as blocks. Every level of it, or a `display: block` row would have its
         cells wrapped back into an anonymous table box and nothing would change.
     */
-    .dt-vehicles ::deep table,
-    .dt-vehicles ::deep tbody,
-    .dt-vehicles ::deep tr,
-    .dt-vehicles ::deep td {
+    .dt-notifications ::deep table,
+    .dt-notifications ::deep tbody,
+    .dt-notifications ::deep tr,
+    .dt-notifications ::deep td {
         display: block;
         width: 100%;
     }
@@ -102,7 +106,7 @@
         screen it would put a 512px scrolling region inside a scrolling page, and escaping one
         nested scroller is exactly what collapsing to cards is for. The page scrolls instead.
     */
-    .dt-vehicles ::deep .dt-table-scroll {
+    .dt-notifications ::deep .dt-table-scroll {
         max-height: none;
     }
 
@@ -115,7 +119,7 @@
         bare. With the padding on the cells the fill covers the card edge to edge, and what is left
         for the row is the card's own edge.
     */
-    .dt-vehicles ::deep tr.dt-table-row {
+    .dt-notifications ::deep tr.dt-table-row {
         border-bottom: var(--dt-border-width) solid var(--dt-border);
     }
 
@@ -132,43 +136,9 @@
         rather than `break-word`, as `ChatLine.razor.css` writes it for the same problem: it lets
         the intrinsic width shrink too, which is what a cell inside a grid or a flex track needs.
     */
-    .dt-vehicles ::deep tr.dt-table-row td {
+    .dt-notifications ::deep tr.dt-table-row td {
         padding: var(--dt-space-2) var(--dt-space-3);
         border: 0;
         overflow-wrap: anywhere;
-    }
-
-    /*
-        The row's actions, which on a desktop are one nowrapped line at the trailing edge and on a
-        card are a block of buttons a thumb has to be able to land on. Long enough a selector to
-        take the two properties back from DtDataTable's own rule, which is written for the table
-        shape.
-    */
-    .dt-vehicles ::deep tr.dt-table-row td.dt-table-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--dt-space-2);
-        white-space: normal;
-        text-align: start;
-    }
-
-    /*
-        Every control in a card is at least `touch-target` tall. The same floor the own-deliveries
-        cards are held to, and for the same reason: a 36px control is one a thumb misses.
-    */
-    .dt-vehicles ::deep tr.dt-table-row .btn {
-        min-height: var(--dt-touch-target);
-    }
-
-    /*
-        And the action beside the heading, which the rule above cannot reach: the heading row sits
-        outside the wrapper, because the wrapper exists only to give `::deep` somewhere to hang from
-        and the head is this screen's own markup. Floored here rather than in `_theme.scss` so the
-        change lands on these four screens and nothing else - and it matters most on the personal
-        shift screen, where the head carries the single on-duty control a driver on a phone is
-        holding the phone to press.
-    */
-    .dt-page-head .btn {
-        min-height: var(--dt-touch-target);
     }
 }

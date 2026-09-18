@@ -1,7 +1,7 @@
 namespace DriveTrack.Integration.Tests.Components;
 
 /// <summary>
-/// The join between the four fleet screens' markup and the phone layer that reads it.
+/// The join between a screen's markup and the phone layer that reads it.
 /// <para>
 /// Everything else about these screens is asserted on one side or the other: the render tests read
 /// the HTML and never open a stylesheet, and <c>DesignTokenTests</c> reads the stylesheets for the
@@ -22,22 +22,33 @@ namespace DriveTrack.Integration.Tests.Components;
 public class PhoneLayoutTests
 {
     /// <summary>
-    /// The four screens, each with the wrapper its stylesheet anchors on and the class its cells
-    /// mark their own name with. A table rather than four near-identical facts, so a fifth screen
-    /// joining the collapse is a row.
+    /// Every screen that collapses its table on a phone: the directory it lives in under
+    /// <c>Components/Pages</c>, the wrapper its stylesheet anchors on and the class its cells mark
+    /// their own name with. A table rather than a run of near-identical facts, so a screen joining
+    /// the collapse is a row.
+    /// <para>
+    /// The directory is blank for the screens that sit directly under <c>Pages</c>:
+    /// <c>Path.Combine</c> drops an empty segment, so one reader serves both depths without a
+    /// branch.
+    /// </para>
     /// </summary>
-    public static TheoryData<string, string, string> Screens() => new()
+    public static TheoryData<string, string, string, string> Screens() => new()
     {
-        { "Vehicles", "dt-vehicles", "dt-vehicle-label" },
-        { "Drivers", "dt-drivers", "dt-driver-label" },
-        { "Shifts", "dt-shifts", "dt-shift-label" },
-        { "MyShifts", "dt-my-shifts", "dt-shift-label" },
+        { "Vehicles", "", "dt-vehicles", "dt-vehicle-label" },
+        { "Drivers", "", "dt-drivers", "dt-driver-label" },
+        { "Shifts", "", "dt-shifts", "dt-shift-label" },
+        { "MyShifts", "", "dt-my-shifts", "dt-shift-label" },
+        { "MyDeliveries", "", "dt-my-deliveries", "dt-my-delivery-label" },
+        { "Clients", "Admin", "dt-clients", "dt-client-label" },
+        { "Dispatchers", "Admin", "dt-dispatchers", "dt-dispatcher-label" },
+        { "Notifications", "Admin", "dt-notifications", "dt-notification-label" },
     };
 
     [Theory]
     [MemberData(nameof(Screens))]
     public async Task The_phone_collapse_is_anchored_on_a_wrapper_the_screen_really_renders(
         string screen,
+        string directory,
         string wrapper,
         string label)
     {
@@ -52,7 +63,7 @@ public class PhoneLayoutTests
         // the `<thead>` is DtDataTable's element and carries that component's scope - without it
         // the rule compiles to one that matches nothing and the head survives the collapse,
         // naming columns that are no longer laid out as columns.
-        var css = SharedMarkup.ReadComponent("Pages", screen + ".razor.css");
+        var css = SharedMarkup.ReadComponent("Pages", directory, screen + ".razor.css");
 
         Assert.Contains($".{wrapper} ::deep thead", css, StringComparison.Ordinal);
 
@@ -64,9 +75,9 @@ public class PhoneLayoutTests
     }
 
     /// <summary>
-    /// One of the four screens, rendered through the stubs its own suite already keeps. Borrowed
-    /// rather than duplicated: a second set of stubs is a second answer to what these screens are
-    /// given, and this class has no opinion about that.
+    /// One of the screens, rendered through the stubs its own suite already keeps. Borrowed rather
+    /// than duplicated: a second set of stubs is a second answer to what these screens are given,
+    /// and this class has no opinion about that.
     /// </summary>
     private static Task<string> RenderAsync(string screen) => screen switch
     {
@@ -74,6 +85,10 @@ public class PhoneLayoutTests
         "Drivers" => FleetScreenTests.RenderDriversAsync(),
         "Shifts" => ShiftScreenTests.RenderRosterAsync(),
         "MyShifts" => ShiftScreenTests.RenderOwnAsync(ShiftScreenTests.Roster),
+        "MyDeliveries" => DeliveryScreenTests.RenderOwnDeliveriesAsync(),
+        "Clients" => AdministrationScreenTests.RenderClientsAsync(),
+        "Dispatchers" => AdministrationScreenTests.RenderDispatchersAsync(),
+        "Notifications" => NotificationScreenTests.RenderLogAsync(),
         _ => throw new ArgumentOutOfRangeException(nameof(screen), screen, "No such screen."),
     };
 }

@@ -123,10 +123,19 @@
         Every cell is a line of the card, full width, and it carries the card's padding for the
         reason above. The cell borders go: a card ruled between each of its own lines is several
         cards.
+
+        And a long unbroken value breaks inside the card rather than widening it. An address, a
+        licence plate or a provider's error string carries no space for a line to break at, so
+        without this it pushes the cell past 390px and `.dt-table-scroll` - which still scrolls,
+        it is only its height cap that was released above - hands the card a sideways scroller of
+        its own. Escaping that scroller is the whole of what this collapse is for. `anywhere`
+        rather than `break-word`, as `ChatLine.razor.css` writes it for the same problem: it lets
+        the intrinsic width shrink too, which is what a cell inside a grid or a flex track needs.
     */
     .dt-drivers ::deep tr.dt-table-row td {
         padding: var(--dt-space-2) var(--dt-space-3);
         border: 0;
+        overflow-wrap: anywhere;
     }
 
     /*

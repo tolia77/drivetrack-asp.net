@@ -23,8 +23,9 @@
     and a reader scanning the column reads the description first. Blocks rather than separators, so a
     row carrying only one of the three renders that one alone.
 
-    The per-cell label is excluded by hand: it is a block only below the breakpoint, and it is
-    clipped to a pixel either way, so letting this rule reach it would only fight the rule below.
+    The per-cell label is excluded by hand: below the breakpoint the rule below already gives it
+    its own `display`, and above it the label is not rendered at all, so letting this rule reach it
+    would only fight the one that owns it.
 */
 td.dt-my-delivery-package > span:not(.dt-my-delivery-label) {
     display: block;
@@ -51,9 +52,10 @@ td.dt-my-delivery-package > span:not(.dt-my-delivery-label) {
     out - as `Home.razor.css` writes it, and deliberately not approximated as `min-width: 641px`,
     which would leave a sliver of widths where the shell is a sidebar and the rows are already cards.
 
-    ::deep throughout: the table, its head and its rows are DtDataTable's elements and carry that
-    component's scope. `.dt-my-deliveries` is this screen's wrapper, so it anchors every selector -
-    which is also what keeps these rules off the other tables in the product.
+    ::deep on everything that reaches into the table: the table, its head and its rows are
+    DtDataTable's elements and carry that component's scope. `.dt-my-deliveries` is this screen's
+    wrapper, so it anchors every selector - which is also what keeps these rules off the other
+    tables in the product. The label is this screen's own element and is anchored without one.
 */
 @media (max-width: 640.98px) {
     /*
@@ -73,8 +75,35 @@ td.dt-my-delivery-package > span:not(.dt-my-delivery-label) {
         display: none;
     }
 
-    .dt-my-deliveries ::deep .dt-my-delivery-label {
-        display: inline;
+    /*
+        And the label takes the heading's place, as something a reader can actually see. `display`
+        alone would not do that: `dt-visually-hidden` also pulls the span out of the flow, shrinks
+        it to a pixel, hides the overflow and masks what is left, so every one of those has to be
+        handed back here - or a card would show a bare weight figure whose unit lived only in the
+        heading that has just been dropped.
+
+        A face of its own, so it reads as the name of the value rather than as a second value: the
+        same quietened label ramp the column headings wear. Full width so it takes the line above
+        the value, in the actions cell as well - that one is a flex row, and without this the name
+        of the column would sit on the line beside the buttons it names.
+
+        No `::deep`: the span is written in this screen's own `RowTemplate`, so it already carries
+        this component's scope, and a `::deep` here would compile to a selector for an element
+        DtDataTable rendered and match nothing.
+    */
+    .dt-my-deliveries .dt-my-delivery-label {
+        display: block;
+        position: static;
+        width: 100%;
+        height: auto;
+        overflow: visible;
+        clip: auto;
+        clip-path: none;
+        white-space: normal;
+        color: var(--dt-ink-muted);
+        font-size: var(--dt-label-font-size);
+        line-height: var(--dt-label-line-height);
+        font-weight: var(--dt-label-font-weight);
     }
 
     /*
@@ -100,9 +129,15 @@ td.dt-my-delivery-package > span:not(.dt-my-delivery-label) {
     }
 
     /*
-        One row, one card. The rule under it is the card's edge; the striping and the hover tint are
-        the themed framework's and carry over unchanged, which is what keeps one card distinguishable
-        from the next.
+        One row, one card, and the rule under it is the card's edge.
+
+        The striping and the hover tint do not cover that card. The themed framework paints both as
+        an inset shadow on the cell (`.table > :not(caption) > * > *`), so this row's padding and
+        the gap between its cells are a frame the fill never reaches, and an odd card shows its text
+        lines painted inside bare white space. The other seven screens answer that by carrying the
+        padding on the cells instead; this one cannot follow them without a decision about its two
+        tracks, which place the window and the status on one line. Recorded in the deferred-work
+        ledger rather than left as a claim that the striping carries over, which it does not.
     */
     .dt-my-deliveries ::deep tr.dt-table-row {
         display: grid;
@@ -116,11 +151,20 @@ td.dt-my-delivery-package > span:not(.dt-my-delivery-label) {
     /*
         Every cell is a line of the card, full width, with the padding given to the card instead. The
         cell borders go with it: a card ruled between each of its own lines is five cards.
+
+        And a long unbroken value breaks inside the card rather than widening it. An address carries
+        no space for a line to break at, so without this it pushes the cell past 390px and
+        `.dt-table-scroll` - which still scrolls, it is only its height cap that was released above
+        - hands the card a sideways scroller of its own. Escaping that scroller is the whole of what
+        this collapse is for. `anywhere` rather than `break-word`, as `ChatLine.razor.css` writes it
+        for the same problem: it lets the intrinsic width shrink too, which is what a cell inside a
+        grid track needs.
     */
     .dt-my-deliveries ::deep tr.dt-table-row td {
         grid-column: 1 / -1;
         padding: 0;
         border: 0;
+        overflow-wrap: anywhere;
     }
 
     /*

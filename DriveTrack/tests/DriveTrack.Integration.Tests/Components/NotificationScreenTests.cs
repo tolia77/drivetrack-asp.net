@@ -43,6 +43,39 @@ public class NotificationScreenTests
             null),
     ];
 
+    /// <summary>The heading row: the screen's title, and nothing else this screen has to offer.</summary>
+    private static readonly Regex PageHead = new(
+        @"<div\b[^>]*class=""[^""]*\bdt-page-head\b[^""]*""[^>]*>(?<body>.*?)</div>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>A column heading.</summary>
+    private static readonly Regex HeaderCell = new(
+        @"<th\b[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// One body row, so a claim can be made about every cell in every row rather than about the
+    /// page as a whole - which a single missing label would satisfy.
+    /// </summary>
+    private static readonly Regex BodyRow = new(
+        @"<tr\b[^>]*class=""[^""]*\bdt-table-row\b[^""]*""[^>]*>(?<body>.*?)</tr>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>One cell of a row, so a claim can be made cell by cell rather than row by row.</summary>
+    private static readonly Regex Cell = new(
+        @"<td\b[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The per-cell name span, matched by the class this screen marks it with.</summary>
+    private static readonly Regex LabelSpan = new(
+        @"<span\b[^>]*class=""[^""]*\bdt-notification-label\b[^""]*""[^>]*>(?<body>.*?)</span>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
     [Fact]
     public async Task Every_attempt_reaches_the_shared_table_with_its_outcome_and_its_error()
     {
@@ -208,6 +241,90 @@ public class NotificationScreenTests
     }
 
     [Fact]
+    public async Task The_heading_sits_in_the_shared_page_head()
+    {
+        // <h1> rather than <h2>: `FocusOnNavigate Selector="h1"` in Routes.razor looks for one, and
+        // on a page without it a keyboard user keeps the focus the previous screen had. In the
+        // shared heading row because the product has one heading shape - this screen offers no
+        // action at all, and the wrapper is written all the same so a reader moving between
+        // screens is not shown two different ways of starting a page.
+        var html = await RenderAsync(Attempts);
+
+        var head = PageHead.Match(html);
+
+        Assert.True(head.Success, "The screen has no heading row.");
+
+        var body = head.Groups["body"].Value;
+
+        Assert.Contains("<h1", body, StringComparison.Ordinal);
+
+        // NFR-24: the heading carries the glyph the navigation already uses for this destination.
+        Assert.Contains("<svg", body, StringComparison.Ordinal);
+
+        // And nothing beside it. The log is read; there is no attempt on it that can be retried,
+        // dismissed or deleted, so an action here would be one the screen does not have.
+        Assert.DoesNotContain("<button", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Every_cell_carries_its_own_name_for_the_phone_layout()
+    {
+        // Below the phone breakpoint the head is dropped rather than hidden: a table laid out as
+        // blocks is no longer a table to a screen reader - the implicit table, row and cell roles
+        // go with the `display` they came from - so a `<thead>` left in place would name columns
+        // that no longer exist to be announced under. The label inside each cell is what replaces
+        // it, and that only works if every cell has one.
+        //
+        // Six columns, and the value a reader opens the screen for is the error, which is the last
+        // of them and so the furthest off the edge of a handset.
+        //
+        // Cell by cell rather than by counting labels against cells across the row: two labels in
+        // one cell and none in the next is the same total and a card with an unnamed line in it.
+        var html = await RenderAsync(Attempts);
+
+        var columns = HeaderCell.Matches(html)
+            .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+            .ToArray();
+
+        Assert.NotEmpty(columns);
+
+        var rows = BodyRow.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        Assert.NotEmpty(rows);
+
+        foreach (var row in rows)
+        {
+            var cells = Cell.Matches(row)
+                .Select(match => match.Groups["body"].Value)
+                .ToArray();
+
+            Assert.Equal(columns.Length, cells.Length);
+
+            for (var index = 0; index < cells.Length; index++)
+            {
+                var names = LabelSpan.Matches(cells[index])
+                    .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+                    .ToArray();
+
+                // A cell with nothing in it carries no name either. The error column is empty on
+                // every attempt that worked - the common row rather than the exception - and a
+                // card painting a heading over a blank line promises a value the row does not
+                // have. The two go together, so a name is asserted exactly where a value is.
+                if (SharedMarkup.TextOf(cells[index]).Length == 0)
+                {
+                    Assert.Empty(names);
+
+                    continue;
+                }
+
+                Assert.Equal(new[] { columns[index] }, names);
+            }
+        }
+    }
+
+    [Fact]
     public void The_screen_takes_no_authorization_decision_of_its_own()
     {
         // FR-12 / AD-2: IAccessGuard.RequireRole(Admin) inside NotificationLogService is the only
@@ -236,6 +353,12 @@ public class NotificationScreenTests
                 NotificationOutcome.Sent,
                 null)),
         ];
+
+    /// <summary>
+    /// The screen with its rows, for the phone-layout suite next door: this class already keeps the
+    /// stubs it is given, and a second set of them would be a second answer to what it reads.
+    /// </summary>
+    internal static Task<string> RenderLogAsync() => RenderAsync(Attempts);
 
     private static Task<string> RenderAsync(IReadOnlyList<NotificationAttemptSummary> attempts) =>
         ComponentRenderer.RenderAsync<Web.Components.Pages.Admin.Notifications>(

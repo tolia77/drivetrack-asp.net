@@ -18,48 +18,98 @@
 
 <PageTitle>@Localizer["ClientsTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">@Localizer["ClientsTitle"]</h1>
+@* The screen's title, in the heading row every other screen carries. This one holds nothing
+   beside it: the roster is opened, edited and deleted from its own rows, and there is no action
+   here that is about the collection rather than about a client in it.
+
+   The wrapper is written all the same, and it does change the spacing: `.dt-page-head h1` zeroes
+   the heading's own 0.5rem margin and `mb-4` replaces it with `$dt-space-4`, which this project's
+   `$dt-spacers` puts at 1rem - so the gap under the title doubles. That is the point rather than
+   a side effect. The gap is now the one every other screen's title sits above, and one heading
+   shape across the product is worth more than this screen keeping its own. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Clients" />@Localizer["ClientsTitle"]
+    </h1>
+</div>
 
 @* What the dialog's boxes have not claimed: a delete refusal, and AUTH_EMAIL_ALREADY_IN_USE, which
    is a 409 naming no field. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-<DtDataTable TItem="ClientAccount" Items="_clients" IsLoading="_isLoading">
-    <HeaderTemplate>
-        <th scope="col">@Localizer["FirstName"]</th>
-        <th scope="col">@Localizer["LastName"]</th>
-        <th scope="col">@Localizer["Email"]</th>
-        <th scope="col">@Localizer["PhoneNumber"]</th>
-        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
-    </HeaderTemplate>
-    <RowTemplate Context="client">
-        <td>@client.FirstName</td>
-        <td>@client.LastName</td>
-        <td>@client.Email</td>
-        <td>@client.PhoneNumber</td>
-        <td class="dt-row-actions">
-            @* FR-48 brings a dispatcher to this screen to read the roster, and both writes behind
-               these buttons are RequireRole(Admin) - so for a dispatcher they could only ever fail.
-               Offering an action that cannot succeed is worse than not offering it.
+@* The wrapper is this screen's anchor into the table it does not own: below the phone breakpoint
+   the rows stop being rows and become cards, and the elements that have to change - the table, its
+   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
+   scoped element around it is what gives `::deep` something to hang from. *@
+<div class="dt-clients">
+    <DtDataTable TItem="ClientAccount" Items="_clients" IsLoading="_isLoading">
+        <HeaderTemplate>
+            <th scope="col">@Localizer["FirstName"]</th>
+            <th scope="col">@Localizer["LastName"]</th>
+            <th scope="col">@Localizer["Email"]</th>
+            <th scope="col">@Localizer["PhoneNumber"]</th>
+            @* The actions column keeps its name for a screen reader and drops it on screen, as
+               every other table in the product does: the buttons under it say what they do, and a
+               column named above them competes with them for the same width. *@
+            <th scope="col" class="dt-table-actions">
+                <span class="dt-visually-hidden">@Localizer["Actions"]</span>
+            </th>
+        </HeaderTemplate>
+        <RowTemplate Context="client">
+            @* The per-cell name, carried by the cell rather than only by the column heading. Not
+               the same thing on both sides of the breakpoint: above it the span is dropped, where
+               the `<th>` already names the column and a second name in every cell would be that
+               name read twice a row; below it the head is gone and the span is painted, as
+               something a reader can see, and that is what replaces it. *@
+            <td>
+                <span class="dt-visually-hidden dt-client-label">@Localizer["FirstName"]</span>
+                @client.FirstName
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-client-label">@Localizer["LastName"]</span>
+                @client.LastName
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-client-label">@Localizer["Email"]</span>
+                @client.Email
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-client-label">@Localizer["PhoneNumber"]</span>
+                @client.PhoneNumber
+            </td>
+            @* `dt-table-actions` rather than a class of this screen's own: the right-aligned,
+               nowrapped actions column is DtDataTable's own rule, and the cell has to wear the
+               class its heading already wears to be reached by it. *@
+            <td class="dt-table-actions">
+                @* FR-48 brings a dispatcher to this screen to read the roster, and both writes
+                   behind these buttons are RequireRole(Admin) - so for a dispatcher they could
+                   only ever fail. Offering an action that cannot succeed is worse than not
+                   offering it.
 
-               FR-12 unchanged: this hides, it does not decide. IAccessGuard inside the service is
-               still what refuses the write, and it runs whether or not the button was rendered.
+                   FR-12 unchanged: this hides, it does not decide. IAccessGuard inside the service
+                   is still what refuses the write, and it runs whether or not the button was
+                   rendered.
 
-               The handler is built in C# rather than written as a lambda in the attribute: a `=>`
-               here would close the tag as far as NFR-14's markup scan is concerned, and everything
-               after it would be read as rendered English. *@
-            @if (_isAdmin)
-            {
-                <button type="button" class="btn btn-secondary btn-sm dt-client-edit" @onclick="Edit(client)">
-                    <Icon Name="IconName.Edit" />@Localizer["Edit"]
-                </button>
-                <button type="button" class="btn btn-danger btn-sm dt-client-delete" @onclick="Remove(client)">
-                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
-                </button>
-            }
-        </td>
-    </RowTemplate>
-</DtDataTable>
+                   The handler is built in C# rather than written as a lambda in the attribute: a
+                   `=>` here would close the tag as far as NFR-14's markup scan is concerned, and
+                   everything after it would be read as rendered English. *@
+                @if (_isAdmin)
+                {
+                    @* The cell's own name goes inside the same branch as the buttons it names: for
+                       a dispatcher this cell is empty, and a phone card showing a heading with
+                       nothing under it is worse than a card with one line fewer. *@
+                    <span class="dt-visually-hidden dt-client-label">@Localizer["Actions"]</span>
+                    <button type="button" class="btn btn-secondary btn-sm dt-client-edit" @onclick="Edit(client)">
+                        <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm dt-client-delete" @onclick="Remove(client)">
+                        <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                    </button>
+                }
+            </td>
+        </RowTemplate>
+    </DtDataTable>
+</div>
 
 <DtDialog @ref="_editDialog" Title="@Localizer["EditClientTitle"]" OnClosed="ClearFailures">
     <ChildContent>

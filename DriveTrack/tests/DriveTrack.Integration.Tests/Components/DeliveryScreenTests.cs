@@ -1895,6 +1895,14 @@ public class DeliveryScreenTests
                 services.AddSingleton<IClientAdministrationService>(new StubClientRoster());
             });
 
+    /// <summary>
+    /// The own-deliveries screen with its rows, for the phone-layout suite next door: this class
+    /// already keeps the stubs it is given, and a second set of them would be a second answer to
+    /// what the screen reads.
+    /// </summary>
+    internal static Task<string> RenderOwnDeliveriesAsync() =>
+        RenderMyDeliveriesAsync(StubDeliveryService.Assigned);
+
     private static Task<string> RenderMyDeliveriesAsync(
         IReadOnlyList<AssignedDeliverySummary>? rows = null,
         UserRole role = UserRole.Driver) =>

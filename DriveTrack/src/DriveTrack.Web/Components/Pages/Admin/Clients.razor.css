@@ -1,12 +1,169 @@
 /*
-    The actions cell. Bootstrap's buttons carry no margin of their own, so Edit and Delete would
-    otherwise touch; the gap is a token because NFR-29 scans it as a visual value.
+    The client roster's own cells, and the one thing this screen asks of the table it does not own:
+    below the phone breakpoint the rows stop being rows and become cards.
 
-    A row where the buttons are absent - a dispatcher reading the roster under FR-48 - collapses to
-    an empty cell, which is what an empty cell should look like.
+    Five columns - two names, an address, a number and the row's two actions - read as a table on a
+    desktop and as a horizontal scroller on a 390px screen, where a reader is left dragging a row
+    sideways to find out what is in it. A table that collapses at that edge answers both, and keeps
+    the empty state and the loading skeleton that only DtDataTable supplies. The shape is the one
+    the fleet screens settled rather than one invented here.
+
+    What was in this file before was a `.dt-row-actions` flex rule, and it is gone with the class:
+    the actions cell now wears `dt-table-actions`, which is the name DtDataTable's own right-align
+    is written against, and a flex container ignores `text-align` - so keeping the flex would have
+    defeated the very rule moving the class exists to reach.
+
+    NFR-29: every palette value here is a `--dt-*` reference. What is literal is geometry the
+    palette does not name - the breakpoint itself, which a media query cannot read from a custom
+    property at all.
 */
-.dt-row-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--dt-space-2);
+
+/*
+    The name of the cell, carried by the cell rather than by a column heading.
+
+    Not rendered at all above the breakpoint: up there the `<th>` names the column, the cell is
+    announced under it, and a second name inside every cell would be that name read twice on every
+    row. Below the breakpoint the head is gone and this is what replaces it - see the media query,
+    where the span also gives up `dt-visually-hidden` and becomes something a reader can see.
+
+    No `::deep`: the span is written in this screen's own `RowTemplate`, so it carries this
+    component's scope. The rules that reach the table, the head and the rows do need one, and have
+    one, because those elements are DtDataTable's.
+*/
+.dt-client-label {
+    display: none;
+}
+
+/*
+    Below the breakpoint, the stacked layout.
+
+    Stated desktop-first with the phone as the exception, because that is the direction
+    `_theme.scss` states the shell in and the two have to switch on the same edge. The theme writes
+    that edge as `$dt-breakpoint-phone-max`; this file is plain CSS rather than Sass and cannot read
+    a Sass variable, and a custom property is not legal in a media query either, so the figure is
+    written out - and deliberately not approximated as `min-width: 641px`, which would leave a
+    sliver of widths where the shell is a sidebar and the rows are already cards.
+
+    ::deep on everything that reaches into the table: the table, its head and its rows are
+    DtDataTable's elements and carry that component's scope, and `.dt-clients` is this screen's
+    wrapper, so it anchors those selectors - which is also what keeps these rules off the other
+    tables in the product. The label is this screen's own element and is anchored without one.
+*/
+@media (max-width: 640.98px) {
+    /*
+        The head is dropped rather than hidden. A table laid out as blocks is no longer a table to a
+        screen reader - the implicit table, row and cell roles go with the `display` they came from
+        - so a head left in the accessibility tree would name columns that no longer exist to be
+        announced under. What replaces it is the label inside each cell, revealed just below.
+    */
+    .dt-clients ::deep thead {
+        display: none;
+    }
+
+    /*
+        And the label takes the heading's place, as something a reader can actually see. `display`
+        alone would not do that: `dt-visually-hidden` also pulls the span out of the flow, shrinks
+        it to a pixel, hides the overflow and masks what is left, so every one of those has to be
+        handed back here - or a card would show a bare telephone number with nothing saying which
+        of the row's two strings it is.
+
+        A face of its own, so it reads as the name of the value rather than as a second value: the
+        same quietened label ramp the column headings wear. Full width so it takes the line above
+        the value, in the actions cell as well - that one is a flex row, and without this the name
+        of the column would sit on the line beside the buttons it names.
+    */
+    .dt-clients .dt-client-label {
+        display: block;
+        position: static;
+        width: 100%;
+        height: auto;
+        overflow: visible;
+        clip: auto;
+        clip-path: none;
+        white-space: normal;
+        color: var(--dt-ink-muted);
+        font-size: var(--dt-label-font-size);
+        line-height: var(--dt-label-line-height);
+        font-weight: var(--dt-label-font-weight);
+    }
+
+    /*
+        A table laid out as blocks. Every level of it, or a `display: block` row would have its
+        cells wrapped back into an anonymous table box and nothing would change.
+    */
+    .dt-clients ::deep table,
+    .dt-clients ::deep tbody,
+    .dt-clients ::deep tr,
+    .dt-clients ::deep td {
+        display: block;
+        width: 100%;
+    }
+
+    /*
+        The inner scroll goes with the table. DtDataTable caps its scroll box at 32rem so a long
+        table cannot push the page down, which is right for a table and wrong for this: on a 390px
+        screen it would put a 512px scrolling region inside a scrolling page, and escaping one
+        nested scroller is exactly what collapsing to cards is for. The page scrolls instead.
+    */
+    .dt-clients ::deep .dt-table-scroll {
+        max-height: none;
+    }
+
+    /*
+        One row, one card - and the card's padding is on its cells rather than on the row. That is
+        what keeps the striping and the hover tint, which is what tells one card from the next: the
+        themed framework paints both as an inset shadow on the cell (`.table > :not(caption) > * >
+        *`), so padding on the row - or a gap between the cells - would be a frame the fill never
+        reaches, and an odd card would show its text lines painted and its border of white space
+        bare. With the padding on the cells the fill covers the card edge to edge, and what is left
+        for the row is the card's own edge.
+    */
+    .dt-clients ::deep tr.dt-table-row {
+        border-bottom: var(--dt-border-width) solid var(--dt-border);
+    }
+
+    /*
+        Every cell is a line of the card, full width, and it carries the card's padding for the
+        reason above. The cell borders go: a card ruled between each of its own lines is several
+        cards.
+
+        And a long unbroken value breaks inside the card rather than widening it. An address, a
+        licence plate or a provider's error string carries no space for a line to break at, so
+        without this it pushes the cell past 390px and `.dt-table-scroll` - which still scrolls,
+        it is only its height cap that was released above - hands the card a sideways scroller of
+        its own. Escaping that scroller is the whole of what this collapse is for. `anywhere`
+        rather than `break-word`, as `ChatLine.razor.css` writes it for the same problem: it lets
+        the intrinsic width shrink too, which is what a cell inside a grid or a flex track needs.
+    */
+    .dt-clients ::deep tr.dt-table-row td {
+        padding: var(--dt-space-2) var(--dt-space-3);
+        border: 0;
+        overflow-wrap: anywhere;
+    }
+
+    /*
+        The row's actions, which on a desktop are one nowrapped line at the trailing edge and on a
+        card are a block of buttons a thumb has to be able to land on. Long enough a selector to
+        take the two properties back from DtDataTable's own rule, which is written for the table
+        shape.
+
+        A dispatcher reading the roster under FR-48 gets this cell empty - the buttons and the name
+        of the column are inside one `@if` together - so what this paints for them is an empty
+        line, which is what an empty cell should look like.
+    */
+    .dt-clients ::deep tr.dt-table-row td.dt-table-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--dt-space-2);
+        white-space: normal;
+        text-align: start;
+    }
+
+    /*
+        Every control in a card is at least `touch-target` tall. The same floor the fleet cards are
+        held to, and for the same reason: a 36px control is one a thumb misses.
+    */
+    .dt-clients ::deep tr.dt-table-row .btn {
+        min-height: var(--dt-touch-target);
+    }
 }

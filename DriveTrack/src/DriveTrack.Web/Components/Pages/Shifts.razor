@@ -88,10 +88,11 @@
             </th>
         </HeaderTemplate>
         <RowTemplate Context="shift">
-            @* The per-cell name, carried by the cell rather than only by the column heading. Clipped
-               to a pixel either way and dropped from the accessibility tree above the breakpoint,
-               where the `<th>` already names the column and a second name in every cell would be
-               that name read twice a row; below it the head is gone and this is what replaces it. *@
+            @* The per-cell name, carried by the cell rather than only by the column heading. Not
+               the same thing on both sides of the breakpoint: above it the span is dropped, where
+               the `<th>` already names the column and a second name in every cell would be that
+               name read twice a row; below it the head is gone and the span is painted, as
+               something a reader can see, and that is what replaces it. *@
             <td>
                 <span class="dt-visually-hidden dt-shift-label">@Localizer["Driver"]</span>
                 @shift.DriverName

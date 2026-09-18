@@ -34,6 +34,45 @@ public class AdministrationScreenTests
         new(new UserId(22), "Богдан", "Мельник", "bohdan@drivetrack.test"),
     ];
 
+    /// <summary>The heading row: the screen's title, and any action that is about the roster.</summary>
+    private static readonly Regex PageHead = new(
+        @"<div\b[^>]*class=""[^""]*\bdt-page-head\b[^""]*""[^>]*>(?<body>.*?)</div>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>A column heading.</summary>
+    private static readonly Regex HeaderCell = new(
+        @"<th\b[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The actions heading, which keeps its name without printing it.</summary>
+    private static readonly Regex ActionsHeader = new(
+        @"<th\b[^>]*class=""[^""]*\bdt-table-actions\b[^""]*""[^>]*>(?<body>.*?)</th>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// One body row, so a claim can be made about every cell in every row rather than about the
+    /// page as a whole - which a single missing label would satisfy.
+    /// </summary>
+    private static readonly Regex BodyRow = new(
+        @"<tr\b[^>]*class=""[^""]*\bdt-table-row\b[^""]*""[^>]*>(?<body>.*?)</tr>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>One cell of a row, so a claim can be made cell by cell rather than row by row.</summary>
+    private static readonly Regex Cell = new(
+        @"<td\b[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
+    /// <summary>The row's actions cell.</summary>
+    private static readonly Regex ActionsCell = new(
+        @"<td\b[^>]*class=""[^""]*\bdt-table-actions\b[^""]*""[^>]*>(?<body>.*?)</td>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
     [Fact]
     public async Task The_client_screen_puts_every_client_in_the_shared_table()
     {
@@ -415,6 +454,187 @@ public class AdministrationScreenTests
             members);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Each_screen_carries_its_heading_in_the_shared_page_head(bool clients)
+    {
+        // <h1> rather than <h2>: `FocusOnNavigate Selector="h1"` in Routes.razor looks for one, and
+        // on a page without it a keyboard user keeps the focus the previous screen had. In the
+        // shared heading row because the product has one heading shape - the roster screen's head
+        // holds nothing beside the title and is written all the same, so a reader moving between
+        // screens is not shown two different ways of starting a page.
+        var html = clients ? await RenderClientsAsync() : await RenderDispatchersAsync();
+
+        var head = PageHead.Match(html);
+
+        Assert.True(head.Success, "The screen has no heading row.");
+
+        var body = head.Groups["body"].Value;
+
+        Assert.Contains("<h1", body, StringComparison.Ordinal);
+
+        // NFR-24: the heading carries the glyph the navigation already uses for this destination,
+        // as every other screen's does.
+        Assert.Contains("<svg", body, StringComparison.Ordinal);
+
+        if (clients)
+        {
+            // Nothing beside it: every action on the roster is about one client and lives in that
+            // client's row. A create action here would be one this screen does not have - FR-46
+            // gives an administrator no way to open a client account.
+            Assert.DoesNotContain("<button", body, StringComparison.Ordinal);
+
+            return;
+        }
+
+        // And the dispatcher screen's create action is beside the heading rather than loose in a
+        // paragraph above the table: it is about the roster the heading names. Found by its hook
+        // and only then asserted about by its colour, because `btn btn-primary` is what a create
+        // action looks like rather than what one is.
+        //
+        // `dt-dispatcher-new` rather than `-create`: the create dialog's own confirm button
+        // already holds that name on this screen, and both are hooks the suite matches by.
+        Assert.Contains("dt-dispatcher-new", body, StringComparison.Ordinal);
+        Assert.Contains("btn-primary", body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true, "dt-client-edit", "dt-client-delete")]
+    [InlineData(false, "dt-dispatcher-edit", "dt-dispatcher-delete")]
+    public async Task Every_row_action_sits_in_the_shared_actions_cell(
+        bool clients,
+        string edit,
+        string delete)
+    {
+        // DtDataTable right-aligns the trailing cell through `.dt-table-row ::deep
+        // td.dt-table-actions`, so a cell that does not wear the class its own heading wears is a
+        // cell the shared rule cannot reach. Both screens used to mark it `dt-row-actions` and
+        // style it themselves as a flex row - which ignores `text-align` outright, so the move and
+        // the deletion of that rule are one change rather than two.
+        var html = clients ? await RenderClientsAsync() : await RenderDispatchersAsync();
+
+        var cells = ActionsCell.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        // Before the count, because `0 == 0` is what a screen that rendered no rows at all would
+        // answer - and the loop below would then assert nothing.
+        Assert.NotEmpty(cells);
+
+        Assert.Equal(SharedMarkup.Occurrences(html, "dt-table-row"), cells.Length);
+
+        foreach (var cell in cells)
+        {
+            Assert.Contains(edit, cell, StringComparison.Ordinal);
+            Assert.Contains(delete, cell, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("dt-row-actions", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_dispatcher_reading_the_roster_gets_an_actions_cell_with_nothing_in_it()
+    {
+        // The other half of FR-48's hiding, and the half a phone makes visible. The per-cell name
+        // is what replaces the dropped column heading below the breakpoint, so a label written
+        // outside the `@if` that hides the buttons would give a dispatcher a card with a heading
+        // reading "Дії" and nothing at all underneath it - a row promising an action it does not
+        // offer, which is the outcome hiding the buttons exists to avoid.
+        var html = await RenderClientsAsync(UserRole.Dispatcher);
+
+        var cells = ActionsCell.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        // The cell is still rendered: a row one cell short of its heading row is a table whose
+        // columns no longer line up.
+        Assert.NotEmpty(cells);
+        Assert.Equal(SharedMarkup.Occurrences(html, "dt-table-row"), cells.Length);
+
+        foreach (var cell in cells)
+        {
+            Assert.Equal(string.Empty, SharedMarkup.TextOf(cell));
+            Assert.DoesNotContain("dt-client-label", cell, StringComparison.Ordinal);
+        }
+    }
+
+    [Theory]
+    [InlineData(true, "dt-client-label")]
+    [InlineData(false, "dt-dispatcher-label")]
+    public async Task Every_cell_carries_its_own_name_for_the_phone_layout(bool clients, string label)
+    {
+        // Below the phone breakpoint the head is dropped rather than hidden: a table laid out as
+        // blocks is no longer a table to a screen reader - the implicit table, row and cell roles
+        // go with the `display` they came from - so a `<thead>` left in place would name columns
+        // that no longer exist to be announced under. The label inside each cell is what replaces
+        // it, and that only works if every cell has one.
+        //
+        // Cell by cell rather than by counting labels against cells across the row: two labels in
+        // one cell and none in the next is the same total and a card with an unnamed line in it.
+        // And the label is checked against the heading of the column it is in, because a label
+        // that exists and reads wrongly names the value rather than failing to name it.
+        //
+        // An administrator, on both screens: a dispatcher's actions cell is deliberately empty,
+        // which the test above asserts on its own terms.
+        var html = clients ? await RenderClientsAsync() : await RenderDispatchersAsync();
+
+        var columns = HeaderCell.Matches(html)
+            .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+            .ToArray();
+
+        Assert.NotEmpty(columns);
+
+        var rows = BodyRow.Matches(html)
+            .Select(match => match.Groups["body"].Value)
+            .ToArray();
+
+        Assert.NotEmpty(rows);
+
+        var span = LabelSpan(label);
+
+        foreach (var row in rows)
+        {
+            var cells = Cell.Matches(row)
+                .Select(match => match.Groups["body"].Value)
+                .ToArray();
+
+            Assert.Equal(columns.Length, cells.Length);
+
+            for (var index = 0; index < cells.Length; index++)
+            {
+                var names = span.Matches(cells[index])
+                    .Select(match => SharedMarkup.TextOf(match.Groups["body"].Value))
+                    .ToArray();
+
+                Assert.Equal(new[] { columns[index] }, names);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task The_actions_column_keeps_its_name_without_printing_it(bool clients)
+    {
+        // The buttons under it say what they do, so a column name printed above them competes with
+        // them for the same width - and a column with no name at all leaves a screen reader moving
+        // by cell with one unlabelled column. Hidden, not dropped, as on every other table here.
+        var html = clients ? await RenderClientsAsync() : await RenderDispatchersAsync();
+
+        var actions = ActionsHeader.Match(html);
+
+        Assert.True(actions.Success, "The table has no actions heading.");
+        Assert.Contains("dt-visually-hidden", actions.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("Дії", actions.Groups["body"].Value, StringComparison.Ordinal);
+    }
+
+    /// <summary>The per-cell name span, matched by the class the screen marks it with.</summary>
+    private static Regex LabelSpan(string label) => new(
+        $@"<span\b[^>]*class=""[^""]*\b{Regex.Escape(label)}\b[^""]*""[^>]*>(?<body>.*?)</span>",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(5));
+
     private static string WithoutComments(string source) =>
         Regex.Replace(source, @"@\*.*?\*@", " ", RegexOptions.Singleline, TimeSpan.FromSeconds(5));
 
@@ -422,12 +642,12 @@ public class AdministrationScreenTests
         Regex.Matches(html, pattern, RegexOptions.Singleline, TimeSpan.FromSeconds(5))
             .Select(match => match.Groups["body"].Value);
 
-    private static Task<string> RenderClientsAsync(UserRole role = UserRole.Admin) =>
+    internal static Task<string> RenderClientsAsync(UserRole role = UserRole.Admin) =>
         RenderAsync<Web.Components.Pages.Admin.Clients>(
             role,
             services => services.AddSingleton<IClientAdministrationService>(new StubClients()));
 
-    private static Task<string> RenderDispatchersAsync() =>
+    internal static Task<string> RenderDispatchersAsync() =>
         RenderAsync<Web.Components.Pages.Admin.Dispatchers>(
             UserRole.Admin,
             services => services.AddSingleton<IDispatcherAdministrationService>(new StubDispatchers()));

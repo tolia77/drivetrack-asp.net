@@ -14,7 +14,23 @@
 
 <PageTitle>@Localizer["DispatchersTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">@Localizer["DispatchersTitle"]</h1>
+@* The screen's title and the one action that opens an empty form, on one line - the shape every
+   other screen with a create action settled. The action is about the roster rather than about any
+   dispatcher in it, so it belongs beside the heading that names the roster; before this it sat in
+   a bare `<p>` of its own, a loose row the dispatch-board story logged as the last divergence.
+
+   The hook stays `dt-dispatcher-new` even though every other screen's reads `-create`: the create
+   *dialog's* confirm button already owns that name here, and renaming either is a suite failure by
+   design. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Dispatchers" />@Localizer["DispatchersTitle"]
+    </h1>
+
+    <button type="button" class="btn btn-primary dt-dispatcher-new" @onclick="ShowCreateAsync">
+        <Icon Name="IconName.Create" />@Localizer["Create"]
+    </button>
+</div>
 
 @* One list for both dialogs, because they share _failures: a per-dialog list would leave a name
    refusal showing twice, inline in the dialog that raised it and again in the other's banner. The
@@ -22,33 +38,56 @@
    their own profile for that), so claiming Email here hides nothing. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-<p>
-    <button type="button" class="btn btn-primary dt-dispatcher-new" @onclick="ShowCreateAsync">
-        <Icon Name="IconName.Create" />@Localizer["Create"]
-    </button>
-</p>
-
-<DtDataTable TItem="DispatcherAccount" Items="_dispatchers" IsLoading="_isLoading">
-    <HeaderTemplate>
-        <th scope="col">@Localizer["FirstName"]</th>
-        <th scope="col">@Localizer["LastName"]</th>
-        <th scope="col">@Localizer["Email"]</th>
-        <th scope="col" class="dt-table-actions">@Localizer["Actions"]</th>
-    </HeaderTemplate>
-    <RowTemplate Context="dispatcher">
-        <td>@dispatcher.FirstName</td>
-        <td>@dispatcher.LastName</td>
-        <td>@dispatcher.Email</td>
-        <td class="dt-row-actions">
-            <button type="button" class="btn btn-secondary btn-sm dt-dispatcher-edit" @onclick="Edit(dispatcher)">
-                <Icon Name="IconName.Edit" />@Localizer["Edit"]
-            </button>
-            <button type="button" class="btn btn-danger btn-sm dt-dispatcher-delete" @onclick="Remove(dispatcher)">
-                <Icon Name="IconName.Delete" />@Localizer["Delete"]
-            </button>
-        </td>
-    </RowTemplate>
-</DtDataTable>
+@* The wrapper is this screen's anchor into the table it does not own: below the phone breakpoint
+   the rows stop being rows and become cards, and the elements that have to change - the table, its
+   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
+   scoped element around it is what gives `::deep` something to hang from. *@
+<div class="dt-dispatchers">
+    <DtDataTable TItem="DispatcherAccount" Items="_dispatchers" IsLoading="_isLoading">
+        <HeaderTemplate>
+            <th scope="col">@Localizer["FirstName"]</th>
+            <th scope="col">@Localizer["LastName"]</th>
+            <th scope="col">@Localizer["Email"]</th>
+            @* The actions column keeps its name for a screen reader and drops it on screen, as
+               every other table in the product does: the buttons under it say what they do, and a
+               column named above them competes with them for the same width. *@
+            <th scope="col" class="dt-table-actions">
+                <span class="dt-visually-hidden">@Localizer["Actions"]</span>
+            </th>
+        </HeaderTemplate>
+        <RowTemplate Context="dispatcher">
+            @* The per-cell name, carried by the cell rather than only by the column heading. Not
+               the same thing on both sides of the breakpoint: above it the span is dropped, where
+               the `<th>` already names the column and a second name in every cell would be that
+               name read twice a row; below it the head is gone and the span is painted, as
+               something a reader can see, and that is what replaces it. *@
+            <td>
+                <span class="dt-visually-hidden dt-dispatcher-label">@Localizer["FirstName"]</span>
+                @dispatcher.FirstName
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-dispatcher-label">@Localizer["LastName"]</span>
+                @dispatcher.LastName
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-dispatcher-label">@Localizer["Email"]</span>
+                @dispatcher.Email
+            </td>
+            @* `dt-table-actions` rather than a class of this screen's own: the right-aligned,
+               nowrapped actions column is DtDataTable's own rule, and the cell has to wear the
+               class its heading already wears to be reached by it. *@
+            <td class="dt-table-actions">
+                <span class="dt-visually-hidden dt-dispatcher-label">@Localizer["Actions"]</span>
+                <button type="button" class="btn btn-secondary btn-sm dt-dispatcher-edit" @onclick="Edit(dispatcher)">
+                    <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                </button>
+                <button type="button" class="btn btn-danger btn-sm dt-dispatcher-delete" @onclick="Remove(dispatcher)">
+                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                </button>
+            </td>
+        </RowTemplate>
+    </DtDataTable>
+</div>
 
 <DtDialog @ref="_createDialog" Title="@Localizer["CreateDispatcherTitle"]" OnClosed="ClearFailures">
     <ChildContent>

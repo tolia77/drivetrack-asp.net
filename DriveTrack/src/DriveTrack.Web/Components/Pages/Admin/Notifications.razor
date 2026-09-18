@@ -24,67 +24,116 @@
 
 <PageTitle>@Localizer["NotificationsTitle"]</PageTitle>
 
-<h1 class="dt-type-h1">
-    <Icon Name="IconName.Notifications" />@Localizer["NotificationsTitle"]
-</h1>
+@* The screen's title, in the heading row every other screen carries. This one holds nothing
+   beside it: the log is read and nothing on it can be acted on, so there is no action to sit next
+   to the heading.
+
+   The wrapper is written all the same, and it does change the spacing: `.dt-page-head h1` zeroes
+   the heading's own 0.5rem margin and `mb-4` replaces it with `$dt-space-4`, which this project's
+   `$dt-spacers` puts at 1rem - so the gap under the title doubles. That is the point rather than
+   a side effect. The gap is now the one every other screen's title sits above, and one heading
+   shape across the product is worth more than this screen keeping its own. *@
+<div class="dt-page-head mb-4">
+    <h1 class="dt-type-h1">
+        <Icon Name="IconName.Notifications" />@Localizer["NotificationsTitle"]
+    </h1>
+</div>
 
 <DtFailureBanner Failures="_failures" />
 
 @* NFR-27 keeps the original's paging, and this screen asks for the first page - so past a full page
    the older attempts are neither shown nor findable. Saying so is the difference between a limit and
    a screen that quietly lies about what the system has sent. *@
-<DtDataTable TItem="NotificationAttemptSummary"
-             IsTruncated="IsTruncated"
-             Note="@Localizer["NotificationsTruncated"]"
-             Items="_attempts"
-             IsLoading="_isLoading"
-             EmptyText="@Localizer["NotificationsEmpty"]">
-    <HeaderTemplate>
-        <th scope="col">@Localizer["NotificationDelivery"]</th>
-        <th scope="col">@Localizer["NotificationKind"]</th>
-        <th scope="col">@Localizer["NotificationRecipient"]</th>
-        <th scope="col">@Localizer["NotificationOutcome"]</th>
-        <th scope="col">@Localizer["NotificationAttemptedAt"]</th>
-        <th scope="col">@Localizer["NotificationError"]</th>
-    </HeaderTemplate>
-    <RowTemplate Context="attempt">
-        <td class="dt-notification-delivery">@attempt.DeliveryId</td>
-        <td>
-            @* AD-18 / FR-16: the enum member is what the database stores and the wire carries
-               (AD-21); what a reader sees is a word. There is one kind today, so there is one
-               block - a second joins it the day a second kind is written. *@
-            @if (attempt.Kind == NotificationKind.StatusChange)
-            {
-                <span>@Localizer["NotificationKindStatusChange"]</span>
-            }
-        </td>
-        <td class="dt-notification-recipient">@attempt.Recipient</td>
-        <td>
-            @* Sent and Failed are a status, not a badge: a closed two-value vocabulary with an
-               outcome, which is the same shape a shift's running/finished is - so they wear the
-               shared StatusLabel and its delivered and failed faces, and the tint comes from the
-               palette's own status steps rather than from a rule written beside this table.
+@* The wrapper is this screen's anchor into the table it does not own: below the phone breakpoint
+   the rows stop being rows and become cards, and the elements that have to change - the table, its
+   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
+   scoped element around it is what gives `::deep` something to hang from. Six columns, with the
+   one a reader opens the screen for - the error - last, so it is the value furthest off the edge
+   of a handset. *@
+<div class="dt-notifications">
+    <DtDataTable TItem="NotificationAttemptSummary"
+                 IsTruncated="IsTruncated"
+                 Note="@Localizer["NotificationsTruncated"]"
+                 Items="_attempts"
+                 IsLoading="_isLoading"
+                 EmptyText="@Localizer["NotificationsEmpty"]">
+        <HeaderTemplate>
+            <th scope="col">@Localizer["NotificationDelivery"]</th>
+            <th scope="col">@Localizer["NotificationKind"]</th>
+            <th scope="col">@Localizer["NotificationRecipient"]</th>
+            <th scope="col">@Localizer["NotificationOutcome"]</th>
+            <th scope="col">@Localizer["NotificationAttemptedAt"]</th>
+            <th scope="col">@Localizer["NotificationError"]</th>
+        </HeaderTemplate>
+        <RowTemplate Context="attempt">
+            @* The per-cell name, carried by the cell rather than only by the column heading. Not
+               the same thing on both sides of the breakpoint: above it the span is dropped, where
+               the `<th>` already names the column and a second name in every cell would be that
+               name read twice a row; below it the head is gone and the span is painted, as
+               something a reader can see, and that is what replaces it. *@
+            <td class="dt-notification-delivery">
+                <span class="dt-visually-hidden dt-notification-label">@Localizer["NotificationDelivery"]</span>
+                @attempt.DeliveryId
+            </td>
+            <td>
+                @* AD-18 / FR-16: the enum member is what the database stores and the wire carries
+                   (AD-21); what a reader sees is a word. There is one kind today, so there is one
+                   block - a second joins it the day a second kind is written.
 
-               A label apiece rather than one element whose face is computed, for the reason every
-               other vocabulary on this product states: a key composed at run time is a key the
-               closed-catalogue test cannot see. The `dt-notification-*` classes stay as the hooks
-               the suite counts the two outcomes by. *@
-            @if (attempt.Outcome == NotificationOutcome.Sent)
-            {
-                <DtStatusLabel Face="DtStatusFace.Delivered" Class="dt-notification-sent">@Localizer["NotificationSent"]</DtStatusLabel>
-            }
-            @if (attempt.Outcome == NotificationOutcome.Failed)
-            {
-                <DtStatusLabel Face="DtStatusFace.Failed" Class="dt-notification-failed">@Localizer["NotificationFailed"]</DtStatusLabel>
-            }
-        </td>
-        @* Routed through a method rather than formatted in markup: NFR-14's scan strips a Razor
-           expression only up to its first closing bracket, so a `.ToString(...)` tail would be left
-           behind in the text node and read as a rendered English word. *@
-        <td>@Attempted(attempt)</td>
-        <td class="dt-notification-error">@attempt.Error</td>
-    </RowTemplate>
-</DtDataTable>
+                   The cell's own name goes inside that block with the word it names: a kind this
+                   screen has no word for yet leaves the cell empty, and a phone card showing a
+                   heading with nothing under it is worse than a card with one line fewer. *@
+                @if (attempt.Kind == NotificationKind.StatusChange)
+                {
+                    <span class="dt-visually-hidden dt-notification-label">@Localizer["NotificationKind"]</span>
+                    <span>@Localizer["NotificationKindStatusChange"]</span>
+                }
+            </td>
+            <td class="dt-notification-recipient">
+                <span class="dt-visually-hidden dt-notification-label">@Localizer["NotificationRecipient"]</span>
+                @attempt.Recipient
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-notification-label">@Localizer["NotificationOutcome"]</span>
+                @* Sent and Failed are a status, not a badge: a closed two-value vocabulary with an
+                   outcome, which is the same shape a shift's running/finished is - so they wear the
+                   shared StatusLabel and its delivered and failed faces, and the tint comes from the
+                   palette's own status steps rather than from a rule written beside this table.
+
+                   A label apiece rather than one element whose face is computed, for the reason every
+                   other vocabulary on this product states: a key composed at run time is a key the
+                   closed-catalogue test cannot see. The `dt-notification-*` classes stay as the hooks
+                   the suite counts the two outcomes by. *@
+                @if (attempt.Outcome == NotificationOutcome.Sent)
+                {
+                    <DtStatusLabel Face="DtStatusFace.Delivered" Class="dt-notification-sent">@Localizer["NotificationSent"]</DtStatusLabel>
+                }
+                @if (attempt.Outcome == NotificationOutcome.Failed)
+                {
+                    <DtStatusLabel Face="DtStatusFace.Failed" Class="dt-notification-failed">@Localizer["NotificationFailed"]</DtStatusLabel>
+                }
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-notification-label">@Localizer["NotificationAttemptedAt"]</span>
+                @* Routed through a method rather than formatted in markup: NFR-14's scan strips a
+                   Razor expression only up to its first closing bracket, so a `.ToString(...)` tail
+                   would be left behind in the text node and read as a rendered English word. *@
+                @Attempted(attempt)
+            </td>
+            @* The reason, which only a refused attempt has - and a successful attempt is the
+               common row rather than the exception, so the name goes inside the same condition as
+               the value it names. Written otherwise, every card for an attempt that worked would
+               paint a heading reading "Помилка" over a blank line. *@
+            <td class="dt-notification-error">
+                @if (attempt.Error is not null)
+                {
+                    <span class="dt-visually-hidden dt-notification-label">@Localizer["NotificationError"]</span>
+                    @attempt.Error
+                }
+            </td>
+        </RowTemplate>
+    </DtDataTable>
+</div>
 
 @code {
     private IReadOnlyList<NotificationAttemptSummary>? _attempts;
