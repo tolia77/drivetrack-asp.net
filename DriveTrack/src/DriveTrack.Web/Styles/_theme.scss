@@ -874,6 +874,180 @@ $dt-breakpoint-phone-max: $dt-breakpoint-phone - 0.02px;
     margin: 0;
 }
 
+// Below the breakpoint the heading's action is a control a thumb has to land
+// on, and a 36px one is a control a thumb misses. Stated here, beside the row
+// it floors, rather than in the collapse block below: the two switch on the
+// same edge but they are not the same fact, and a heading action is drawn by
+// screens with no table on them at all. The floor used to be six copies of
+// itself in six scoped stylesheets, which is why three page heads that draw an
+// action never got it.
+@media (max-width: $dt-breakpoint-phone-max) {
+    .dt-page-head .btn {
+        min-height: var(--dt-touch-target);
+    }
+}
+
+
+// -----------------------------------------------------------------------------
+// The table that becomes cards
+//
+// Below the phone breakpoint a table's rows stop being rows and become cards.
+// Ten screens want that and it is the same collapse on every one of them, so it
+// is stated once, here, as an opt-in: a screen puts `dt-table-cards` on the
+// wrapper it already has around its DtDataTable and gets the whole block.
+//
+// Opt-in rather than folded into DtDataTable, because what a row looks like
+// once it stops being a row is the screen's question and not the table's. Every
+// consumer today opts in, and they still do not agree on the answer:
+// own-deliveries puts its window and its status on one line of the card and the
+// dispatch board stacks all ten of its cells, and each states that placement in
+// its own stylesheet on top of this block. A component that collapsed
+// unconditionally would have settled that for both of them, and for whatever
+// table is written next.
+//
+// Here rather than nine times in nine scoped stylesheets, which is what this
+// replaces. Two things follow from the move. The breakpoint is written as the
+// token - this file is Sass and can read `$dt-breakpoint-phone-max`, where a
+// `.razor.css` can read neither a Sass variable nor a custom property inside a
+// media query and had to carry the resolved figure nine times. And there is no
+// `::deep` here at all: a global rule is not scoped to a component, so the
+// elements DtDataTable renders - the table, its head, its rows and its cells -
+// are reached by naming them, and the trap of writing a scoped rule for another
+// component's element stops existing for these rules.
+//
+// What each screen still owns is the name inside each cell. The head is dropped
+// down here, so something has to say what a value is; that span is written in
+// the screen's own RowTemplate, carries the screen's own class and is revealed
+// by the screen's own rule. Nothing about it is shared, and none of the 72 of
+// them is renamed by this block.
+// -----------------------------------------------------------------------------
+@media (max-width: $dt-breakpoint-phone-max) {
+    // The head is dropped rather than hidden. A table laid out as blocks is no
+    // longer a table to a screen reader - the implicit table, row and cell roles
+    // go with the `display` they came from - so a head left in the accessibility
+    // tree would name columns that no longer exist to be announced under. What
+    // replaces it is the per-cell label each screen reveals for itself.
+    .dt-table-cards thead {
+        display: none;
+    }
+
+    // A table laid out as blocks. Every level of it, or a `display: block` row
+    // would have its cells wrapped back into an anonymous table box and nothing
+    // would change.
+    .dt-table-cards table,
+    .dt-table-cards tbody,
+    .dt-table-cards tr,
+    .dt-table-cards td {
+        display: block;
+        width: 100%;
+    }
+
+    // The inner scroll goes with the table. DtDataTable caps its scroll box at
+    // 32rem so a long table cannot push the page down, which is right for a
+    // table and wrong for a stack of cards: on a 390px screen it would put a
+    // 512px scrolling region inside a scrolling page, and escaping one nested
+    // scroller is exactly what collapsing to cards is for. The page scrolls
+    // instead.
+    //
+    // `div.dt-table-scroll` rather than the bare class, and the element is doing
+    // real work: DtDataTable's own `.dt-table-scroll` compiles to
+    // `.dt-table-scroll[b-…]`, which is two class-weight selectors, and this
+    // rule has to outweigh it because the scoped bundle is linked after this
+    // stylesheet and an equal-weight rule that came first loses. The nine copies
+    // this replaces outweighed it with their `.dt-vehicles ::deep` prefix; a
+    // single wrapper class alone would tie, and the cap would survive the
+    // collapse.
+    .dt-table-cards div.dt-table-scroll {
+        max-height: none;
+    }
+
+    // One row, one card - and the card's padding is on its cells rather than on
+    // the row. That is what keeps the striping and the hover tint, which is what
+    // tells one card from the next: the themed framework paints both as an inset
+    // shadow on the cell (`.table > :not(caption) > * > *`), so padding on the
+    // row - or a gap between the cells - would be a frame the fill never reaches,
+    // and an odd card would show its text lines painted and its border of white
+    // space bare. With the padding on the cells the fill covers the card edge to
+    // edge, and what is left for the row is the card's own edge.
+    .dt-table-cards tr.dt-table-row {
+        border-bottom: var(--dt-border-width) solid var(--dt-border);
+    }
+
+    // Every cell is a line of the card, full width, and it carries the card's
+    // padding for the reason above. The cell borders go: a card ruled between
+    // each of its own lines is several cards.
+    //
+    // And a long unbroken value breaks inside the card rather than widening it.
+    // An address, a licence plate or a provider's error string carries no space
+    // for a line to break at, so without this it pushes the cell past 390px and
+    // `.dt-table-scroll` - which still scrolls, it is only its height cap that
+    // was released above - hands the card a sideways scroller of its own.
+    // `anywhere` rather than `break-word`: it lets the intrinsic width shrink
+    // too, which is what a cell inside a grid or a flex track needs.
+    .dt-table-cards tr.dt-table-row td {
+        padding: var(--dt-space-2) var(--dt-space-3);
+        border: 0;
+        overflow-wrap: anywhere;
+    }
+
+    // A cell with nothing in it takes no line. In a table an empty cell is a
+    // gap in a column a reader is scanning down and has to keep its place; in a
+    // card it is a band of padding with no value and no name in it, and the
+    // board's delivery note is empty on most rows.
+    //
+    // `:empty` is exact about what it matches - a single space between the tags
+    // would defeat it - so it was checked against the rendered board rather
+    // than assumed: Razor emits `<td class="dt-muted" b-…></td>` for a cell
+    // whose only content is an `@if` that did not run, with no whitespace text
+    // node inside it. The alternative was a `@if` around each of the ten cells
+    // in the markup, which is the same claim written ten times.
+    .dt-table-cards tr.dt-table-row td:empty {
+        display: none;
+    }
+
+    // The delivery window gives up its `nowrap`. `td.dt-table-window` is shared
+    // vocabulary a few lines below this block, and it is nowrapped because a
+    // range is one figure with a dash in it and must not break into two times.
+    // A column can be as wide as that needs; a card cannot, and a two-bound
+    // window across midnight is wider than 390px - so keeping it would hand the
+    // card the sideways scroller this whole block exists to escape. The two
+    // bounds read across two lines instead, which is the cost of not scrolling.
+    //
+    // Here rather than on each of the two screens that draw the column, for the
+    // reason the nowrap itself is shared: two copies of one rule are two rules
+    // waiting to drift.
+    .dt-table-cards tr.dt-table-row td.dt-table-window {
+        white-space: normal;
+    }
+
+    // The row's actions, which on a desktop are one nowrapped line at the
+    // trailing edge and on a card are a block of buttons a thumb has to be able
+    // to land on. Long enough a selector to take the two properties back from
+    // DtDataTable's own `.dt-table-row ::deep td.dt-table-actions`, which is
+    // written for the table shape.
+    .dt-table-cards tr.dt-table-row td.dt-table-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--dt-space-2);
+        white-space: normal;
+        text-align: start;
+    }
+
+    // Every control in a card is at least `touch-target` tall: a 36px control is
+    // one a thumb misses.
+    //
+    // The empty state's action as well as the rows'. DtDataTable draws the way
+    // out of an empty table - clear the filters, or create the first record -
+    // in a `tr.dt-table-empty` rather than a `tr.dt-table-row`, so the row
+    // selector alone left it at 2.25rem. It is the one control on the screen
+    // when the table has nothing in it, which makes it the worst one to miss.
+    .dt-table-cards tr.dt-table-row .btn,
+    .dt-table-cards tr.dt-table-empty .btn {
+        min-height: var(--dt-touch-target);
+    }
+}
+
+
 // -----------------------------------------------------------------------------
 // The four utilities
 // -----------------------------------------------------------------------------

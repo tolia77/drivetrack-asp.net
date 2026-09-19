@@ -12,7 +12,12 @@
    way for the same reason), and the conditions exclude each other regardless.
 
    Striping and hover come from the themed Bootstrap build, not from a new rule: AD-28 themed the
-   framework's own variables, so `table-striped` is already wearing the palette. *@
+   framework's own variables, so `table-striped` is already wearing the palette.
+
+   This component does not collapse to cards on a phone, deliberately: what a row looks like once
+   it stops being a row is the screen's question. A screen that wants it puts `dt-table-cards` on
+   its own wrapper around this table - the block is in `_theme.scss` - and states whatever cell
+   placement it wants on top of it. *@
 
 <div class="dt-table-scroll">
     <table class="table table-sm table-striped table-hover dt-type-table">

@@ -72,15 +72,19 @@
     <p class="dt-review-nothing-to-review">@Localizer["ReviewDeliveryHint"]</p>
 }
 
-@* The wrapper is this screen's anchor into the tables it does not own: below the phone breakpoint
-   the rows stop being rows and become cards, and the elements that have to change - the table, its
-   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
-   scoped element around them is what gives `::deep` something to hang from.
+@* `dt-table-cards` is where this screen opts into the shared collapse: below the phone breakpoint
+   the two tables' rows stop being rows and become cards. The collapse is stated once, in
+   `_theme.scss`, so nothing about it is written here or in this screen's own stylesheet - and
+   because it is a global rule rather than a scoped one, none of it needs a `::deep`.
 
-   One wrapper around both tables rather than one each. No role is ever shown both, and the two take
-   identical treatment, so a second wrapper would be a second copy of every rule in the media query
-   and the place a divergence between the author's cards and the moderator's would start. *@
-<div class="dt-reviews">
+   The wrapper's own name stays beside it. `Reviews.razor.css` hangs this screen's per-cell label
+   rules off it, and the phone-layout suite reads it as the element the table has to be inside.
+
+   One wrapper around both tables rather than one each. No role is ever shown both, and the two
+   take identical treatment, so a second wrapper would be a second opt-in and a second copy of the
+   label rule, and the place a divergence between the author's cards and the moderator's would
+   start. *@
+<div class="dt-reviews dt-table-cards">
     @* FR-63: the author's own list. A separate table from the moderation one below rather than the
        same table with columns hidden, because the two are different types - AuthoredReviewSummary
        has no party field at all, so a driver's identity cannot reach this table however it is later

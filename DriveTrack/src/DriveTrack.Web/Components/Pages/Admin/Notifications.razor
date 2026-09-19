@@ -44,13 +44,16 @@
 @* NFR-27 keeps the original's paging, and this screen asks for the first page - so past a full page
    the older attempts are neither shown nor findable. Saying so is the difference between a limit and
    a screen that quietly lies about what the system has sent. *@
-@* The wrapper is this screen's anchor into the table it does not own: below the phone breakpoint
-   the rows stop being rows and become cards, and the elements that have to change - the table, its
-   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
-   scoped element around it is what gives `::deep` something to hang from. Six columns, with the
-   one a reader opens the screen for - the error - last, so it is the value furthest off the edge
-   of a handset. *@
-<div class="dt-notifications">
+@* `dt-table-cards` is where this screen opts into the shared collapse: below the phone breakpoint
+   the table's rows stop being rows and become cards. The collapse is stated once, in
+   `_theme.scss`, so nothing about it is written here or in this screen's own stylesheet - and
+   because it is a global rule rather than a scoped one, none of it needs a `::deep`.
+
+   The wrapper's own name stays beside it. `Notifications.razor.css` hangs this screen's per-cell
+   label rules off it, and the phone-layout suite reads it as the element the table has to be
+   inside. Six columns, with the one a reader opens the screen for - the error - last, so it is the
+   value furthest off the edge of a handset. *@
+<div class="dt-notifications dt-table-cards">
     <DtDataTable TItem="NotificationAttemptSummary"
                  IsTruncated="IsTruncated"
                  Note="@Localizer["NotificationsTruncated"]"

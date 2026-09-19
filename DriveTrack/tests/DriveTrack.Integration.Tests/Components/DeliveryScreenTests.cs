@@ -742,7 +742,11 @@ public class DeliveryScreenTests
         var cell = WindowCell.Match(html);
 
         Assert.True(cell.Success, "The board renders no window cell.");
-        Assert.Equal(expected, Words(cell.Groups["body"].Value));
+
+        // The cell leads with its own name, as the own-deliveries cell does: the label that stands
+        // in for the column heading once the head is dropped below the breakpoint, and which is
+        // therefore in the markup at every width.
+        Assert.Equal("Часове вікно " + expected, Words(cell.Groups["body"].Value));
     }
 
     /// <summary>
@@ -1894,6 +1898,13 @@ public class DeliveryScreenTests
                 services.AddSingleton<IVehicleService>(new StubVehicleService());
                 services.AddSingleton<IClientAdministrationService>(new StubClientRoster());
             });
+
+    /// <summary>
+    /// The dispatch board with its rows, for the phone-layout suite next door. A dispatcher rather
+    /// than an administrator, because the row a dispatcher is shown is the smaller of the two and
+    /// a wrapper that held the table for one holds it for both.
+    /// </summary>
+    internal static Task<string> RenderBoardAsync() => RenderDeliveriesAsync(UserRole.Dispatcher);
 
     /// <summary>
     /// The own-deliveries screen with its rows, for the phone-layout suite next door: this class

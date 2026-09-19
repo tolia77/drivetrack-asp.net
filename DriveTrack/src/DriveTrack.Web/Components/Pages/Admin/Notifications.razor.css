@@ -1,19 +1,11 @@
 /*
-    The notification log's own cells, and the one thing this screen asks of the table it does not
-    own: below the phone breakpoint the rows stop being rows and become cards.
+    The notification log's own cells, and the one thing it asks of the table it does not own: below
+    the phone breakpoint the rows stop being rows and become cards.
 
-    Six columns read as a table on a desktop and as a horizontal scroller on a 390px screen, where
-    a reader is left dragging a row sideways to find out what is in it. That is worst here: the
-    column a reader opens this screen for is the last one, the error, so the one value the page
-    exists to show is the one furthest off the edge. A
-    table that collapses at that edge answers it, and keeps the truncation note, the empty state
-    and the loading skeleton that only DtDataTable supplies. The shape is the one the fleet screens
-    settled rather than one invented here.
-
-    This screen's first stylesheet, and it carries only the collapse. No actions rules: the log is
-    read and nothing on it can be acted on, so the table has no actions column, no buttons in its
-    rows and no action beside its heading - and a floor written for controls that do not exist
-    would be a rule nothing matches.
+    The collapse itself is not here. It is stated once in `_theme.scss`, as the `dt-table-cards`
+    class this screen's wrapper opts into - see `Notifications.razor`. What is left in this file is
+    the part that is genuinely this screen's: the name each cell carries, which is what replaces the
+    column heading the collapse drops.
 
     NFR-29: every palette value here is a `--dt-*` reference. What is literal is geometry the
     palette does not name - the breakpoint itself, which a media query cannot read from a custom
@@ -28,16 +20,17 @@
     row. Below the breakpoint the head is gone and this is what replaces it - see the media query,
     where the span also gives up `dt-visually-hidden` and becomes something a reader can see.
 
-    No `::deep`: the span is written in this screen's own `RowTemplate`, so it carries this
-    component's scope. The rules that reach the table, the head and the rows do need one, and have
-    one, because those elements are DtDataTable's.
+    No `::deep` on either of its two rules: the span is written in this screen's own `RowTemplate`,
+    so it carries this component's scope. The rules that reach the table, its head and its rows did
+    need one and no longer live here - `dt-table-cards` states them globally, where nothing is
+    scoped and there is no `::deep` left to get wrong.
 */
 .dt-notification-label {
     display: none;
 }
 
 /*
-    Below the breakpoint, the stacked layout.
+    Below the breakpoint, the label takes the dropped heading's place.
 
     Stated desktop-first with the phone as the exception, because that is the direction
     `_theme.scss` states the shell in and the two have to switch on the same edge. The theme writes
@@ -45,33 +38,21 @@
     a Sass variable, and a custom property is not legal in a media query either, so the figure is
     written out - and deliberately not approximated as `min-width: 641px`, which would leave a
     sliver of widths where the shell is a sidebar and the rows are already cards.
-
-    ::deep on everything that reaches into the table: the table, its head and its rows are
-    DtDataTable's elements and carry that component's scope, and `.dt-notifications` is this
-    screen's wrapper, so it anchors those selectors - which is also what keeps these rules off the
-    other tables in the product. The label is this screen's own element and is anchored without one.
 */
 @media (max-width: 640.98px) {
     /*
-        The head is dropped rather than hidden. A table laid out as blocks is no longer a table to a
-        screen reader - the implicit table, row and cell roles go with the `display` they came from
-        - so a head left in the accessibility tree would name columns that no longer exist to be
-        announced under. What replaces it is the label inside each cell, revealed just below.
-    */
-    .dt-notifications ::deep thead {
-        display: none;
-    }
-
-    /*
-        And the label takes the heading's place, as something a reader can actually see. `display`
-        alone would not do that: `dt-visually-hidden` also pulls the span out of the flow, shrinks
-        it to a pixel, hides the overflow and masks what is left, so every one of those has to be
-        handed back here - or a card would show a bare number with nothing saying it is the
-        delivery the attempt was about.
+        `display` alone would not reveal it: `dt-visually-hidden` also pulls the span out of the
+        flow, shrinks it to a pixel, hides the overflow and masks what is left, so every one of
+        those has to be handed back here. Without them a card would show a bare provider error
+        string with nothing left saying what had produced it.
 
         A face of its own, so it reads as the name of the value rather than as a second value: the
         same quietened label ramp the column headings wear. Full width so it takes the line above
-        the value.
+        the value, in the actions cell as well - that one is a flex row, and without this the name
+        of the column would sit on the line beside the buttons it names.
+
+        Anchored on the wrapper without a `::deep`, which is what keeps the reveal on this screen's
+        own spans and off any other table it might one day hold.
     */
     .dt-notifications .dt-notification-label {
         display: block;
@@ -86,59 +67,5 @@
         font-size: var(--dt-label-font-size);
         line-height: var(--dt-label-line-height);
         font-weight: var(--dt-label-font-weight);
-    }
-
-    /*
-        A table laid out as blocks. Every level of it, or a `display: block` row would have its
-        cells wrapped back into an anonymous table box and nothing would change.
-    */
-    .dt-notifications ::deep table,
-    .dt-notifications ::deep tbody,
-    .dt-notifications ::deep tr,
-    .dt-notifications ::deep td {
-        display: block;
-        width: 100%;
-    }
-
-    /*
-        The inner scroll goes with the table. DtDataTable caps its scroll box at 32rem so a long
-        table cannot push the page down, which is right for a table and wrong for this: on a 390px
-        screen it would put a 512px scrolling region inside a scrolling page, and escaping one
-        nested scroller is exactly what collapsing to cards is for. The page scrolls instead.
-    */
-    .dt-notifications ::deep .dt-table-scroll {
-        max-height: none;
-    }
-
-    /*
-        One row, one card - and the card's padding is on its cells rather than on the row. That is
-        what keeps the striping and the hover tint, which is what tells one card from the next: the
-        themed framework paints both as an inset shadow on the cell (`.table > :not(caption) > * >
-        *`), so padding on the row - or a gap between the cells - would be a frame the fill never
-        reaches, and an odd card would show its text lines painted and its border of white space
-        bare. With the padding on the cells the fill covers the card edge to edge, and what is left
-        for the row is the card's own edge.
-    */
-    .dt-notifications ::deep tr.dt-table-row {
-        border-bottom: var(--dt-border-width) solid var(--dt-border);
-    }
-
-    /*
-        Every cell is a line of the card, full width, and it carries the card's padding for the
-        reason above. The cell borders go: a card ruled between each of its own lines is several
-        cards.
-
-        And a long unbroken value breaks inside the card rather than widening it. An address, a
-        licence plate or a provider's error string carries no space for a line to break at, so
-        without this it pushes the cell past 390px and `.dt-table-scroll` - which still scrolls,
-        it is only its height cap that was released above - hands the card a sideways scroller of
-        its own. Escaping that scroller is the whole of what this collapse is for. `anywhere`
-        rather than `break-word`, as `ChatLine.razor.css` writes it for the same problem: it lets
-        the intrinsic width shrink too, which is what a cell inside a grid or a flex track needs.
-    */
-    .dt-notifications ::deep tr.dt-table-row td {
-        padding: var(--dt-space-2) var(--dt-space-3);
-        border: 0;
-        overflow-wrap: anywhere;
     }
 }

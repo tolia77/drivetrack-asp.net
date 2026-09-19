@@ -136,208 +136,253 @@
 @* NFR-27 keeps paging, and this screen asks for the first page and filters it in the browser - so
    past a full page the rest is neither shown nor findable. Saying so is the difference between a
    limit and a screen that quietly lies about how much work there is. *@
-<DtDataTable TItem="DeliverySummary"
-             IsTruncated="IsTruncated"
-             Note="@Localizer["DeliveriesTruncated"]"
-             Items="Visible"
-             IsLoading="_loading"
-             EmptyText="@Localizer["DeliveriesEmpty"]">
-    @* The way out of an empty list, under the sentence that says it is empty - and only when there
-       is a way out to offer. An empty board has two causes: filters that match none of the fetched
-       rows, and a fetch that came back with nothing. Clearing helps with the first and does nothing
-       at all about the second, so the action is offered only when something is actually set to be
-       cleared; an unfiltered empty board says it is empty and stops there. *@
-    <EmptyAction>
-        @if (IsFiltered)
-        {
-            <button type="button" class="btn btn-outline-secondary btn-sm dt-delivery-empty-reset"
-                    @onclick="ResetFilters">
-                <Icon Name="IconName.Close" />@Localizer["ResetFilters"]
-            </button>
-        }
-    </EmptyAction>
-    <HeaderTemplate>
-        @* DtDataTable carries no sorting of its own - it renders whatever rows it is given - so the
-           sort controls belong to the consumer, and a heading is the control. The handlers are
-           built in code rather than written as lambdas here: a `=>` inside an attribute closes the
-           tag as far as a source scan is concerned.
+@* `dt-table-cards` is where this screen opts into the shared collapse: below the phone breakpoint
+   the table's rows stop being rows and become cards. Ten columns is the widest table in the
+   product and the one that needed it most - until this wrapper the board was a horizontal
+   scroller on a handset, a dispatcher dragging a row sideways to find out what was in it.
 
-           aria-sort is what makes the reordering perceivable at all to a screen reader: without it
-           the rows silently rearrange and nothing says which column did it or in which direction.
-           Its three values are ARIA tokens rather than prose - a browser reads them out in the
-           user's own language - so they take no resource key, and they are computed in a method
-           for the same reason the handlers are.
-
-           The glyph is the sighted half of the same fact. Every heading carries the stacked pair
-           that means "this sorts"; the one the rows are actually in order by swaps it for a single
-           chevron pointing the way it went, so ascending and descending differ by shape rather than
-           by the brand colour alone. Chosen in a method keyed on the column, exactly as the ARIA
-           state is - a method call is legal in an attribute value, and the two alternatives are the
-           `=>` and the call inside an @@if that the Razor idioms here forbid. *@
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.Window)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Window)">
-                @Localizer["DeliveryWindow"]<Icon Name="@SortGlyph(DeliveryColumn.Window)" />
-            </button>
-        </th>
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.Driver)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Driver)">
-                @Localizer["Driver"]<Icon Name="@SortGlyph(DeliveryColumn.Driver)" />
-            </button>
-        </th>
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.Client)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Client)">
-                @Localizer["Client"]<Icon Name="@SortGlyph(DeliveryColumn.Client)" />
-            </button>
-        </th>
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.Pickup)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Pickup)">
-                @Localizer["Pickup"]<Icon Name="@SortGlyph(DeliveryColumn.Pickup)" />
-            </button>
-        </th>
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.Dropoff)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Dropoff)">
-                @Localizer["Dropoff"]<Icon Name="@SortGlyph(DeliveryColumn.Dropoff)" />
-            </button>
-        </th>
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.PackageDetails)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.PackageDetails)">
-                @Localizer["PackageDetails"]<Icon Name="@SortGlyph(DeliveryColumn.PackageDetails)" />
-            </button>
-        </th>
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.DeliveryNotes)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.DeliveryNotes)">
-                @Localizer["DeliveryNotes"]<Icon Name="@SortGlyph(DeliveryColumn.DeliveryNotes)" />
-            </button>
-        </th>
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.Status)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Status)">
-                @Localizer["Status"]<Icon Name="@SortGlyph(DeliveryColumn.Status)" />
-            </button>
-        </th>
-        <th scope="col" aria-sort="@SortState(DeliveryColumn.CreatedAt)">
-            <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.CreatedAt)">
-                @Localizer["CreatedAt"]<Icon Name="@SortGlyph(DeliveryColumn.CreatedAt)" />
-            </button>
-        </th>
-        @* The actions column keeps its heading for a screen reader and drops it on screen: the
-           buttons under it say what they do, and a column named twice is a column name competing
-           with them. The cell itself stays, so the column keeps its width for a role with no
-           actions in it. *@
-        <th scope="col" class="dt-table-actions">
-            <span class="dt-visually-hidden">@Localizer["Actions"]</span>
-        </th>
-    </HeaderTemplate>
-    <RowTemplate Context="delivery">
-        @* FR-19 and FR-100: the window the delivery was promised in, and - when the clock has passed
-           its far bound - the badge saying so, inside this cell rather than in a column of its own.
-           Overdue is derived from the window, so a column apart from it would have been the same
-           fact twice with a gap between them; beside the hours it is a mark on the value it is
-           about. Routed through a method rather than formatted in markup: NFR-14's scan strips a
-           Razor expression only up to its first closing bracket, so a `.ToString(...)` tail would be
-           left behind in the text node and read as a rendered English word. *@
-        <td class="dt-table-window">
-            @* A window with both bounds is a range and says so with the dash between them. A window
-               with one bound is a direction - "from" or "until" - because a range with a hole where
-               a bound should be says nothing about which end is missing, and a dash standing in for
-               an absent figure beside a dash meaning "to" reads as neither. The word is rendered
-               here rather than composed in the method because the catalogue is closed against the
-               keys asked for in markup, and a key resolved only from code is a key no test sees. *@
-            @if (delivery.WindowEarliestAt is not null && delivery.WindowLatestAt is null)
+   The collapse is stated once, in `_theme.scss`, so nothing about it is written here or in
+   `Deliveries.razor.css` - and because it is a global rule rather than a scoped one, none of it
+   needs a `::deep`. What the wrapper's own name is for is the per-cell labels: the rule that
+   reveals them hangs off `.dt-deliveries`, and the phone-layout suite reads it as the element the
+   table has to be inside. *@
+<div class="dt-deliveries dt-table-cards">
+    <DtDataTable TItem="DeliverySummary"
+                 IsTruncated="IsTruncated"
+                 Note="@Localizer["DeliveriesTruncated"]"
+                 Items="Visible"
+                 IsLoading="_loading"
+                 EmptyText="@Localizer["DeliveriesEmpty"]">
+        @* The way out of an empty list, under the sentence that says it is empty - and only when there
+           is a way out to offer. An empty board has two causes: filters that match none of the fetched
+           rows, and a fetch that came back with nothing. Clearing helps with the first and does nothing
+           at all about the second, so the action is offered only when something is actually set to be
+           cleared; an unfiltered empty board says it is empty and stops there. *@
+        <EmptyAction>
+            @if (IsFiltered)
             {
-                <span>@Localizer["WindowFrom"]</span>
-            }
-            @if (delivery.WindowEarliestAt is null && delivery.WindowLatestAt is not null)
-            {
-                <span>@Localizer["WindowUntil"]</span>
-            }
-            @Window(delivery)
-            @if (delivery.IsOverdue)
-            {
-                <DtBadge Variant="DtBadgeVariant.Overdue">@Localizer["Overdue"]</DtBadge>
-            }
-        </td>
-        <td>
-            @if (delivery.Driver is null)
-            {
-                <span class="dt-muted">@Localizer["NoDriver"]</span>
-            }
-            @if (delivery.Driver is not null)
-            {
-                <span>@delivery.Driver.Name</span>
-            }
-        </td>
-        <td>
-            @if (delivery.Client is null)
-            {
-                <span class="dt-muted">@Localizer["NoClient"]</span>
-            }
-            @if (delivery.Client is not null)
-            {
-                <span>@delivery.Client.Name</span>
-            }
-        </td>
-        @* FR-21: the cell is the way to the map. The label is the address when one has been
-           resolved and the coordinates when none has (FR-94), so the cell is never empty.
-
-           The design draws these two as plain text with a single Map action in the row, and that is
-           the one place this screen departs from it: one button cannot mean two places. DtMap takes
-           a single point and carries no marker collection, so a row-level Map would have to pick a
-           side or grow a component the two form pickers also render. Two cells, two points, two
-           ways in. *@
-        <td>
-            <button type="button" class="btn btn-link btn-sm dt-delivery-pickup"
-                    @onclick="ShowLocationHandler(delivery.Pickup)">
-                <Icon Name="IconName.Location" />@LocationText.Describe(delivery.Pickup)
-            </button>
-        </td>
-        <td>
-            <button type="button" class="btn btn-link btn-sm dt-delivery-dropoff"
-                    @onclick="ShowLocationHandler(delivery.Dropoff)">
-                <Icon Name="IconName.Location" />@LocationText.Describe(delivery.Dropoff)
-            </button>
-        </td>
-        <td>@delivery.PackageDetails</td>
-        <td class="dt-muted">@delivery.DeliveryNotes</td>
-        @* One status vocabulary, shared with the own-deliveries screen and with every timeline
-           entry. The filter's <option> list above keeps its own literal keys, because those are
-           values as much as labels. *@
-        <td><DeliveryStatusLabel Status="delivery.Status" /></td>
-        @* Routed through a method for the reason the window is. *@
-        <td class="dt-muted">@Created(delivery)</td>
-        <td class="dt-table-actions">
-            @* FR-108: the history is a row action rather than a column, because it is a
-               conversation about one delivery and not a value to be compared across the table. *@
-            <button type="button" class="btn btn-outline-secondary btn-sm dt-delivery-timeline"
-                    @onclick="TimelineHandler(delivery)">
-                <Icon Name="IconName.Timeline" />@Localizer["Timeline"]
-            </button>
-            @* FR-122: dispatch reads the evidence, and is one of the two roles told who captured it
-               (AD-17). There is no capture action here - FR-119 puts that at the door, and a
-               dispatcher behind a desk has nothing to photograph; the note arm of FR-120 is what
-               dispatch has instead, and it lives on the history panel beside this button. *@
-            <button type="button" class="btn btn-outline-secondary btn-sm dt-proof-open"
-                    @onclick="ProofHandler(delivery)">
-                <Icon Name="IconName.Proof" />@Localizer["ProofOpen"]
-            </button>
-            @* Last of the three the design draws, and the only one of them that changes anything:
-               the neutral reads come first and the edit colour closes the row. *@
-            <button type="button" class="btn btn-secondary btn-sm dt-delivery-edit"
-                    @onclick="EditHandler(delivery)">
-                <Icon Name="IconName.Edit" />@Localizer["Edit"]
-            </button>
-            @* FR-24 reserves deletion to an administrator, and the service refuses a dispatcher who
-               asks. Offering an action that could only ever fail is worse than not offering it.
-               FR-12 unchanged: this hides, IAccessGuard decides. *@
-            @if (_isAdmin)
-            {
-                <button type="button" class="btn btn-danger btn-sm dt-delivery-delete"
-                        @onclick="DeleteHandler(delivery)">
-                    <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                <button type="button" class="btn btn-outline-secondary btn-sm dt-delivery-empty-reset"
+                        @onclick="ResetFilters">
+                    <Icon Name="IconName.Close" />@Localizer["ResetFilters"]
                 </button>
             }
-        </td>
-    </RowTemplate>
-</DtDataTable>
+        </EmptyAction>
+        <HeaderTemplate>
+            @* DtDataTable carries no sorting of its own - it renders whatever rows it is given - so the
+               sort controls belong to the consumer, and a heading is the control. The handlers are
+               built in code rather than written as lambdas here: a `=>` inside an attribute closes the
+               tag as far as a source scan is concerned.
+
+               aria-sort is what makes the reordering perceivable at all to a screen reader: without it
+               the rows silently rearrange and nothing says which column did it or in which direction.
+               Its three values are ARIA tokens rather than prose - a browser reads them out in the
+               user's own language - so they take no resource key, and they are computed in a method
+               for the same reason the handlers are.
+
+               The glyph is the sighted half of the same fact. Every heading carries the stacked pair
+               that means "this sorts"; the one the rows are actually in order by swaps it for a single
+               chevron pointing the way it went, so ascending and descending differ by shape rather than
+               by the brand colour alone. Chosen in a method keyed on the column, exactly as the ARIA
+               state is - a method call is legal in an attribute value, and the two alternatives are the
+               `=>` and the call inside an @@if that the Razor idioms here forbid. *@
+            <th scope="col" aria-sort="@SortState(DeliveryColumn.Window)">
+                <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Window)">
+                    @Localizer["DeliveryWindow"]<Icon Name="@SortGlyph(DeliveryColumn.Window)" />
+                </button>
+            </th>
+            <th scope="col" aria-sort="@SortState(DeliveryColumn.Driver)">
+                <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Driver)">
+                    @Localizer["Driver"]<Icon Name="@SortGlyph(DeliveryColumn.Driver)" />
+                </button>
+            </th>
+            <th scope="col" aria-sort="@SortState(DeliveryColumn.Client)">
+                <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Client)">
+                    @Localizer["Client"]<Icon Name="@SortGlyph(DeliveryColumn.Client)" />
+                </button>
+            </th>
+            <th scope="col" aria-sort="@SortState(DeliveryColumn.Pickup)">
+                <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Pickup)">
+                    @Localizer["Pickup"]<Icon Name="@SortGlyph(DeliveryColumn.Pickup)" />
+                </button>
+            </th>
+            <th scope="col" aria-sort="@SortState(DeliveryColumn.Dropoff)">
+                <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Dropoff)">
+                    @Localizer["Dropoff"]<Icon Name="@SortGlyph(DeliveryColumn.Dropoff)" />
+                </button>
+            </th>
+            <th scope="col" aria-sort="@SortState(DeliveryColumn.PackageDetails)">
+                <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.PackageDetails)">
+                    @Localizer["PackageDetails"]<Icon Name="@SortGlyph(DeliveryColumn.PackageDetails)" />
+                </button>
+            </th>
+            <th scope="col" aria-sort="@SortState(DeliveryColumn.DeliveryNotes)">
+                <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.DeliveryNotes)">
+                    @Localizer["DeliveryNotes"]<Icon Name="@SortGlyph(DeliveryColumn.DeliveryNotes)" />
+                </button>
+            </th>
+            <th scope="col" aria-sort="@SortState(DeliveryColumn.Status)">
+                <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.Status)">
+                    @Localizer["Status"]<Icon Name="@SortGlyph(DeliveryColumn.Status)" />
+                </button>
+            </th>
+            <th scope="col" aria-sort="@SortState(DeliveryColumn.CreatedAt)">
+                <button type="button" class="btn btn-link btn-sm" @onclick="SortHandler(DeliveryColumn.CreatedAt)">
+                    @Localizer["CreatedAt"]<Icon Name="@SortGlyph(DeliveryColumn.CreatedAt)" />
+                </button>
+            </th>
+            @* The actions column keeps its heading for a screen reader and drops it on screen: the
+               buttons under it say what they do, and a column named twice is a column name competing
+               with them. The cell itself stays, so the column keeps its width for a role with no
+               actions in it. *@
+            <th scope="col" class="dt-table-actions">
+                <span class="dt-visually-hidden">@Localizer["Actions"]</span>
+            </th>
+        </HeaderTemplate>
+        <RowTemplate Context="delivery">
+            @* FR-19 and FR-100: the window the delivery was promised in, and - when the clock has passed
+               its far bound - the badge saying so, inside this cell rather than in a column of its own.
+               Overdue is derived from the window, so a column apart from it would have been the same
+               fact twice with a gap between them; beside the hours it is a mark on the value it is
+               about. Routed through a method rather than formatted in markup: NFR-14's scan strips a
+               Razor expression only up to its first closing bracket, so a `.ToString(...)` tail would be
+               left behind in the text node and read as a rendered English word. *@
+            <td class="dt-table-window">
+                @* The per-cell name, carried by the cell rather than only by the column heading.
+                   Above the breakpoint it is dropped - the `<th>` already names the column, and a
+                   second name in every cell would be that name read twice a row. Below it the head
+                   is gone and this is what replaces it, painted by `Deliveries.razor.css`. *@
+                <span class="dt-visually-hidden dt-delivery-label">@Localizer["DeliveryWindow"]</span>
+                @* A window with both bounds is a range and says so with the dash between them. A window
+                   with one bound is a direction - "from" or "until" - because a range with a hole where
+                   a bound should be says nothing about which end is missing, and a dash standing in for
+                   an absent figure beside a dash meaning "to" reads as neither. The word is rendered
+                   here rather than composed in the method because the catalogue is closed against the
+                   keys asked for in markup, and a key resolved only from code is a key no test sees. *@
+                @if (delivery.WindowEarliestAt is not null && delivery.WindowLatestAt is null)
+                {
+                    <span>@Localizer["WindowFrom"]</span>
+                }
+                @if (delivery.WindowEarliestAt is null && delivery.WindowLatestAt is not null)
+                {
+                    <span>@Localizer["WindowUntil"]</span>
+                }
+                @Window(delivery)
+                @if (delivery.IsOverdue)
+                {
+                    <DtBadge Variant="DtBadgeVariant.Overdue">@Localizer["Overdue"]</DtBadge>
+                }
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-delivery-label">@Localizer["Driver"]</span>
+                @if (delivery.Driver is null)
+                {
+                    <span class="dt-muted">@Localizer["NoDriver"]</span>
+                }
+                @if (delivery.Driver is not null)
+                {
+                    <span>@delivery.Driver.Name</span>
+                }
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-delivery-label">@Localizer["Client"]</span>
+                @if (delivery.Client is null)
+                {
+                    <span class="dt-muted">@Localizer["NoClient"]</span>
+                }
+                @if (delivery.Client is not null)
+                {
+                    <span>@delivery.Client.Name</span>
+                }
+            </td>
+            @* FR-21: the cell is the way to the map. The label is the address when one has been
+               resolved and the coordinates when none has (FR-94), so the cell is never empty.
+
+               The design draws these two as plain text with a single Map action in the row, and that is
+               the one place this screen departs from it: one button cannot mean two places. DtMap takes
+               a single point and carries no marker collection, so a row-level Map would have to pick a
+               side or grow a component the two form pickers also render. Two cells, two points, two
+               ways in. *@
+            <td>
+                <span class="dt-visually-hidden dt-delivery-label">@Localizer["Pickup"]</span>
+                <button type="button" class="btn btn-link btn-sm dt-delivery-pickup"
+                        @onclick="ShowLocationHandler(delivery.Pickup)">
+                    <Icon Name="IconName.Location" />@LocationText.Describe(delivery.Pickup)
+                </button>
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-delivery-label">@Localizer["Dropoff"]</span>
+                <button type="button" class="btn btn-link btn-sm dt-delivery-dropoff"
+                        @onclick="ShowLocationHandler(delivery.Dropoff)">
+                    <Icon Name="IconName.Location" />@LocationText.Describe(delivery.Dropoff)
+                </button>
+            </td>
+            <td>
+                <span class="dt-visually-hidden dt-delivery-label">@Localizer["PackageDetails"]</span>
+                @delivery.PackageDetails
+            </td>
+            @* The client's instructions, and the one cell on the row that is often empty. The
+               cell's own name goes inside the block with the value it names: a delivery with no
+               note would otherwise show a heading on a card with nothing under it, which is worse
+               than a card with one line fewer. *@
+            <td class="dt-muted">
+                @if (!string.IsNullOrWhiteSpace(delivery.DeliveryNotes))
+                {
+                    <span class="dt-visually-hidden dt-delivery-label">@Localizer["DeliveryNotes"]</span>
+                    @delivery.DeliveryNotes
+                }
+            </td>
+            @* One status vocabulary, shared with the own-deliveries screen and with every timeline
+               entry. The filter's <option> list above keeps its own literal keys, because those are
+               values as much as labels. *@
+            <td>
+                <span class="dt-visually-hidden dt-delivery-label">@Localizer["Status"]</span>
+                <DeliveryStatusLabel Status="delivery.Status" />
+            </td>
+            @* Routed through a method for the reason the window is. *@
+            <td class="dt-muted">
+                <span class="dt-visually-hidden dt-delivery-label">@Localizer["CreatedAt"]</span>
+                @Created(delivery)
+            </td>
+            <td class="dt-table-actions">
+                @* The per-cell name the other nine cells carry. The buttons under it name
+                   themselves, which is why the column's heading is hidden even on a desktop - but
+                   below the breakpoint the head is dropped outright, so without this the group of
+                   actions would be the one part of a card that announces nothing at all. *@
+                <span class="dt-visually-hidden dt-delivery-label">@Localizer["Actions"]</span>
+                @* FR-108: the history is a row action rather than a column, because it is a
+                   conversation about one delivery and not a value to be compared across the table. *@
+                <button type="button" class="btn btn-outline-secondary btn-sm dt-delivery-timeline"
+                        @onclick="TimelineHandler(delivery)">
+                    <Icon Name="IconName.Timeline" />@Localizer["Timeline"]
+                </button>
+                @* FR-122: dispatch reads the evidence, and is one of the two roles told who captured it
+                   (AD-17). There is no capture action here - FR-119 puts that at the door, and a
+                   dispatcher behind a desk has nothing to photograph; the note arm of FR-120 is what
+                   dispatch has instead, and it lives on the history panel beside this button. *@
+                <button type="button" class="btn btn-outline-secondary btn-sm dt-proof-open"
+                        @onclick="ProofHandler(delivery)">
+                    <Icon Name="IconName.Proof" />@Localizer["ProofOpen"]
+                </button>
+                @* Last of the three the design draws, and the only one of them that changes anything:
+                   the neutral reads come first and the edit colour closes the row. *@
+                <button type="button" class="btn btn-secondary btn-sm dt-delivery-edit"
+                        @onclick="EditHandler(delivery)">
+                    <Icon Name="IconName.Edit" />@Localizer["Edit"]
+                </button>
+                @* FR-24 reserves deletion to an administrator, and the service refuses a dispatcher who
+                   asks. Offering an action that could only ever fail is worse than not offering it.
+                   FR-12 unchanged: this hides, IAccessGuard decides. *@
+                @if (_isAdmin)
+                {
+                    <button type="button" class="btn btn-danger btn-sm dt-delivery-delete"
+                            @onclick="DeleteHandler(delivery)">
+                        <Icon Name="IconName.Delete" />@Localizer["Delete"]
+                    </button>
+                }
+            </td>
+        </RowTemplate>
+    </DtDataTable>
+</div>
 
 @* FR-85: the shared dialog. One heading for both create and edit - a title composed at run time
    would be a key no test can see, and the catalogue is closed against the keys components ask for. *@

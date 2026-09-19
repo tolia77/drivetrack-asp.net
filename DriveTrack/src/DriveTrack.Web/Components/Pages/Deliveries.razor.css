@@ -1,11 +1,26 @@
 /*
-    The dispatcher roster's own cells, and the one thing it asks of the table it does not own: below
+    The dispatch board's own cells, and the one thing it asks of the table it does not own: below
     the phone breakpoint the rows stop being rows and become cards.
 
+    Ten columns - a window, a driver, a client, two addresses, a parcel, a note, a status, a created
+    stamp and the row's four actions - is the widest table in the product, and until the wrapper in
+    `Deliveries.razor` opted in it was the last one that still scrolled sideways on a handset. A
+    dispatcher on a phone was dragging a row across to find out what was in it.
+
     The collapse itself is not here. It is stated once in `_theme.scss`, as the `dt-table-cards`
-    class this screen's wrapper opts into - see `Dispatchers.razor`. What is left in this file is
-    the part that is genuinely this screen's: the name each cell carries, which is what replaces the
-    column heading the collapse drops.
+    class this screen's wrapper opts into - and so is the delivery window's release from `nowrap`,
+    beside the `nowrap` it undoes. What is left in this file is the one part that is genuinely this
+    screen's: the name each cell carries, which is what replaces the column heading the collapse
+    drops.
+
+    No placement beyond that, unlike `MyDeliveries.razor.css`. That screen puts its window and its
+    status on one line because it has six columns and a driver reads the pair together. Ten columns
+    on a 390px card have no pair worth privileging: two of them on one line would be two half-width
+    tracks for a ten-line card, and the tenth line is a row of four buttons that wants the whole
+    width anyway.
+
+    So this file reaches none of DtDataTable's elements and carries no `::deep` at all. The two
+    rules below are about a span this screen writes itself.
 
     NFR-29: every palette value here is a `--dt-*` reference. What is literal is geometry the
     palette does not name - the breakpoint itself, which a media query cannot read from a custom
@@ -19,13 +34,8 @@
     announced under it, and a second name inside every cell would be that name read twice on every
     row. Below the breakpoint the head is gone and this is what replaces it - see the media query,
     where the span also gives up `dt-visually-hidden` and becomes something a reader can see.
-
-    No `::deep` on either of its two rules: the span is written in this screen's own `RowTemplate`,
-    so it carries this component's scope. The rules that reach the table, its head and its rows did
-    need one and no longer live here - `dt-table-cards` states them globally, where nothing is
-    scoped and there is no `::deep` left to get wrong.
 */
-.dt-dispatcher-label {
+.dt-delivery-label {
     display: none;
 }
 
@@ -43,18 +53,18 @@
     /*
         `display` alone would not reveal it: `dt-visually-hidden` also pulls the span out of the
         flow, shrinks it to a pixel, hides the overflow and masks what is left, so every one of
-        those has to be handed back here. Without them a card would show a bare address with nothing
-        left saying it was the one the invitation went to.
+        those has to be handed back here. Without them a card would show two bare addresses with
+        nothing left saying which was the pickup.
 
         A face of its own, so it reads as the name of the value rather than as a second value: the
         same quietened label ramp the column headings wear. Full width so it takes the line above
         the value, in the actions cell as well - that one is a flex row, and without this the name
-        of the column would sit on the line beside the buttons it names.
+        of the column would sit on the line beside the four buttons it names.
 
-        Anchored on the wrapper without a `::deep`, which is what keeps the reveal on this screen's
-        own spans and off any other table it might one day hold.
+        Anchored on the wrapper and without a `::deep`, because the span is written in this screen's
+        own RowTemplate and already carries this component's scope.
     */
-    .dt-dispatchers .dt-dispatcher-label {
+    .dt-deliveries .dt-delivery-label {
         display: block;
         position: static;
         width: 100%;

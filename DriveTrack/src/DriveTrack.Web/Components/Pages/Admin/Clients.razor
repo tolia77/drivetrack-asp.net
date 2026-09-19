@@ -37,11 +37,14 @@
    is a 409 naming no field. *@
 <DtFailureBanner Failures="_failures" InlineFields="@InlineFields" />
 
-@* The wrapper is this screen's anchor into the table it does not own: below the phone breakpoint
-   the rows stop being rows and become cards, and the elements that have to change - the table, its
-   head and its rows - are DtDataTable's and carry that component's scope rather than this one's. A
-   scoped element around it is what gives `::deep` something to hang from. *@
-<div class="dt-clients">
+@* `dt-table-cards` is where this screen opts into the shared collapse: below the phone breakpoint
+   the table's rows stop being rows and become cards. The collapse is stated once, in
+   `_theme.scss`, so nothing about it is written here or in this screen's own stylesheet - and
+   because it is a global rule rather than a scoped one, none of it needs a `::deep`.
+
+   The wrapper's own name stays beside it. `Clients.razor.css` hangs this screen's per-cell label
+   rules off it, and the phone-layout suite reads it as the element the table has to be inside. *@
+<div class="dt-clients dt-table-cards">
     <DtDataTable TItem="ClientAccount" Items="_clients" IsLoading="_isLoading">
         <HeaderTemplate>
             <th scope="col">@Localizer["FirstName"]</th>
