@@ -149,3 +149,23 @@ td.dt-my-delivery-package > span:not(.dt-my-delivery-label) {
         text-align: end;
     }
 }
+
+/*
+    The two addresses read from their leading edge, aligned with their own column
+    names — the same pair of corrections the dispatch board's places needed, for
+    the same two reasons.
+
+    `.btn` centres its label, which is right for a word on a control and wrong for
+    an address that wraps; and `.btn-link` carries horizontal padding where
+    `DtDataTable` zeroes it on a sortable header's button, so the value started
+    half a step right of the heading above it. These two headings are plain `<th>`
+    cells with no button at all, so the offset was the row's alone.
+
+    Targeted by their own hooks rather than through the wrapper: the buttons are
+    this screen's markup and carry its scope, so no `::deep` and no anchor needed.
+*/
+.dt-my-delivery-pickup,
+.dt-my-delivery-dropoff {
+    padding-inline: 0;
+    text-align: start;
+}
