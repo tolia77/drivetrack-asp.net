@@ -302,14 +302,14 @@
                a single point and carries no marker collection, so a row-level Map would have to pick a
                side or grow a component the two form pickers also render. Two cells, two points, two
                ways in. *@
-            <td>
+            <td class="dt-delivery-place">
                 <span class="dt-visually-hidden dt-delivery-label">@Localizer["Pickup"]</span>
                 <button type="button" class="btn btn-link btn-sm dt-delivery-pickup"
                         @onclick="ShowLocationHandler(delivery.Pickup)">
                     <Icon Name="IconName.Location" />@LocationText.Describe(delivery.Pickup)
                 </button>
             </td>
-            <td>
+            <td class="dt-delivery-place">
                 <span class="dt-visually-hidden dt-delivery-label">@Localizer["Dropoff"]</span>
                 <button type="button" class="btn btn-link btn-sm dt-delivery-dropoff"
                         @onclick="ShowLocationHandler(delivery.Dropoff)">

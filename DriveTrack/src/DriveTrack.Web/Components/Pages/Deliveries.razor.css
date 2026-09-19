@@ -79,3 +79,75 @@
         font-weight: var(--dt-label-font-weight);
     }
 }
+
+/*
+    The values sit at the top of the row, against the framework's `middle`.
+
+    That default is right for the roster tables, where every cell is one line and
+    the row is as tall as the buttons beside them. This table is the widest in the
+    product and its two address cells wrap to ten lines, so a centred driver name
+    or status floats in the middle of a tall row with nothing on either side of it
+    at that height. Read down a column, values that start where their row starts
+    are values a reader can scan.
+*/
+.dt-deliveries td {
+    vertical-align: top;
+}
+
+/*
+    The row's three actions in a column rather than a line.
+
+    Ten columns leave the actions cell the narrowest thing on the row, and three
+    labelled buttons side by side either wrap at arbitrary points or force the
+    whole table wider than the viewport. Stacked, the cell is one button wide and
+    the labels stay whole.
+
+    Stacked by making the buttons blocks, not by making the cell a flex container.
+    A `display: flex` on a `<td>` takes it out of the table's layout: it stops
+    stretching to the height of its row, and on a row as tall as this one's
+    addresses the difference showed as an unpainted white rectangle under the
+    buttons, where the cell had ended and the row had not. The cell stays a table
+    cell and the buttons do the stacking.
+*/
+.dt-deliveries td.dt-table-actions .btn {
+    display: block;
+    width: 100%;
+}
+
+.dt-deliveries td.dt-table-actions .btn + .btn {
+    margin-block-start: var(--dt-space-2);
+}
+
+/*
+    And the address reads from its leading edge. `.btn` is centred - right for a
+    word on a control, wrong for five lines of address that happen to be a button
+    because the whole of it opens the map. Only the two place cells: the actions
+    beside them are labels on controls and stay centred.
+*/
+.dt-deliveries td.dt-delivery-place .btn {
+    text-align: start;
+    /*
+        And it gives up the button's horizontal padding, so the column's content
+        starts where its heading does. `DtDataTable` already zeroes that padding on
+        a sortable header's own button for this reason - a column name is a name
+        that happens to be pressable, not a control with a label - and the address
+        under it is the same kind of thing: the whole value opens the map. Left as
+        Bootstrap sets it, the row sat half a step right of its own heading.
+    */
+    padding-inline: 0;
+}
+
+/*
+    And the two addresses get room. A full Ukrainian address is the longest value
+    in the product - street, district, city, postcode, country - and in a tenth of
+    the table's width it wrapped to ten lines and set the height of every row.
+
+    A `min-width` rather than a `width`: the table still distributes what is left
+    over, so this is a floor under the two columns that need one and not a layout
+    written in figures. The figure is geometry the palette does not name - there is
+    no token for how wide a column of addresses should be - and NFR-29 does not
+    scan it.
+*/
+.dt-deliveries td.dt-delivery-place {
+    min-width: 13rem;
+}
