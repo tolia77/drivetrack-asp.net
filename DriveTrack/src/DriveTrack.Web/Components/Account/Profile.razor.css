@@ -42,3 +42,24 @@
         min-height: var(--dt-touch-target);
     }
 }
+
+/*
+    Three actions, in a column.
+
+    This is the only card in the product offering more than one, and three labelled
+    buttons in a row across the head crowd the title and set the card's minimum
+    width by themselves. Stacked they are one column at the trailing edge, each
+    label whole, and the head is as wide as the record below it needs.
+
+    `.dt-card__actions` is DtCard's element, but it is only the ancestor here - the
+    scope attribute lands on the buttons, which are written in this screen's own
+    `Actions` fragment, so no `::deep` is needed.
+*/
+.dt-card__actions .btn {
+    width: 100%;
+}
+
+.dt-profile-card .dt-card__actions {
+    flex-direction: column;
+    align-items: stretch;
+}

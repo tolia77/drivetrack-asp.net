@@ -169,3 +169,23 @@ td.dt-my-delivery-package > span:not(.dt-my-delivery-label) {
     padding-inline: 0;
     text-align: start;
 }
+
+/*
+    The row's actions stack, as the dispatch board's do.
+
+    A driver's row offers three - the history, the capture and the proof - and in
+    a line they take more width than the two addresses beside them, which are the
+    values the screen is actually for. Stacked, the column is one button wide.
+
+    Stacked by making the buttons blocks rather than by flexing the cell: a
+    `display: flex` on a `<td>` takes it out of the table's layout, so it stops
+    stretching to the height of its row and leaves the rest of the cell unpainted.
+*/
+.dt-my-deliveries td.dt-table-actions .btn {
+    display: block;
+    width: 100%;
+}
+
+.dt-my-deliveries td.dt-table-actions .btn + .btn {
+    margin-block-start: var(--dt-space-2);
+}

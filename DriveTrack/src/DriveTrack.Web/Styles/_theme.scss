@@ -781,6 +781,15 @@ $dt-breakpoint-phone-max: $dt-breakpoint-phone - 0.02px;
     margin: 0;
 }
 
+// The actions as one group at the trailing edge, however many there are. A row by
+// default, because most cards offer one; a card with several can turn this into a
+// column without reaching into the head.
+.dt-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--dt-space-2);
+}
+
 .dt-card__body {
     padding: var(--dt-space-4);
 }

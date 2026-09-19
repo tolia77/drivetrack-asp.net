@@ -15,7 +15,14 @@
     {
         <div class="dt-card__head">
             <h2 class="dt-card__title dt-type-h2">@Title</h2>
-            @Actions
+            @* The actions in a group of their own rather than loose beside the title. Loose,
+               every button was a flex child of the head in its own right, so a card offering
+               more than one could only lay them out by arguing with the head's own rule - and
+               a screen that wanted them stacked had no element to stack. *@
+            @if (Actions is not null)
+            {
+                <div class="dt-card__actions">@Actions</div>
+            }
         </div>
     }
 
