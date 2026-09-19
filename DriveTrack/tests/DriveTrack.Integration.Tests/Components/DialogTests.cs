@@ -190,13 +190,18 @@ public class DialogTests
 
         Assert.DoesNotContain("dt-dialog-close", confirmation, StringComparison.Ordinal);
 
-        // And the built-in action is still there for a dialog that brings no actions of its own.
+        // And a dialog that brings no actions of its own draws no foot either: the head's dismiss
+        // is the way out, and a Close button below it was that same act a second time. What has to
+        // stay is the dismiss, on both.
         var plain = await ComponentRenderer.RenderAsync<DtDialog>(new Dictionary<string, object?>
         {
             ["Title"] = "Заголовок",
         });
 
-        Assert.Contains("dt-dialog-close", plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-dialog-close", plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-dialog-actions", plain, StringComparison.Ordinal);
+        Assert.Contains("dt-dialog-dismiss", plain, StringComparison.Ordinal);
+        Assert.Contains("dt-dialog-dismiss", confirmation, StringComparison.Ordinal);
     }
 
     [Fact]

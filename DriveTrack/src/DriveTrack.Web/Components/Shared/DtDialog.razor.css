@@ -19,6 +19,14 @@
     background-color: var(--dt-surface-card);
     color: var(--dt-ink);
     box-shadow: var(--dt-shadow-dialog);
+    /*
+        The panel does not scroll; the body inside it does. A `<dialog>` is given
+        `overflow: auto` by the browser's own stylesheet, so a tall form produced
+        two scrollbars - one on the element and one on the body - and dragging the
+        outer one moved the head and the actions off the screen along with the
+        form. Clipped here, the only thing that scrolls is the part meant to.
+    */
+    overflow: hidden;
 }
 
 /*
@@ -52,10 +60,22 @@
 
 .dt-dialog-head {
     display: flex;
-    align-items: flex-start;
+    /*
+        Centred, not `flex-start`. The dismiss carries a `touch-target` floor, so
+        it is the tallest thing in this row whatever the title does; aligned to the
+        start, the title sat on the top edge while the glyph centred itself inside
+        its own 2.75rem box, and the two read as being on different lines.
+    */
+    align-items: center;
     justify-content: space-between;
     gap: var(--dt-space-3);
-    padding: var(--dt-space-5) var(--dt-space-5) var(--dt-space-4);
+    /*
+        Tighter than the body below it. The head carries one line - a title and the
+        dismiss beside it - so the `space-5` it used to open with made a band of
+        empty panel above the first thing a reader is there to read, on a surface
+        whose height is already capped at 86vh.
+    */
+    padding: var(--dt-space-3) var(--dt-space-5);
     border-bottom: var(--dt-border-width) solid var(--dt-border);
 }
 

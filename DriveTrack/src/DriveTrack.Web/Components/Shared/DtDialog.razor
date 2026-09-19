@@ -40,19 +40,17 @@
             @ChildContent
         </div>
 
-        <div class="dt-dialog-actions">
-            @Actions
-            @* Only when the screen supplied none of its own. A dialog whose actions already include
-               a cancel does not need a second button that does the same thing beside it - and in a
-               confirmation, two ways to decline one destructive choice is exactly the ambiguity the
-               component exists to remove. *@
-            @if (Actions is null)
-            {
-                <button type="button" class="btn btn-link dt-dialog-close" @onclick="CloseAsync">
-                    <Icon Name="IconName.Close" />@Localizer["Close"]
-                </button>
-            }
-        </div>
+        @* Only when the screen brought actions of its own. A dialog that brought none used to get
+           a Close button here, which was a second way out beside the dismiss in the head - the
+           same act, offered twice, with a bordered strip across the panel to hold it. The head's
+           dismiss is the way out of a dialog that has nothing to decide, and a footer with one
+           redundant control in it is a footer worth not drawing. *@
+        @if (Actions is not null)
+        {
+            <div class="dt-dialog-actions">
+                @Actions
+            </div>
+        }
     </div>
 </dialog>
 

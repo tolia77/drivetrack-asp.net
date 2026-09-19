@@ -537,9 +537,13 @@ public class ComponentLibraryTests
         Assert.Contains("dt-dialog-dismiss", withActions, StringComparison.Ordinal);
         Assert.Contains("dt-dialog-dismiss", plain, StringComparison.Ordinal);
 
-        // The foot's own close is still the one a dialog with no actions of its own grows.
+        // And the dismiss is the only way out a dialog with nothing to decide offers. It used to
+        // grow a Close button in a foot of its own, which was the same act offered twice with a
+        // bordered strip to hold it; a dialog that brought no actions now draws no foot at all.
         Assert.DoesNotContain("dt-dialog-close", withActions, StringComparison.Ordinal);
-        Assert.Contains("dt-dialog-close", plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-dialog-close", plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("dt-dialog-actions", plain, StringComparison.Ordinal);
+        Assert.Contains("dt-dialog-actions", withActions, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -213,9 +213,19 @@
 */
 .dt-proof-actions {
     position: sticky;
-    bottom: 0;
+    /*
+        Below the scroll box's padding edge, not on it. `bottom: 0` pins a sticky
+        element to the *padding* box, so the bar came to rest `space-5` above the
+        bottom of the dialog's body and the form scrolled through the gap beneath
+        it - the signature's clear button sliding out from under a bar that looked
+        like it should have covered it. Offset by the padding it has to clear, and
+        given that much padding of its own so the action is not flush with the
+        edge. `bottom` is a position offset and outside NFR-29's scan, which is
+        what lets it be stated as arithmetic on the token.
+    */
+    bottom: calc(-1 * var(--dt-space-5));
     display: flex;
-    padding: var(--dt-space-3) 0 0;
+    padding: var(--dt-space-3) 0 var(--dt-space-5);
     border-top: var(--dt-border-width) solid var(--dt-border);
     background-color: var(--dt-surface-card);
 }
