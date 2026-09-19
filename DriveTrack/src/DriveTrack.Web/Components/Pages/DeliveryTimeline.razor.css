@@ -1,8 +1,10 @@
 /*
     NFR-29: every colour, size, spacing figure and radius here resolves to a `--dt-*` token. The
     figures that are geometry rather than palette - `display`, `flex-wrap`, `align-items`,
-    `list-style`, `text-align` - name no palette value and are outside the scan, as they are in
-    DtDataTable's stylesheet.
+    `list-style`, `text-align`, `overflow-wrap`, and the breakpoint in the one media query below -
+    name no palette value and are outside the scan, as they are in DtDataTable's stylesheet. The
+    breakpoint is written out because a media query can read neither a Sass variable nor a custom
+    property; `_theme.scss` states the same edge as `$dt-breakpoint-phone-max`.
 */
 
 .dt-timeline-list {
@@ -48,7 +50,40 @@
 /*
     The actor's name, inside the shared entry's meta line. Scoped here rather than there because the
     span is this screen's markup: DtTimelineEntry is given the fragment and does not write it.
+
+    And it breaks rather than widening the panel. A name is usually short, but nothing bounds one -
+    an address-like account name with no space in it would push the meta line past the dialog's own
+    width, and a dialog that scrolls sideways is the one shape `DtDialog` cannot absorb. `anywhere`
+    rather than `break-word`: the span is a flex item of the entry's meta line, whose default
+    `min-width: auto` is the longest unbreakable run, and only `anywhere` lets that intrinsic width
+    shrink. `DtTimelineEntry` writes the same property on the note for the same reason.
 */
 .dt-timeline-actor {
     font-weight: var(--dt-label-font-weight);
+    overflow-wrap: anywhere;
+}
+
+/*
+    Below the phone breakpoint, every button in this panel is at least `touch-target` tall - the
+    note action and each of the transitions, of which the actions block renders one per legal next
+    status.
+
+    They are `btn-sm`, which is right for their weight beside the history and wrong for a thumb:
+    `control-height-sm` is 1.75rem against the 2.75rem the palette publishes as the minimum hit
+    area on a phone.
+
+    Gated, where `ProofCapture` floors its own controls at every width. That looks like the closer
+    precedent - both are dialog bodies - but it is not: proof capture is a driver's flow and a
+    driver is holding a phone, while this panel is opened from the dispatch board as well as from
+    own-deliveries, so an ungated floor would grow these buttons on a desktop against the very
+    reason they are small. The routed screens gate theirs on the same edge and for the same reason.
+
+    The selector is the container rather than the two hooks deliberately: a third action added to
+    either block should inherit the floor rather than quietly miss it.
+*/
+@media (max-width: 640.98px) {
+    .dt-timeline-compose .btn,
+    .dt-timeline-actions .btn {
+        min-height: var(--dt-touch-target);
+    }
 }

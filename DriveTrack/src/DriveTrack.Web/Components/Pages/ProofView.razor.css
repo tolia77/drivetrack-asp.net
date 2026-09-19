@@ -1,6 +1,7 @@
 /*
     NFR-29: every palette value here resolves to a `--dt-*` token. The image sizing figures are
-    geometry - `width`, `max-width`, `height` - and NFR-29's scan deliberately does not read them.
+    geometry - `width`, `max-width`, `height`, and `overflow-wrap` on the facts list - and NFR-29's
+    scan deliberately does not read them.
 */
 
 .dt-proof-facts {
@@ -15,6 +16,20 @@
     color: var(--dt-ink-muted);
     font-size: var(--dt-body-font-size);
     font-weight: var(--dt-body-font-weight);
+}
+
+/*
+    Both columns break rather than widening the panel.
+
+    A recipient's name and a capturer's name arrive from an account and nothing bounds either, so
+    one long unbroken run would push the grid past the dialog's width and leave it scrolling
+    sideways. `anywhere` rather than `break-word` because it also lets the intrinsic width shrink,
+    which is what both tracks need: `1fr` resolves against min-content, and the label track is
+    `auto`, so it is exactly as wide as the longest unbreakable word in a localized label.
+*/
+.dt-proof-facts dt,
+.dt-proof-facts dd {
+    overflow-wrap: anywhere;
 }
 
 .dt-proof-facts dd {
