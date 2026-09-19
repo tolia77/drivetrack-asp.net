@@ -178,7 +178,15 @@ $dt-breakpoint-phone-max: $dt-breakpoint-phone - 0.02px;
 .dt-nav__brand {
     display: flex;
     align-items: center;
+    // `space-1` leading, not `space-2`, and the arithmetic is the point: the tile
+    // adds a `space-1` of its own, so the glyph inside it lands on `nav` + 1 + 1,
+    // which is the same `1.25rem` as a link's `nav` + 2 with no tile around it.
+    // What lines up with the column of glyphs below is therefore the glyph in the
+    // mark rather than the tile around it - against a row of icons the tint reads
+    // as a backdrop and the glyph as the start of the line, and matching the tile
+    // instead left the logo a quarter-step right of everything under it.
     padding: var(--dt-space-2);
+    padding-inline-start: var(--dt-space-1);
     margin-bottom: var(--dt-space-2);
     color: var(--dt-ink-inverse);
     font-family: var(--dt-font-sans);
