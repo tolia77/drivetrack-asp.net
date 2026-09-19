@@ -10,11 +10,25 @@
     -->
     <NeutralResourcesLanguage>uk</NeutralResourcesLanguage>
     <!--
-      AD-28: the theme is compiled from Sass at build time. The watcher is a dev-loop
-      convenience that would otherwise copy a dart-sass runtime into bin/ and publish;
-      with it off the package is build-only and the container image gains nothing.
+      AD-28: the theme is compiled from Sass at build time, and the watcher keeps it compiled
+      while the app runs. It was off because it copies a dart-sass runtime into bin/ and from
+      there into the publish output, which the production image had no use for. There is no
+      publish path any more - the only image is the development container, whose entrypoint is
+      `dotnet watch` - so what the watcher costs is a runtime nothing ships and what it buys is
+      an edit to a .scss file reaching the browser without a rebuild. Debug only, so a Release
+      build is still build-only.
     -->
-    <SassCompilerEnableWatcher>false</SassCompilerEnableWatcher>
+    <SassCompilerEnableWatcher Condition="'$(Configuration)' == 'Debug'">true</SassCompilerEnableWatcher>
+    <SassCompilerEnableWatcher Condition="'$(Configuration)' != 'Debug'">false</SassCompilerEnableWatcher>
+    <!--
+      And with the watcher on, the compiler is a *runtime* dependency of this project rather than
+      a build-time one, so its assembly has to reach anything that loads this one - the
+      integration tests do, and a private reference leaves them throwing FileNotFoundException on
+      every screen they render. Private in Release, where the watcher is off and the reference is
+      build-only again.
+    -->
+    <SassCompilerAssets Condition="'$(Configuration)' == 'Debug'">none</SassCompilerAssets>
+    <SassCompilerAssets Condition="'$(Configuration)' != 'Debug'">all</SassCompilerAssets>
   </PropertyGroup>
 
   <!--
@@ -37,14 +51,16 @@
     resolved, so `dotnet build` alone produces the theme - no Node, no npm, no separate
     tool restore.
 
-    PrivateAssets="all" stops the reference flowing to anything referencing this project, and
-    keeps AspNetCore.SassCompiler.dll out of the publish output. It does NOT cover
-    sasscompiler.json: that is a Content item of ours, not an asset of the package, so it is
-    excluded from publish explicitly below. It is a build-time compiler configuration and the
-    runtime image has no use for it.
+    The privacy of the reference follows the watcher, through SassCompilerAssets above: private
+    in Release, where this is a build-time compiler and its assembly belongs in nobody's output,
+    and not private in Debug, where the watcher runs inside the application and every project
+    that loads this one needs the assembly beside it.
+
+    Neither setting covers sasscompiler.json: that is a Content item of ours, not an asset of the
+    package, so it is excluded from publish explicitly below.
   -->
   <ItemGroup>
-    <PackageReference Include="AspNetCore.SassCompiler" Version="1.103.0" PrivateAssets="all" />
+    <PackageReference Include="AspNetCore.SassCompiler" Version="1.103.0" PrivateAssets="$(SassCompilerAssets)" />
   </ItemGroup>
 
   <ItemGroup>
