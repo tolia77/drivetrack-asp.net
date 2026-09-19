@@ -311,10 +311,16 @@ services:
       - /src/src/DriveTrack.Web/bin
       - /src/src/DriveTrack.Web/obj
 
-      # AD-28 compiles the theme from Sass into wwwroot/css, which .dockerignore keeps out of the
-      # build context precisely so a stale local copy cannot ride in. The same reasoning applies
-      # to the mount: let the container generate its own.
-      - /src/src/DriveTrack.Web/wwwroot/css
+      # wwwroot/css is deliberately NOT masked, unlike bin and obj above.
+      #
+      # Those two are masked because they hold platform-specific build output and a macOS host's
+      # copy breaks a linux container's. app.css is neither: it is one text file, compiled from
+      # Sass, identical wherever it is produced. Masking it meant the container could only ever
+      # serve CSS it had compiled itself, at build time, with the watcher off - so a theme edit
+      # reached the browser only after rebuilding the image, which is not a dev loop.
+      #
+      # Left visible, the host's compiled app.css is the one the container serves, and any build
+      # on the host is live on the next request with nothing to restart.
 
       # The NuGet cache, kept across restarts. A named volume rather than a mount of the host's
       # ~/.nuget: the packages are restored for linux-x64 here and for the host's RID there, and
