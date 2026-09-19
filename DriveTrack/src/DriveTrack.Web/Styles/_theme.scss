@@ -746,17 +746,30 @@ $dt-breakpoint-phone-max: $dt-breakpoint-phone - 0.02px;
 // The head is separated by a hairline rather than by a tint: a filled header bar
 // is the first step towards a card that is also a banner, and the design keeps
 // the two apart.
+// The card's head, laid out the way the page head above it is: the title takes
+// whatever space is left and the actions sit together at the trailing edge.
+//
+// Not `justify-content: space-between`, which is what this was. `Actions`
+// renders its buttons as direct children of this element, so space-between is
+// only right for a head with exactly two of them - a title and one action. The
+// profile card offers three, which made four children, and the row dealt them
+// across the full width with a gap between each: an edit button stranded beside
+// the title and the other two adrift. One action or none hid it on every other
+// card in the product.
+//
+// `flex: 1 1 auto` on the title instead, which is how `.dt-page-head h1` does
+// the same job three sections above. One mechanism for both heads.
 .dt-card__head {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
     gap: var(--dt-space-2);
     padding: var(--dt-space-4);
     border-bottom: var(--dt-border-width) solid var(--dt-border);
 }
 
 .dt-card__title {
+    flex: 1 1 auto;
     margin: 0;
 }
 
