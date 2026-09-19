@@ -307,6 +307,14 @@ $table-bg:                    $dt-surface-card;
 $table-striped-bg:            $dt-surface-page;
 $table-hover-bg:              $dt-surface-hover;
 $table-border-color:          $dt-border;
+
+// Middle, not Bootstrap's `top`. A row is as tall as the tallest thing in it, and
+// on every table in this product that is the actions cell - a button is taller
+// than a line of text. Top-aligned, the values then sit on the row's first line
+// while the buttons beside them are centred, and the row reads as two rows that
+// failed to line up. Set on the framework's own variable rather than as a rule of
+// ours, so the value and the rule that applies it stay in one place (AD-28).
+$table-cell-vertical-align:   middle;
 $table-cell-padding-y:        $dt-space-2;
 $table-cell-padding-x:        $dt-space-2;
 $table-cell-padding-y-sm:     $dt-space-1;
