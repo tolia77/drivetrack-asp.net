@@ -236,39 +236,6 @@ public class LocalizationTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public void The_runtime_image_installs_the_full_ICU_data_set()
-    {
-        // Every other assertion in this suite reads the developer machine's ICU, so none of them can
-        // see the one environment NFR-15 is actually promised in. On Alpine, icu-libs alone pulls
-        // only icu-data-en: uk-UA then *resolves* while formatting 9/7/2026 and 1,234.5, which is a
-        // silent breach that starts up cleanly and passes every test here. icu-data-full is the fix,
-        // and this scan is the only thing that can notice it being dropped.
-        var dockerfile = File.ReadAllLines(
-            Path.Combine(RepositoryLayout.SolutionRoot.FullName, "Dockerfile.prod"));
-
-        // Every apk line, not the first: a later story adding one to the build stage would otherwise
-        // hand this assertion an unrelated line and fail it for an unrelated reason, which is the
-        // kind of failure people fix by relaxing the assertion.
-        var apkLines = Array.FindAll(
-            dockerfile,
-            line => line.TrimStart().StartsWith("RUN apk add", StringComparison.Ordinal));
-
-        Assert.NotEmpty(apkLines);
-        Assert.Contains(apkLines, line => line.Contains("icu-libs", StringComparison.Ordinal));
-        Assert.Contains(apkLines, line => line.Contains("icu-data-full", StringComparison.Ordinal));
-
-        // The packages are half of it. Invariant mode ignores every byte of ICU on disk, so the
-        // switch that turns it off is as load-bearing as the install - and it lives on a
-        // backslash-continued ENV line, where a routine edit can drop it without touching the apk
-        // line above.
-        Assert.Contains(
-            dockerfile,
-            line => line.Contains(
-                "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false",
-                StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task Every_key_the_components_ask_for_resolves()
     {
         // The UiText twin of the error-code test above. A renamed key, a moved resx or a

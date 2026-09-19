@@ -6,7 +6,7 @@ namespace DriveTrack.Infrastructure.Geocoding;
 /// Every value arrives as an environment variable in the container — <c>Geocoder__Endpoint</c>,
 /// <c>Geocoder__SearchEndpoint</c>, <c>Geocoder__UserAgent</c>, <c>Geocoder__TimeoutSeconds</c>,
 /// <c>Geocoder__MinimumRequestIntervalMilliseconds</c> — and each one appears in
-/// <c>.env.example</c> and is forwarded a line at a time in <c>compose.prod.yaml</c>.
+/// <c>.env.example</c> and is forwarded a line at a time in <c>compose.dev.yaml</c>.
 /// </para>
 /// <para>
 /// Neither endpoint has a default, deliberately. A committed default would make every environment

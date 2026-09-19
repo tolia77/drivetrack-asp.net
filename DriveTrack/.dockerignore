@@ -15,8 +15,6 @@
 !.env.example
 tests/
 README.md
-compose.prod.yaml
 compose.dev.yaml
-Dockerfile.prod
 Dockerfile.dev
 .dockerignore

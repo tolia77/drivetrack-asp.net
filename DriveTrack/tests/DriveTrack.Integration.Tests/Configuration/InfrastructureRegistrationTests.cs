@@ -346,25 +346,25 @@ public class InfrastructureRegistrationTests
     public void Compose_and_env_example_ship_a_pacing_interval_the_check_accepts()
     {
         // The check above only ever sees values a test wrote. The two lines that actually reach a
-        // container are compose.prod.yaml's and .env.example's, and neither is read by anything
+        // container are compose.dev.yaml's and .env.example's, and neither is read by anything
         // else in this solution - so editing either to a spelling the check refuses would abort every
         // `docker compose up` with the whole suite green, which is the exact failure the check was
         // brought forward to startup to prevent.
         const string key = "Geocoder__MinimumRequestIntervalMilliseconds";
 
-        Assert.Contains(key, ComposeStack.Prod.EnvironmentKeysOf("app"), StringComparer.Ordinal);
+        Assert.Contains(key, ComposeStack.Dev.EnvironmentKeysOf("app"), StringComparer.Ordinal);
 
         // Defaulted, not forwarded bare. The two neighbouring Geocoder__Endpoint lines are bare on
         // purpose, so `${...}` is a shape somebody could copy here in good faith - and it would be
         // wrong: compose substitutes an unset variable with the empty string, and a blank value is
         // one this key refuses to start on. Every .env written before this story leaves it unset.
-        var forwarded = ComposeStack.Prod.EnvironmentValueOf("app", key);
+        var forwarded = ComposeStack.Dev.EnvironmentValueOf("app", key);
 
         var prefix = "${" + key + ":-";
 
         Assert.True(
             forwarded.StartsWith(prefix, StringComparison.Ordinal) && forwarded.EndsWith('}'),
-            $"compose.prod.yaml forwards '{key}' as '{forwarded}', which supplies no default. It "
+            $"compose.dev.yaml forwards '{key}' as '{forwarded}', which supplies no default. It "
                 + $"has to read '{prefix}<value>}}': a bare reference to an unset variable forwards the "
                 + "empty string, and a blank value is one the app refuses to start on.");
 

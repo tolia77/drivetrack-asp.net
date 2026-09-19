@@ -213,7 +213,7 @@ public class SessionCookieTests(PostgresFixture postgres)
         // key absent from compose is a key the app never sees, however carefully .env documents it.
         Assert.Contains(
             EnvironmentPolicyKey,
-            ComposeStack.Prod.EnvironmentKeysOf("app"),
+            ComposeStack.Dev.EnvironmentKeysOf("app"),
             StringComparer.Ordinal);
     }
 
@@ -225,14 +225,14 @@ public class SessionCookieTests(PostgresFixture postgres)
         // substitutes a bare reference to an unset variable with the empty string, the check refuses
         // a blank value, and every container whose .env predates this key would stop coming up. The
         // key's presence alone cannot see that, because the name is identical either way.
-        var forwarded = ComposeStack.Prod.EnvironmentValueOf("app", EnvironmentPolicyKey);
+        var forwarded = ComposeStack.Dev.EnvironmentValueOf("app", EnvironmentPolicyKey);
 
         var prefix = "${" + EnvironmentPolicyKey + ":-";
 
         Assert.True(
             forwarded.StartsWith(prefix, StringComparison.Ordinal)
                 && forwarded.EndsWith('}'),
-            $"compose.prod.yaml forwards '{EnvironmentPolicyKey}' as '{forwarded}', which supplies "
+            $"compose.dev.yaml forwards '{EnvironmentPolicyKey}' as '{forwarded}', which supplies "
                 + $"no default. It has to read '{prefix}<value>}}': an .env predating this key leaves "
                 + "the variable unset, a bare reference forwards that as the empty string, and a "
                 + "blank value is one the app refuses to start on.");

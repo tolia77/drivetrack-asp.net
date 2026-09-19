@@ -581,7 +581,7 @@ static void RequireExplicitOrigin(string? origin, string key)
             $"Configuration value '{key}' is missing or blank. Set the '{variable}' environment "
                 + "variable (see .env.example) to an origin of the form scheme://host[:port], or "
                 + "remove that line from .env and from the app service's environment block in "
-                + "compose.prod.yaml to allow no cross-origin caller at all.");
+                + "compose.dev.yaml to allow no cross-origin caller at all.");
     }
 
     // Every wildcard, including a subdomain one: this policy sends Access-Control-Allow-Credentials,
@@ -595,7 +595,7 @@ static void RequireExplicitOrigin(string? origin, string key)
                 + "explicit origin list: this policy allows credentials, and a wildcard paired with "
                 + $"credentials is exactly what that forbids. Set the '{variable}' environment "
                 + "variable (see .env.example) to one concrete origin, and give every further "
-                + "origin its own numbered key here and in compose.prod.yaml.");
+                + "origin its own numbered key here and in compose.dev.yaml.");
     }
 
     // The comparison is deliberately exact, and the message below has to say so: WithOrigins matches

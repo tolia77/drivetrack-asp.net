@@ -159,7 +159,7 @@ public class CorsPolicyTests(PostgresFixture postgres)
     [InlineData("   ")]
     public void A_blank_origin_refuses_to_start_naming_the_key(string origin)
     {
-        // compose.prod.yaml forwards Cors__AllowedOrigins__0 unconditionally, so an unset variable
+        // compose.dev.yaml forwards Cors__AllowedOrigins__0 unconditionally, so an unset variable
         // arrives as a blank entry rather than as no entry. Allowing no cross-origin caller means
         // deleting the line from both files, and the message has to say so.
         var refusal = Refusal(origin);
@@ -196,7 +196,7 @@ public class CorsPolicyTests(PostgresFixture postgres)
         // and what makes deleting it from .env alone a blank entry rather than no entry.
         Assert.Contains(
             EnvironmentOriginKey,
-            ComposeStack.Prod.EnvironmentKeysOf("app"),
+            ComposeStack.Dev.EnvironmentKeysOf("app"),
             StringComparer.Ordinal);
     }
 

@@ -5,19 +5,16 @@ name: drivetrack-dev
 #
 #   docker compose -f compose.dev.yaml up
 #
-# Standalone and complete. This file is not an overlay and does not layer onto any other:
-# development and production are separate environments, and neither reads the other. Nothing
-# you change here can reach a production deployment, and nothing changed there arrives here by
-# inheritance.
+# The only stack here, and the one the integration suite reads: the images, the provisioning
+# script below and the environment keys the app is handed are all read back out of this file by
+# the tests, so a change made here is a change the suite sees.
 #
-# The compose project name is its own, so the containers, the network and — the part that
-# matters — the volumes are its own too. The database this brings up is a development database;
-# it is not the production stack's database under another name.
+# The `-f` is not optional. The file is deliberately not called `compose.yaml`, so nothing is
+# started by a bare `docker compose up` that did not say which file it meant.
 #
-# The cost of standing alone is that the services below duplicate their production
-# counterparts, and duplicated text drifts. That is not left to discipline: the integration
-# suite reads both files and fails when the parts that have to agree stop agreeing — see
-# StackParityTests.
+# The compose project name is written down rather than derived from the directory, so the
+# containers, the network and — the part that matters — the volumes keep the same names however
+# the checkout is named or moved.
 #
 # Every setting arrives as an environment variable (AD-19); copy .env.example to .env before
 # the first run.
@@ -34,10 +31,9 @@ services:
       # cluster in a major-version subdirectory below it; mounting /var/lib/postgresql/data
       # instead makes the image refuse to start.
       - db-data:/var/lib/postgresql
-    # Published, which the production stack deliberately does not do: psql, a GUI client and an
-    # EF command run from the host all need to reach this, and a development database is not a
-    # thing worth hiding. The integration suite does not use it — Testcontainers starts a
-    # PostgreSQL of its own per run.
+    # Published: psql, a GUI client and an EF command run from the host all need to reach this,
+    # and a development database is not a thing worth hiding. The integration suite does not use
+    # it — Testcontainers starts a PostgreSQL of its own per run.
     ports:
       - "${DB_PORT:-5432}:5432"
     healthcheck:
@@ -215,15 +211,14 @@ services:
     restart: "no"
 
   app:
-    # A tag of its own. Both stacks name a service `app`, and an image name left to default
-    # would be derived from the project name — close enough to invite confusion about which
-    # image a given container is running.
+    # Tagged rather than left to compose, which would derive an image name from the project and
+    # the service. A name written down is one `docker images` and `docker rmi` can be aimed at
+    # without first working out what compose called it.
     image: drivetrack-app-dev
     build:
       context: .
-      # The SDK image with `dotnet watch` as its entrypoint, rather than a published Release
-      # build: the production image carries no SDK and cannot recompile what it runs, which is
-      # correct for a deployable artifact and useless for editing.
+      # The SDK image with `dotnet watch` as its entrypoint: the source arrives over the mounts
+      # below and is recompiled in place, which is the whole reason this stack exists.
       dockerfile: Dockerfile.dev
     depends_on:
       db:
@@ -233,9 +228,10 @@ services:
       objects-init:
         condition: service_completed_successfully
     environment:
-      # Not forwarded from .env: this stack *is* the development environment, and hot reload
-      # is a Development-environment feature. A .env carrying Production would otherwise
-      # disable the one thing this file exists to provide.
+      # Pinned rather than forwarded from .env: this stack *is* the development environment, and
+      # hot reload is a Development-environment feature. A .env carrying Production — which is
+      # exactly what an .env copied off a server carries — would otherwise silently disable the
+      # one thing this file exists to provide.
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
       ConnectionStrings__Default: ${ConnectionStrings__Default:?ConnectionStrings__Default is not set. Copy .env.example to .env before running docker compose.}

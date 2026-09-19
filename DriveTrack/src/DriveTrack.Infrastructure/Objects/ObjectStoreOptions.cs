@@ -6,7 +6,7 @@ namespace DriveTrack.Infrastructure.Objects;
 /// Every value arrives as an environment variable in the container —
 /// <c>ObjectStore__ServiceUrl</c>, <c>ObjectStore__Region</c>, <c>ObjectStore__AccessKey</c>,
 /// <c>ObjectStore__SecretKey</c>, <c>ObjectStore__Bucket</c> — and each appears in
-/// <c>.env.example</c> and is forwarded a line at a time in <c>compose.prod.yaml</c>.
+/// <c>.env.example</c> and is forwarded a line at a time in <c>compose.dev.yaml</c>.
 /// </para>
 /// <para>
 /// <see cref="ServiceUrl"/> has no default, deliberately, and for the reason the geocoder's

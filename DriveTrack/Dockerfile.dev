@@ -1,18 +1,16 @@
-# The development image. Its only job is to run `dotnet watch` against source bind-mounted
-# from the host, so an edit to a .razor or .razor.css file reaches the browser in seconds.
+# The one image this repository builds. Its only job is to run `dotnet watch` against source
+# bind-mounted from the host, so an edit to a .razor or .razor.css file reaches the browser in
+# seconds.
 #
-# This is not a smaller Dockerfile than the production one; it is the opposite of it.
-# Dockerfile.prod publishes a Release build into a runtime-only Alpine image with no SDK and
-# diagnostics off, which is exactly right for a deployable artifact and exactly why it cannot
-# hot reload: nothing inside it can compile, and the code it runs was copied in at build time.
-# Here the SDK stays, the source arrives over a mount rather than a COPY, and nothing is
-# published at all.
+# Nothing is published here and nothing runnable is copied in: the SDK stays, the source arrives
+# over a mount rather than a COPY, and the compiler that rebuilds it lives in the image. Every
+# choice below follows from that.
 FROM mcr.microsoft.com/dotnet/sdk:10.0
 WORKDIR /src
 
-# Debian, like the production build stage and for the same reason (AD-28): the dart-sass binaries
-# are glibc-linked. Unlike the production *final* stage there is no ICU line here — the SDK image
-# already carries full ICU, so uk-UA resolves and formats correctly (NFR-14, NFR-15).
+# Debian rather than Alpine (AD-28): the dart-sass binaries are glibc-linked. No ICU line is
+# needed either — the SDK image already carries full ICU, so uk-UA resolves and formats correctly
+# (NFR-14, NFR-15).
 
 # Restore against the project graph before the source mount lands, so a cold start does not spend
 # its first minute pulling packages. The mount replaces /src/src afterwards; this layer is here
@@ -44,11 +42,12 @@ ENV DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER=1
 # onto the host. It stops at the configuration because the SDK appends the target framework.
 ENV IntermediateOutputPath=obj/Debug/
 
-# Deliberately NOT set: DOTNET_EnableDiagnostics=0. The production image turns the diagnostics
-# IPC channel off, and that channel is the one hot reload pushes deltas over.
+# Deliberately NOT set: DOTNET_EnableDiagnostics=0. Closing the diagnostics IPC channel is a
+# reasonable hardening step for an image that only runs code, and fatal here — that channel is the
+# one hot reload pushes its deltas over.
 
-# Root, unlike production's `drivetrack` user. The mounted source is owned by the host account,
-# and a non-root container user cannot write the obj/ and bin/ trees the build needs.
+# Root, deliberately. The mounted source is owned by the host account, and a non-root container
+# user cannot write the obj/ and bin/ trees the build needs.
 
 EXPOSE 8080
 

@@ -14,7 +14,7 @@ namespace DriveTrack.Integration.Tests.Configuration;
 /// <summary>
 /// The layer beneath <see cref="ObjectStoreAdapterTests"/>: the same <see cref="IAssetStore"/>, from
 /// the same <c>AddInfrastructure</c>, pointed at a real Garage node that
-/// <c>compose.prod.yaml</c>'s own <c>objects-init</c> script provisioned.
+/// <c>compose.dev.yaml</c>'s own <c>objects-init</c> script provisioned.
 /// <para>
 /// Two things were untested until this existed, and both fail in production without failing here
 /// first. A node can refuse what the adapter sends — a canned 200 cannot tell you that Garage
@@ -84,7 +84,7 @@ public class ObjectStoreDaemonTests(GarageFixture garage) : IDisposable
     [Fact]
     public async Task The_bucket_compose_declares_exists_on_the_node()
     {
-        // compose.prod.yaml says objects-init creates this bucket. Nothing checked that it did.
+        // compose.dev.yaml says objects-init creates this bucket. Nothing checked that it did.
         var cancellationToken = TestContext.Current.CancellationToken;
 
         var state = await ReadProvisionedStateAsync(cancellationToken);
@@ -147,7 +147,7 @@ public class ObjectStoreDaemonTests(GarageFixture garage) : IDisposable
 
         Assert.True(
             run.ExitCode == 0,
-            $"Re-running compose.prod.yaml's objects-init script exited {run.ExitCode}:"
+            $"Re-running compose.dev.yaml's objects-init script exited {run.ExitCode}:"
                 + Environment.NewLine
                 + run.Logs);
 
@@ -166,7 +166,7 @@ public class ObjectStoreDaemonTests(GarageFixture garage) : IDisposable
     {
         // Reading `entrypoint:` out of compose pins where the flags come from; it does not pin what
         // they do, and a healthy provisioning run never fails a step, so `-e` could be dropped
-        // from compose.prod.yaml with every other case here still green. What that would cost: a
+        // from compose.dev.yaml with every other case here still green. What that would cost: a
         // step that failed halfway runs on and still exits 0, and the app service's
         // service_completed_successfully gate opens on a node whose key holds no grant.
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -282,7 +282,7 @@ public class ObjectStoreDaemonTests(GarageFixture garage) : IDisposable
     }
 
     /// <summary>
-    /// The permission triple <c>compose.prod.yaml</c> grants: read and write, and deliberately
+    /// The permission triple <c>compose.dev.yaml</c> grants: read and write, and deliberately
     /// not owner.
     /// </summary>
     private static void AssertGrantedPermissions(ProvisionedState state)

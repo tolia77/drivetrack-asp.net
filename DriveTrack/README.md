@@ -10,7 +10,7 @@ Docker is the only prerequisite.
 ```bash
 cd DriveTrack
 cp .env.example .env
-docker compose -f compose.prod.yaml up
+docker compose -f compose.dev.yaml up
 ```
 
 The app is served on <http://localhost:8080>.
@@ -25,22 +25,19 @@ cluster layout, so no bucket and no S3 access key exist yet and
 placeholder values. Creating them arrives with the proof-of-delivery story, which is the
 first code that reads or writes an object. Nothing in the app calls S3 before then.
 
-Stop with `docker compose -f compose.prod.yaml down`; add `-v` to discard the database and
+Stop with `docker compose -f compose.dev.yaml down`; add `-v` to discard the database and
 object-store volumes.
 
 There is no `compose.yaml`, so a bare `docker compose up` finds nothing: the `-f` says which
-stack you mean, and the production one is never what you get by forgetting a flag.
-
-There are two stacks — `compose.prod.yaml` and `compose.dev.yaml` — and each is standalone.
-Neither layers onto the other, and they run under different compose projects, so their
-containers, networks and volumes are separate. The development database is not the production
-stack's database.
+file you mean. `compose.dev.yaml` is the only stack, and it declares its own compose project,
+`drivetrack-dev`, so its containers, network and volumes are named the same way on every
+machine.
 
 ## The first administrator
 
 There is no sign-up for privileged roles, so the first administrator is provisioned from the
 environment. Four variables drive it, all documented in `.env.example` and forwarded by
-`compose.prod.yaml`:
+`compose.dev.yaml`:
 
 | Variable | Meaning |
 |---|---|
@@ -83,30 +80,11 @@ Configuration comes from the environment, never from a committed file. To run th
 outside the container, export at least `ConnectionStrings__Default` (see `.env.example`
 for the full contract).
 
-### The hot-reload stack
+### Hot reload
 
-`compose.prod.yaml` runs the production image: a Release build published into a runtime-only
-Alpine layer with no SDK and diagnostics switched off. That is what makes it a deployable
-artifact, and it is also why it cannot hot reload — the code inside was copied in at build time
-and nothing in the image can recompile it. Every edit needs a rebuild.
-
-For UI work, run the development stack instead:
-
-```bash
-cd DriveTrack
-docker compose -f compose.dev.yaml up
-```
-
-It brings up the same four services from the same `.env`, but `app` builds from `Dockerfile.dev`:
-the SDK stays, `src/` is mounted from the host, and `dotnet watch` rebuilds on every edit. It
-also publishes PostgreSQL on `${DB_PORT:-5432}`, which the production stack deliberately does not.
-
-The two stacks are independent files, not a base and an overlay. That is deliberate — a change
-meant for development must not be able to reach a deployment by inheritance — and it has a cost:
-the services they share are duplicated text, and duplicated text drifts. `StackParityTests` reads
-both files and fails when the parts that have to agree stop agreeing (the Garage provisioning
-script, the shared images, the app's settings), while asserting that the parts that have to
-differ still do.
+The stack from **Run it** is a hot-reload stack. `app` builds from `Dockerfile.dev`, so the SDK
+stays in the image, `src/` is mounted from the host, and `dotnet watch` rebuilds on every edit —
+no image rebuild between writing one and seeing it.
 
 What reloads, and what does not:
 
@@ -126,8 +104,8 @@ assets in Development, without which `MapStaticAssets` answers `304 Not Modified
 build-time ETag and the browser reuses stale JavaScript through reloads, hard reloads and browser
 restarts alike.
 
-The database port the development stack publishes is for `psql` and GUI clients. The test suite
-does not use it; Testcontainers starts a database of its own per run.
+The database port the stack publishes — `${DB_PORT:-5432}` — is for `psql` and GUI clients. The
+test suite does not use it; Testcontainers starts a database of its own per run.
 
 New migrations are generated against the `DriveTrack.Infrastructure` project:
 
@@ -141,11 +119,9 @@ dotnet dotnet-ef migrations add <Name> --project src/DriveTrack.Infrastructure -
 
 ```text
 DriveTrack/
-  compose.prod.yaml   production stack: app + PostgreSQL 18 + Garage; project `drivetrack`
-  compose.dev.yaml    development stack: the same four services, hot-reloading; project
+  compose.dev.yaml    the stack: app + PostgreSQL 18 + Garage, hot-reloading; compose project
                       `drivetrack-dev`, so its own volumes
-  Dockerfile.prod     multi-stage build of DriveTrack.Web; no SDK in the runtime image
-  Dockerfile.dev      SDK image running `dotnet watch`; used by the development stack
+  Dockerfile.dev      SDK image running `dotnet watch`; the one image the stack builds
   garage.toml         Garage node config; secrets come from the environment
   src/
     DriveTrack.Domain          entities and rules; depends on nothing

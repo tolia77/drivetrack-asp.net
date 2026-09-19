@@ -6,7 +6,7 @@ namespace DriveTrack.Infrastructure.Email;
 /// Every value arrives as an environment variable in the container — <c>Smtp__Host</c>,
 /// <c>Smtp__Port</c>, <c>Smtp__UseStartTls</c>, <c>Smtp__User</c>, <c>Smtp__Password</c>,
 /// <c>Smtp__FromAddress</c>, <c>Smtp__FromName</c> — and every one of them already appears in
-/// <c>.env.example</c> and <c>compose.prod.yaml</c>. The property names match those spellings
+/// <c>.env.example</c> and <c>compose.dev.yaml</c>. The property names match those spellings
 /// exactly, because a binder that silently leaves a property at its default is the failure mode
 /// this section is most likely to hit.
 /// </para>

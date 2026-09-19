@@ -1,25 +1,22 @@
 namespace DriveTrack.Integration.Tests.Support;
 
 /// <summary>
-/// One checked-in compose file, read as data.
+/// The checked-in compose file, read as data.
 /// <para>
 /// A harness that stood a Garage node up from constants of its own would assert that
-/// <em>something</em> works, not that the deployment works: the image could move, the provisioning
+/// <em>something</em> works, not that the stack works: the image could move, the provisioning
 /// script could stop creating the bucket, and the suite would stay green because it never read
 /// either. So the image names, the provisioning script, the node configuration and the
-/// bucket/key/zone/capacity values all come from the compose files, <c>garage.toml</c> and
+/// bucket/key/zone/capacity values all come from the compose file, <c>garage.toml</c> and
 /// <c>.env.example</c>, and drift in any of them changes what the tests run.
 /// </para>
 /// <para>
-/// There is an instance per stack because there are two stacks and neither is derived from the
-/// other — <see cref="Prod"/> is what deploys and <see cref="Dev"/> is what a developer runs. Most
-/// of the suite reads <see cref="Prod"/>, because that is the deliverable; what reads both is
-/// <c>StackParityTests</c>, which is the only thing standing between two standalone files and
-/// silent divergence.
+/// There is one stack — <see cref="Dev"/>, the file <c>docker compose -f compose.dev.yaml up</c>
+/// brings up — and the whole suite reads it.
 /// </para>
 /// <para>
 /// Every accessor throws rather than answering an empty string. A missing service, a missing image
-/// line or a renamed <c>.env.example</c> key is a change somebody made to the deployment, and the
+/// line or a renamed <c>.env.example</c> key is a change somebody made to the stack, and the
 /// useful failure names the file and the thing that was not in it.
 /// </para>
 /// </summary>
@@ -47,10 +44,7 @@ internal sealed class ComposeStack
         ObjectsInitScript = ReadObjectsInitScript();
     }
 
-    /// <summary>The production stack — the file a deployment brings up.</summary>
-    public static ComposeStack Prod { get; } = new("compose.prod.yaml");
-
-    /// <summary>The development stack — standalone, and not an overlay on <see cref="Prod"/>.</summary>
+    /// <summary>The stack this repository ships, and the only one the suite reads.</summary>
     public static ComposeStack Dev { get; } = new("compose.dev.yaml");
 
     /// <summary>The file this instance reads, for naming in a failure message.</summary>

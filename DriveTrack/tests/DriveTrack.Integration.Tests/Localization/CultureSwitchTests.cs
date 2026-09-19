@@ -442,8 +442,7 @@ public class CultureSwitchTests(PostgresFixture postgres)
     {
         // NFR-15, now a two-sided claim. Asserted against known values rather than against
         // CurrentCulture, so this fails on a machine whose ICU data is missing rather than passing
-        // because the invariant culture happened to be in scope - the failure mode the Dockerfile.prod
-        // scan in LocalizationTests exists to catch in the image.
+        // because the invariant culture happened to be in scope.
         var date = new DateOnly(2026, 9, 16);
 
         Assert.Equal("16.09.2026", date.ToString("d", Ukrainian));

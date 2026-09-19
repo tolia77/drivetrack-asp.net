@@ -10,8 +10,8 @@ using DriveTrack.Integration.Tests.Support;
 namespace DriveTrack.Integration.Tests.Configuration;
 
 /// <summary>
-/// A real Garage node, stood up the way <c>compose.prod.yaml</c> stands it up and provisioned by
-/// <c>compose.prod.yaml</c>'s own <c>objects-init</c> script, started once for the whole assembly.
+/// A real Garage node, stood up the way <c>compose.dev.yaml</c> stands it up and provisioned by
+/// <c>compose.dev.yaml</c>'s own <c>objects-init</c> script, started once for the whole assembly.
 /// <para>
 /// <see cref="ObjectStoreAdapterTests"/> asserts what the adapter puts on the wire, which is the
 /// half a loopback socket can answer for. It cannot answer for the other half: a Garage node that
@@ -103,15 +103,15 @@ public sealed class GarageFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Runs <c>compose.prod.yaml</c>'s provisioning script against the node again, and answers
+    /// Runs <c>compose.dev.yaml</c>'s provisioning script against the node again, and answers
     /// what it did. The script promises to be idempotent, and this is what lets a test hold it to
     /// that.
     /// </summary>
     public async Task<ObjectsInitRun> RunObjectsInitAsync(CancellationToken cancellationToken) =>
-        await RunInitContainerAsync(Node.Network, ComposeStack.Prod.ObjectsInitScript, cancellationToken);
+        await RunInitContainerAsync(Node.Network, ComposeStack.Dev.ObjectsInitScript, cancellationToken);
 
     /// <summary>
-    /// Runs an arbitrary script under the entrypoint <c>compose.prod.yaml</c> gives
+    /// Runs an arbitrary script under the entrypoint <c>compose.dev.yaml</c> gives
     /// <c>objects-init</c>, in the image it names, on the node's network.
     /// <para>
     /// Reading the entrypoint out of compose pins where the shell flags come from; only running a
@@ -192,18 +192,18 @@ public sealed class GarageFixture : IAsyncLifetime
         // container behind them, or a failing run leaks Docker resources on every retry.
         try
         {
-            container = new ContainerBuilder(ComposeStack.Prod.ImageOf(NodeAlias))
+            container = new ContainerBuilder(ComposeStack.Dev.ImageOf(NodeAlias))
 
                 // The argument vector compose gives the service, read from compose rather than
                 // copied out of it. The image carries no entrypoint, so the binary is the first word.
-                .WithCommand(ComposeStack.Prod.CommandOf(NodeAlias))
+                .WithCommand(ComposeStack.Dev.CommandOf(NodeAlias))
 
                 // The repository's own configuration, at the path compose mounts it to - read from
                 // compose rather than restated, because the ports, the region and the replication
                 // factor the adapter has to match are decided by whatever lands at that path.
                 .WithResourceMapping(
                     ComposeStack.GarageConfigBytes,
-                    ComposeStack.Prod.GarageConfigMountTarget(NodeAlias))
+                    ComposeStack.Dev.GarageConfigMountTarget(NodeAlias))
                 .WithNetwork(network)
                 .WithNetworkAliases(NodeAlias)
                 .WithEnvironment(EnvironmentOf(NodeAlias))
@@ -218,13 +218,13 @@ public sealed class GarageFixture : IAsyncLifetime
             // is only one of it.
             var provisioning = await RunInitContainerAsync(
                 network,
-                ComposeStack.Prod.ObjectsInitScript,
+                ComposeStack.Dev.ObjectsInitScript,
                 CancellationToken.None);
 
             if (provisioning.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    "compose.prod.yaml's objects-init script failed to provision the Garage node "
+                    "compose.dev.yaml's objects-init script failed to provision the Garage node "
                         + $"(exit code {provisioning.ExitCode}).{Environment.NewLine}{provisioning.Logs}");
             }
 
@@ -245,11 +245,11 @@ public sealed class GarageFixture : IAsyncLifetime
 
     /// <summary>
     /// The environment a compose service declares, with the names taken from
-    /// <c>compose.prod.yaml</c> and the values from <c>.env.example</c> — so a key dropped or
+    /// <c>compose.dev.yaml</c> and the values from <c>.env.example</c> — so a key dropped or
     /// renamed in either file throws.
     /// </summary>
     private static IReadOnlyDictionary<string, string> EnvironmentOf(string service) =>
-        ComposeStack.Prod.EnvironmentKeysOf(service)
+        ComposeStack.Dev.EnvironmentKeysOf(service)
             .ToDictionary(key => key, ComposeStack.EnvExample, StringComparer.Ordinal);
 
     /// <summary>
@@ -261,13 +261,13 @@ public sealed class GarageFixture : IAsyncLifetime
         string script,
         CancellationToken cancellationToken)
     {
-        var init = new ContainerBuilder(ComposeStack.Prod.ImageOf(InitService))
+        var init = new ContainerBuilder(ComposeStack.Dev.ImageOf(InitService))
             .WithNetwork(network)
 
             // Read rather than copied, because the flags are the contract: drop the `-e` and a
             // provisioning step that failed halfway would still exit 0, leaving an S3 key with no
             // grant on a bucket and a `docker compose up` that reports success.
-            .WithEntrypoint(ComposeStack.Prod.EntrypointOf(InitService))
+            .WithEntrypoint(ComposeStack.Dev.EntrypointOf(InitService))
             .WithCommand(script)
             .WithEnvironment(EnvironmentOf(InitService))
 

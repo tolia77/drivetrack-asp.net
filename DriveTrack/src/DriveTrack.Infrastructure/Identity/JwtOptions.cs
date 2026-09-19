@@ -5,7 +5,7 @@ namespace DriveTrack.Infrastructure.Identity;
 /// <para>
 /// Every value arrives as an environment variable in the container — <c>Jwt__SigningKey</c>,
 /// <c>Jwt__Issuer</c>, <c>Jwt__Audience</c>, <c>Jwt__LifetimeMinutes</c> — and appears in
-/// <c>.env.example</c> and <c>compose.prod.yaml</c>. Nothing here has a committed default that
+/// <c>.env.example</c> and <c>compose.dev.yaml</c>. Nothing here has a committed default that
 /// would still work: a signing key with a fallback is a signing key everyone knows.
 /// </para>
 /// </summary>
